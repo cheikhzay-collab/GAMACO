@@ -1422,6 +1422,13 @@ export default function LessonViewerPage() {
           flex: 1;
           padding: 0.4rem 0.75rem;
         }
+        .homework-content-cell .katex,
+        .homework-table .katex,
+        .homework-row .katex,
+        .homework-subq-item .katex {
+          font-size: 1.0em !important;
+          line-height: inherit !important;
+        }
         .homework-content-header {
           font-size: 1.05rem;
           display: flex;

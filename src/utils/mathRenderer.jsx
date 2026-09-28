@@ -85,6 +85,11 @@ export const repairMathExpression = (latex) => {
     .replace(/(?<![a-zA-Z\\])exp\b/g, '\\exp')
     .replace(/(?<![a-zA-Z\\])lim\b/g, '\\lim');
 
+  // 1b. Repair mathbb (R, N, Z, C, Q, K) missing backslash or braces: mathbbR -> \mathbb{R}
+  repaired = repaired
+    .replace(/(?<![a-zA-Z\\])mathbb\{?([RNZQCKrnzqck])\}?/g, (_, l) => `\\mathbb{${l.toUpperCase()}}`)
+    .replace(/\\mathbb([RNZQCKrnzqck])(?![a-zA-Z])/g, (_, l) => `\\mathbb{${l.toUpperCase()}}`);
+
   // 2. Convert sqrt(xxx) to \sqrt{xxx}
   repaired = repaired.replace(/sqrt\(([^)]+)\)/g, '\\sqrt{$1}');
   
@@ -353,8 +358,8 @@ export const wrapStandaloneLatexCommands = (text) => {
           : inner;
         return `$\\boxed{${formattedInner}}$`;
       })
-      .replace(/(?<![$\w\\])(\\(?:mathbb|mathbf|mathcal|mathrm)\{[a-zA-Z0-9]+\})(?![$\w\\])/g, (_, m) => `$${m}$`)
-      .replace(/(?<![$\w\\])(\\mathbb[a-zA-Z0-9])(?![$\w\\])/g, (_, m) => `$${m}$`)
+      .replace(/(?<![$\w\\])(\\(?:mathbb|mathbf|mathcal|mathrm)\{[a-zA-Z0-9]+\}(?:[\^_][a-zA-Z0-9\+\*\-]+)*)(?![$\w\\])/g, (_, m) => `$${m}$`)
+      .replace(/(?<![$\w\\])(?:\\?mathbb\{?([RNZQCKrnzqck])\}?((?:[\^_][a-zA-Z0-9\+\*\-]+)*))(?![$\w\\])/g, (_, l, suf) => `$\\mathbb{${l.toUpperCase()}}${suf || ''}$`)
       .replace(/(?<![$\w\\])(\\(?:sqrt|vec|overrightarrow)\{[^{}]+\})(?![$\w\\])/g, (_, m) => `$${m}$`)
       .replace(/(?<![$\w\\])(\\(?:notin|in|subset|subseteq|cap|cup|emptyset|implies|iff|to|rightarrow|leftarrow|leq|geq|neq|approx|pm|mp|times|cdot))\b(?![$\w\\])/g, (_, m) => `$${m}$`);
   }).join('');
@@ -1089,3 +1094,99 @@ function renderWithMathInternal(text) {
   );
 }
 
+/* ─── 9. renderToHtmlString — Pure HTML string for print windows ─────────────
+ *
+ *  Unlike renderWithMath() which returns JSX, this returns a plain HTML string.
+ *  KaTeX renders math via renderToString. Markdown is converted to basic HTML.
+ *  Safe to inject via innerHTML or window.open().
+ *
+ *  Supports: # ## ### headings, **bold**, bullet lists, $$…$$, $…$, ---
+ */
+export function renderToHtmlString(text) {
+  if (!text || typeof text !== 'string') return '';
+
+  // 1. Normalise newlines + literal \n escape sequences
+  let raw = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  raw = raw.replace(/\\n/g, '\n');
+
+  // 2. Pre-process LaTeX repair and standalone command wrapping
+  raw = autoRepairMathText(raw);
+  raw = wrapStandaloneLatexCommands(raw);
+
+  // 3. Render math to KaTeX HTML
+  const renderMathInline = (latex) => {
+    try {
+      return katex.renderToString(repairMathExpression(latex), { ...KATEX_OPTIONS, displayMode: false });
+    } catch { return `<em>${latex}</em>`; }
+  };
+
+  const renderMathBlock = (latex) => {
+    try {
+      return `<div style="overflow-x:auto;text-align:center;margin:.75em 0">${katex.renderToString(repairMathExpression(latex), { ...KATEX_OPTIONS, displayMode: true })}</div>`;
+    } catch { return `<pre>${latex}</pre>`; }
+  };
+
+  // 4. Extract multi-line block math ($$ ... $$) into placeholders BEFORE line splitting
+  const blockPlaceholders = [];
+  raw = raw.replace(/\$\$([\s\S]*?)\$\$/g, (_, math) => {
+    const ph = `__BLOCK_MATH_${blockPlaceholders.length}__`;
+    blockPlaceholders.push(renderMathBlock(math));
+    return `\n\n${ph}\n\n`;
+  });
+
+  // 5. Process inline math delimiters in a string
+  const processMath = (str) => {
+    let out = '';
+    let i = 0;
+    while (i < str.length) {
+      if (str[i] === '\\' && str[i + 1] === '$') { out += '$'; i += 2; continue; }
+      if (str[i] === '$') {
+        let j = i + 1; let found = false;
+        while (j < str.length) { if (str[j] === '\\') { j += 2; continue; } if (str[j] === '$') { found = true; break; } j++; }
+        if (found && j > i + 1) { out += renderMathInline(str.slice(i + 1, j)); i = j + 1; continue; }
+      }
+      out += str[i]; i++;
+    }
+    return out;
+  };
+
+  // 6. Bold + math
+  const processInline = (str) =>
+    processMath(str.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>'));
+
+  // 7. Line-by-line conversion
+  const lines = raw.split('\n');
+  const html = [];
+  let inList = false;
+  const flushList = () => { if (inList) { html.push('</ul>'); inList = false; } };
+
+  for (const line of lines) {
+    const t = line.trim();
+    if (!t) { flushList(); html.push('<div style="height:.4em"></div>'); continue; }
+
+    // Check for block math placeholder
+    const blockMatch = t.match(/^__BLOCK_MATH_(\d+)__$/);
+    if (blockMatch) {
+      flushList();
+      const idx = parseInt(blockMatch[1], 10);
+      if (blockPlaceholders[idx]) html.push(blockPlaceholders[idx]);
+      continue;
+    }
+
+    if (t.startsWith('### ')) { flushList(); html.push(`<h3 style="font-size:.97rem;color:#7C3AED;margin:1.1rem 0 .4rem">${processInline(t.slice(4))}</h3>`); continue; }
+    if (t.startsWith('## '))  { flushList(); html.push(`<h2 style="font-size:1.06rem;color:#059669;border-left:3px solid #059669;padding-left:.6rem;margin:1.5rem 0 .5rem">${processInline(t.slice(3))}</h2>`); continue; }
+    if (t.startsWith('# '))   { flushList(); html.push(`<h1 style="font-size:1.3rem;border-bottom:2px solid #7C3AED;padding-bottom:.4rem;margin-bottom:1rem">${processInline(t.slice(2))}</h1>`); continue; }
+    if (/^---+$/.test(t))     { flushList(); html.push('<hr style="margin:1.5rem 0;opacity:.15">'); continue; }
+
+    if (/^[-*•]\s+/.test(t)) {
+      if (!inList) { html.push('<ul style="padding-left:1.4rem;margin:.4rem 0">'); inList = true; }
+      html.push(`<li style="margin:.22rem 0">${processInline(t.replace(/^[-*•]\s+/, ''))}</li>`);
+      continue;
+    }
+
+    flushList();
+    html.push(`<p style="margin:.35rem 0;line-height:1.85">${processInline(t)}</p>`);
+  }
+  flushList();
+  return html.join('\n');
+}

@@ -176,6 +176,9 @@ export const generateNationalExamHTML = async (examData, settings = {}) => {
     .ne-q-qr { width: 85px; display: flex; align-items: center; justify-content: center; background: #fff; padding: 4px; flex-shrink: 0; }
     .ne-q-qr img { width: 75px; height: 75px; object-fit: contain; }
     .page-break { page-break-before: always; }
+    .katex {
+      font-size: 1.0em !important;
+    }
     .katex .msupsub .vlist-t:not(.vlist-t2) .sizing.size3,
     .katex .msupsub .vlist-t:not(.vlist-t2) .sizing.reset-size6.size3,
     .katex .msupsub .vlist-t.vlist-t2 span[style*="top:-3"] .sizing.size3,

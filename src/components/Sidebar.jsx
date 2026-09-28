@@ -3,7 +3,8 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, ClipboardList, Sparkles, FileText,
   BookMarked, Camera, GraduationCap, FileUp, Layers, Settings,
-  Trophy, BookOpen, Sun, Moon, LogOut, Menu, X, ChevronLeft, ChevronRight
+  Trophy, BookOpen, Sun, Moon, LogOut, Menu, X, ChevronLeft, ChevronRight,
+  BrainCircuit
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import LconqLogo from './LconqLogo';
@@ -34,17 +35,18 @@ export default function Sidebar() {
   const isAdmin   = user?.role === 'admin';
 
   const adminLinks = [
-    { to: '/admin/dashboard',    icon: LayoutDashboard, label: 'Tableau de bord'  },
-    { to: '/admin/classes',      icon: Users,           label: 'Classes'          },
-    { to: '/admin/logbook',      icon: ClipboardList,   label: 'Cahier de textes' },
-    { to: '/admin/ai-generator', icon: Sparkles,        label: 'Générateur IA'    },
-    { to: '/admin/lessons',      icon: FileText,        label: 'Fiches de cours'  },
-    { to: '/admin/exams',        icon: GraduationCap,   label: 'Banque QCM'       },
-    { to: '/admin/upload',       icon: FileUp,          label: 'Upload QCM'       },
-    { to: '/scanner',            icon: Camera,          label: 'Scanner OMR'      },
-    { to: '/admin/ebooks',       icon: BookMarked,      label: 'E-Books'          },
-    { to: '/levels',             icon: Layers,          label: 'Niveaux'          },
-    { to: '/admin/settings',     icon: Settings,        label: 'Paramètres'       },
+    { to: '/admin/dashboard',      icon: LayoutDashboard, label: 'Tableau de bord'   },
+    { to: '/admin/classes',        icon: Users,           label: 'Classes'           },
+    { to: '/admin/logbook',        icon: ClipboardList,   label: 'Cahier de textes'  },
+    { to: '/admin/ai-generator',   icon: Sparkles,        label: 'Générateur IA'     },
+    { to: '/admin/lessons',        icon: FileText,        label: 'Fiches de cours'   },
+    { to: '/admin/exams',          icon: GraduationCap,   label: 'Banque QCM'        },
+    { to: '/admin/upload',         icon: FileUp,          label: 'Upload QCM'        },
+    { to: '/scanner',              icon: Camera,          label: 'Scanner OMR'       },
+    { to: '/admin/ebooks',         icon: BookMarked,      label: 'E-Books'           },
+    { to: '/levels',               icon: Layers,          label: 'Niveaux'           },
+    { to: '/admin/self-learning',  icon: BrainCircuit,    label: 'Auto-Formation'    },
+    { to: '/admin/settings',       icon: Settings,        label: 'Paramètres'        },
   ];
 
   const studentLinks = [

@@ -32,6 +32,7 @@ const LevelsPage         = lazy(() => import('./pages/LevelsPage'));
 const OMRScannerPage     = lazy(() => import('./pages/OMRScannerPage'));
 const RankingPage        = lazy(() => import('./pages/RankingPage'));
 const AuthCallback       = lazy(() => import('./pages/AuthCallback'));
+const AdminSelfLearning   = lazy(() => import('./pages/AdminSelfLearning'));
 const PrintView          = lazy(() => import('./pages/PrintView'));
 
 // ─── Route Guards ─────────────────────────────────────────────────────────────
@@ -212,6 +213,7 @@ function AppContent() {
             <Route path="/admin/ebooks" element={<AdminRoute><AdminEbooks /></AdminRoute>} />
             <Route path="/admin/settings" element={<AdminRoute><AdminSettings /></AdminRoute>} />
             <Route path="/admin/logbook" element={<AdminRoute><AdminLogbook /></AdminRoute>} />
+            <Route path="/admin/self-learning" element={<AdminRoute><AdminSelfLearning /></AdminRoute>} />
           </Route>
 
           {/* Fallback — redirect to login */}

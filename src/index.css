@@ -84,6 +84,9 @@
   --bg-card:   rgba(24, 24, 27, 0.7); /* Translucent Zinc-900 cards */
   --bg-glass:  rgba(255, 255, 255, 0.025);
   --bg-hover:  rgba(255, 255, 255, 0.04);
+  --surface-1: #18181B;              /* Opaque Zinc 900 for modals & elevated cards */
+  --surface-2: #27272A;              /* Zinc 800 for chips & secondary surfaces */
+  --surface-3: #3F3F46;              /* Zinc 700 */
 
   /* Borders */
   --border:       rgba(255, 255, 255, 0.05); /* Extremely thin matte borders */
@@ -118,6 +121,9 @@ body.light-theme {
   --bg-card:  rgba(255, 255, 255, 0.88);
   --bg-glass: rgba(255, 255, 255, 0.68);
   --bg-hover: rgba(84, 81, 214, 0.075);
+  --surface-1: #FFFFFF;
+  --surface-2: #F1F5F9;
+  --surface-3: #E2E8F0;
 
   /* ── Borders ── */
   --border:       rgba(100, 116, 139, 0.22);
@@ -1364,21 +1370,40 @@ body.light-theme .drawer {
   background: var(--bg-hover);
 }
 
-.btn-ghost {
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  padding: 0.5rem;
+.btn-ghost, .btn.btn-ghost {
+  background: var(--surface-2, rgba(255, 255, 255, 0.06)) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text-main) !important;
+  padding: 0.45rem 0.85rem;
   border-radius: var(--radius-md);
   cursor: pointer;
   transition: all 0.2s;
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.45rem;
   font-family: inherit;
+  font-weight: 600;
+  box-shadow: none !important;
 }
 
-.btn-ghost:hover { color: var(--text-main); background: var(--bg-hover); }
+.btn-ghost:hover, .btn.btn-ghost:hover {
+  color: var(--text-main) !important;
+  background: var(--bg-hover, rgba(255, 255, 255, 0.1)) !important;
+  border-color: var(--border-hover, rgba(255, 255, 255, 0.2)) !important;
+}
+
+body.light-theme .btn-ghost, body.light-theme .btn.btn-ghost {
+  background: #FFFFFF !important;
+  border: 1px solid #CBD5E1 !important;
+  color: #1E293B !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06) !important;
+}
+
+body.light-theme .btn-ghost:hover, body.light-theme .btn.btn-ghost:hover {
+  background: #F8FAFC !important;
+  color: #0F172A !important;
+  border-color: #94A3B8 !important;
+}
 
 /* Premium High-Converting Emerald Button & Shimmer Sweep */
 .btn-emerald {
@@ -2244,12 +2269,16 @@ b .katex * {
   font-weight: normal !important;
 }
 
-/* KaTeX inside cards — match surrounding text exactly, no jump */
+/* KaTeX inside cards & homework tables — match surrounding text exactly, no jump */
 .flashcard-card .katex,
 .mfc-phase .katex,
 .astuce-match-content .katex,
-.mfc-astuce-body .katex {
-  font-size: 1em !important;
+.mfc-astuce-body .katex,
+.homework-table .katex,
+.homework-content-cell .katex,
+.homework-subq-item .katex,
+.homework-row .katex {
+  font-size: 1.0em !important;
 }
 
 /* Block math: always scrollable, never wider than container */

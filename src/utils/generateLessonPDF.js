@@ -258,7 +258,7 @@ const repairMathExpression = (latex) => {
 const renderInlineKatex = (latex) => {
   try {
     const repaired = repairMathExpression(latex);
-    return katex.renderToString(repaired, { ...KATEX_OPTIONS, displayMode: false });
+    return `<span class="katex-inline">${katex.renderToString(repaired, { ...KATEX_OPTIONS, displayMode: false })}</span>`;
   }
   catch { return `<span style="font-style:italic;opacity:0.75">${esc(latex)}</span>`; }
 };
@@ -2344,10 +2344,11 @@ body.hide-solutions .modern-solution-block {
   display: inline-block !important;
 }
 
-/* Inline math size: perfectly matches 10pt text size and optical weight */
+/* Inline and block math size: strictly matches 1:1 with surrounding text font size */
 .inline-math-container .katex,
-.katex-inline .katex {
-  font-size: 1em !important;
+.katex-inline .katex,
+.katex {
+  font-size: 1.0em !important;
   color: #0f172a !important;
   font-weight: normal !important;
 }
@@ -3099,9 +3100,16 @@ html[dir="rtl"] .section-header-row {
 .homework-content-cell {
   flex: 1;
   padding: 0.55rem 0.85rem;
-  font-size: 0.92rem;
+  font-size: 0.95rem;
   line-height: 1.6;
   color: #0f172a;
+}
+.homework-table .katex,
+.homework-content-cell .katex,
+.homework-subq-item .katex,
+.homework-row .katex {
+  font-size: 1.0em !important;
+  line-height: inherit !important;
 }
 
 @media print {
@@ -3151,6 +3159,11 @@ html[dir="rtl"] .section-header-row {
   .homework-content-header {
     background: #005086 !important;
     color: #ffffff !important;
+  }
+  .homework-table .katex,
+  .homework-content-cell .katex,
+  .homework-subq-item .katex {
+    font-size: 1.0em !important;
   }
   .page-content,
   .modern-pro-layout {
@@ -3627,10 +3640,16 @@ function _applyPrintStyles() {
     '  font-size: ' + _currentFontSize + 'pt !important;',
     '  line-height: ' + _currentLineHeight + ' !important;',
     '}',
+    '.katex, .homework-table .katex, .homework-content-cell .katex, .homework-subq-item .katex, .katex-inline .katex {',
+    '  font-size: 1.0em !important;',
+    '}',
     '@media print {',
     '  ' + contentSelectors + ' {',
     '    font-size: ' + _currentFontSize + 'pt !important;',
     '    line-height: ' + _currentLineHeight + ' !important;',
+    '  }',
+    '  .katex, .homework-table .katex, .homework-content-cell .katex, .homework-subq-item .katex, .katex-inline .katex {',
+    '    font-size: 1.0em !important;',
     '  }',
     '}',
     '.exercises-one-column { column-count: 1 !important; display: block !important; width: 100% !important; }',
