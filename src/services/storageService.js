@@ -1,10 +1,8 @@
 // src/services/storageService.js
-// Multi-tier asset storage: Supabase Storage -> Local Companion -> Inline Base64 Fallback.
-
-import { supabase } from '../lib/supabase';
+// Multi-tier asset storage: Native API Server (/api/assets) -> Inline Base64 Fallback.
 
 /**
- * Uploads an asset (file/blob or base64 data url) to Supabase Storage or Companion server.
+ * Uploads an asset (file/blob or base64 data url) to the API server or fallback.
  * @param {File|Blob|string} fileOrDataUrl - The file or base64 data URL to upload.
  * @param {string} path - The destination path (e.g. 'lessons/MOCK-1/fig1.png').
  * @param {string} [mimeType='image/png'] - MIME type.
@@ -35,56 +33,42 @@ export const uploadAsset = async (fileOrDataUrl, path, mimeType = 'image/png') =
 
   const cleanPath = path.replace(/^\/+/, '');
 
-  // 1. Try Supabase Storage (Primary Cloud Storage)
-  if (supabase && fileBlob) {
-    try {
-      const { error: uploadError } = await supabase.storage
-        .from('gima-assets')
-        .upload(cleanPath, fileBlob, {
-          contentType: mimeType,
-          upsert: true
-        });
+  // 1. Try Native API Server (/api/assets)
+  try {
+    const isLocalDev = typeof window !== 'undefined' && window.location && (window.location.port === '5173' || window.location.port === '3000');
+    const apiUrl = isLocalDev 
+      ? `http://${window.location.hostname || '127.0.0.1'}:5002/api/assets`
+      : '/api/assets';
 
-      if (!uploadError) {
-        const { data: urlData } = supabase.storage
-          .from('gima-assets')
-          .getPublicUrl(cleanPath);
-
-        if (urlData?.publicUrl) {
-          return urlData.publicUrl;
-        }
-      } else {
-        console.warn('[Storage] Supabase upload failed:', uploadError.message);
-      }
-    } catch (err) {
-      console.warn('[Storage] Supabase storage exception:', err.message || err);
-    }
-  }
-
-  // 2. Try Local Companion Server on port 5002 (local dev only)
-  const isLocal = typeof window !== 'undefined' && window.location && 
-    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname === '');
-  if (isLocal) {
-    try {
-      const host = window.location.hostname || '127.0.0.1';
-      const compResponse = await fetch(`http://${host}:5002/api/assets`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          path: cleanPath,
-          data: base64Data,
-          mimeType,
-        }),
+    // If we only have a blob, convert to base64 first
+    if (!base64Data && fileBlob) {
+      base64Data = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => resolve('');
+        reader.readAsDataURL(fileBlob);
       });
+    }
 
-      if (compResponse.ok) {
-        const json = await compResponse.json();
-        if (json.publicUrl) return json.publicUrl;
-      }
-    } catch (err) {}
+    const compResponse = await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        path: cleanPath,
+        data: base64Data,
+        mimeType,
+      }),
+    });
+
+    if (compResponse.ok) {
+      const json = await compResponse.json();
+      if (json.publicUrl) return json.publicUrl;
+    }
+  } catch (err) {
+    console.warn('[Storage] API upload error, falling back to base64:', err.message);
   }
 
-  // 3. Fallback to inline Base64 Data URL if offline
+  // 2. Fallback to inline Base64 Data URL if offline
   if (base64Data) return base64Data;
   if (fileBlob) {
     return new Promise((resolve) => {

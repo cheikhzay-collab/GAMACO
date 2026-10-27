@@ -79,11 +79,12 @@ const wrapStandaloneLatexCommands = (text) => {
       .replace(/[\u2124]/g, '$\\mathbb{Z}$')
       .replace(/[\u211A]/g, '$\\mathbb{Q}$')
       .replace(/[\u2102]/g, '$\\mathbb{C}$')
-      .replace(/(?<![$\w\\])(\\boxed\{[^{}]+\})(?![$\w\\])/g, (_, m) => {
-        const inner = m.slice(7, -1).trim();
-        const formattedInner = (/[a-zA-Z]{2,}\s+[a-zA-Z]/.test(inner) && !inner.includes('\\text{'))
-          ? `\\text{${inner}}`
-          : inner;
+      .replace(/(?<![$\w\\])(\\boxed\{((?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})+)\})(?![$\w\\])/g, (_, m, inner) => {
+        const cleanInner = inner.trim();
+        const isPureText = !cleanInner.includes('\\') && !/[=<>+\-*\/^_]/.test(cleanInner) && /[a-zA-ZÀ-ÿ]{2,}\s+[a-zA-ZÀ-ÿ]/.test(cleanInner);
+        const formattedInner = isPureText && !cleanInner.includes('\\text{')
+          ? `\\text{${cleanInner}}`
+          : cleanInner;
         return `$\\boxed{${formattedInner}}$`;
       })
       .replace(/(?<![$\w\\])(\\(?:mathbb|mathbf|mathcal|mathrm)\{[a-zA-Z0-9]+\})(?![$\w\\])/g, (_, m) => `$${m}$`)
@@ -244,10 +245,26 @@ const repairMathExpression = (latex) => {
     .replace(/\\vec\{([a-zA-Z0-9]{2,})\}/g, '\\overrightarrow{$1}')
     .replace(/(?<![a-zA-Z\\])vec\{([a-zA-Z0-9]{2,})\}/g, '\\overrightarrow{$1}');
 
-  // 6. Ensure words with spaces inside \boxed{} are wrapped in \text{} for crisp KaTeX rendering
-  repaired = repaired.replace(/\\boxed\{([^{}]+)\}/g, (match, inner) => {
-    if (/[a-zA-Z]{2,}\s+[a-zA-Z]/.test(inner) && !inner.includes('\\text{')) {
-      return `\\boxed{\\text{${inner}}}`;
+  // 6. Unwrap invalid \text{...} inside math if it wraps LaTeX commands
+  repaired = repaired.replace(/\\text\{((?:[^{}]|\{[^{}]*\})*\\(?:exists|forall|in|notin|subset|supset|implies|iff|land|lor|neg|ne|neq|le|leq|ge|geq|to|cdot|times|frac|dfrac|sqrt|int|sum|prod|lim|alpha|beta|gamma|delta|pi|theta|infty|mathbb|mathbf|mathcal)\b(?:[^{}]|\{[^{}]*\})*)\}/g, '$1');
+
+  // 6b. Repair broken otin -> \notin (e.g. \sqrt{2}otin\mathbb{R} -> \sqrt{2}\notin\mathbb{R})
+  repaired = repaired.replace(/(?<![a-zA-Z\\])otin(?=[\\\{\sA-Z0-9\(\[]|$)/g, '\\notin ');
+
+  // 6c. Repair missing spaces after quantifiers & set relations
+  repaired = repaired
+    .replace(/\\exists([a-zA-Z0-9])/g, (_, l) => `\\exists ${l}`)
+    .replace(/\\exists!([a-zA-Z0-9])/g, (_, l) => `\\exists! ${l}`)
+    .replace(/\\forall([a-zA-Z0-9])/g, (_, l) => `\\forall ${l}`)
+    .replace(/\\in([A-Z])(?![a-zA-Z])/g, (_, l) => `\\in ${l}`)
+    .replace(/\\notin([A-Z])(?![a-zA-Z])/g, (_, l) => `\\notin ${l}`);
+
+  // 6d. Ensure PURE words with spaces inside \boxed{} are wrapped in \text{} for crisp KaTeX rendering
+  repaired = repaired.replace(/\\boxed\{((?:[^{}]|\{[^{}]*\})+)\}/g, (match, inner) => {
+    const cleanInner = inner.trim();
+    const isPureText = !cleanInner.includes('\\') && !/[=<>+\-*\/^_]/.test(cleanInner) && /[a-zA-ZÀ-ÿ]{2,}\s+[a-zA-ZÀ-ÿ]/.test(cleanInner);
+    if (isPureText && !cleanInner.includes('\\text{')) {
+      return `\\boxed{\\text{${cleanInner}}}`;
     }
     return match;
   });
@@ -295,7 +312,19 @@ const repairCorruptedLatex = (text) => {
     .replace(/(?<!\\)left\b/g, '\\left')
     .replace(/(?<![a-zA-Z\\])frac\{/g, '\\frac{')
     .replace(/(?<![a-zA-Z\\])dfrac\{/g, '\\dfrac{')
-    .replace(/(?<![a-zA-Z\\])rac\{/g, '\\frac{');
+    .replace(/(?<![a-zA-Z\\])rac\{/g, '\\frac{')
+    .replace(/(?<![a-zA-Z\\])otin(?=[\\\{\sA-Z0-9\(\[]|$)/g, '\\notin ')
+    .replace(/\\exists([a-zA-Z0-9])/g, (_, l) => `\\exists ${l}`)
+    .replace(/\\exists!([a-zA-Z0-9])/g, (_, l) => `\\exists! ${l}`)
+    .replace(/\\forall([a-zA-Z0-9])/g, (_, l) => `\\forall ${l}`)
+    .replace(/\\in([A-Z])(?![a-zA-Z])/g, (_, l) => `\\in ${l}`)
+    .replace(/\\notin([A-Z])(?![a-zA-Z])/g, (_, l) => `\\notin ${l}`);
+
+  // 2b. Unwrap invalid \text{...} inside \boxed{}
+  s = s.replace(/\\boxed\{\\text\{((?:[^{}]|\{[^{}]*\})*\\(?:exists|forall|in|notin|subset|supset|implies|iff|land|lor|neg|ne|neq|le|leq|ge|geq|to|cdot|times|frac|dfrac|sqrt|int|sum|prod|lim|alpha|beta|gamma|delta|pi|theta|infty|mathbb|mathbf|mathcal)\b(?:[^{}]|\{[^{}]*\})*)\}\}/g, '\\boxed{$1}');
+
+  // 2c. Wrap standalone bare \boxed{...} with $ if not already in math
+  s = s.replace(/(?<![$a-zA-Z0-9_\\])(\\boxed\{((?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})+)\})(?![$a-zA-Z0-9_\\])/g, '$$$1$$');
 
   // 3. Robust math environment wrapper
   // Matches optional equation LHS prefix (e.g. f(x) = or (S) : or u_n =) followed by \begin{env}...\end{env}
@@ -358,18 +387,35 @@ const renderLine = (line) => {
     return renderBlockKatex(repairCorruptedLatex(cleaned));
   }
 
-  // Markdown Headings: ### ## #
+  // Markdown Headings: ###### ##### #### ### ## #
+  if (/^######\s+/.test(cleaned)) {
+    const text = cleaned.replace(/^######\s+/, '');
+    return `<div style="font-weight:800;font-size:0.85rem;color:#334155;text-transform:uppercase;letter-spacing:0.05em;margin:0.5rem 0 0.25rem">${renderLineContent(text)}</div>`;
+  }
+  if (/^#####\s+/.test(cleaned)) {
+    const text = cleaned.replace(/^#####\s+/, '');
+    return `<div style="font-weight:800;font-size:0.88rem;color:#005086;margin:0.6rem 0 0.3rem">${renderLineContent(text)}</div>`;
+  }
+  if (/^####\s+/.test(cleaned)) {
+    const text = cleaned.replace(/^####\s+/, '');
+    return `<div style="font-weight:800;font-size:0.92rem;color:#005086;border-bottom:1px dashed rgba(0,80,134,0.15);padding-bottom:0.2rem;margin:0.75rem 0 0.35rem">${renderLineContent(text)}</div>`;
+  }
   if (/^###\s+/.test(cleaned)) {
     const text = cleaned.replace(/^###\s+/, '');
-    return `<div style="font-weight:800;font-size:0.95rem;color:#005086;border-bottom:1px solid rgba(0,80,134,0.15);padding-bottom:0.25rem;margin:0.75rem 0 0.4rem">${renderLineContent(text)}</div>`;
+    return `<div style="font-weight:800;font-size:0.98rem;color:#005086;border-bottom:1px solid rgba(0,80,134,0.15);padding-bottom:0.25rem;margin:0.85rem 0 0.4rem">${renderLineContent(text)}</div>`;
   }
   if (/^##\s+/.test(cleaned)) {
     const text = cleaned.replace(/^##\s+/, '');
-    return `<div style="font-weight:900;font-size:1.05rem;color:#005086;border-bottom:1.5px solid rgba(0,80,134,0.2);padding-bottom:0.3rem;margin:1rem 0 0.5rem">${renderLineContent(text)}</div>`;
+    return `<div style="font-weight:900;font-size:1.08rem;color:#005086;border-bottom:1.5px solid rgba(0,80,134,0.2);padding-bottom:0.3rem;margin:1rem 0 0.5rem">${renderLineContent(text)}</div>`;
   }
   if (/^#\s+/.test(cleaned)) {
     const text = cleaned.replace(/^#\s+/, '');
-    return `<div style="font-weight:900;font-size:1.2rem;color:#005086;border-bottom:2px solid rgba(0,80,134,0.3);padding-bottom:0.4rem;margin:1rem 0 0.6rem">${renderLineContent(text)}</div>`;
+    return `<div style="font-weight:900;font-size:1.25rem;color:#005086;border-bottom:2px solid rgba(0,80,134,0.3);padding-bottom:0.4rem;margin:1.1rem 0 0.6rem">${renderLineContent(text)}</div>`;
+  }
+
+  // Horizontal Rule / Separator: ---, ***, ___
+  if (/^(?:---|\*\*\*|___)\s*$/.test(cleaned)) {
+    return `<hr style="border:none;border-top:1px solid #cbd5e1;margin:0.85rem 0;" />`;
   }
 
   // Response Block

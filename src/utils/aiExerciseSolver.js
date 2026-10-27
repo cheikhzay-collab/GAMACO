@@ -354,6 +354,8 @@ ${baremeDirectiveFr}
 4. Typographie mathématique KaTeX / LaTeX impeccable & Règles des Tableaux :
    - Écrire TOUTES les expressions mathématiques en syntaxe KaTeX irréprochable : $...$ pour l'inline et $$...$$ pour les blocs.
    - Encadrer systématiquement chaque résultat final dans une boîte : \\boxed{...}.
+   - ⚠️ RÈGLE CRUCIALE POUR \\boxed{...} : Ne JAMAIS mettre \\text{...} autour de formules mathématiques ou de quantificateurs (écris \\boxed{\\exists x_0 \\in I, f(x_0) = 0} et SURTOUT PAS \\boxed{\\text{\\exists...}} car cela détruit le rendu KaTeX !). N'utilise \\text{...} que pour des phrases textuelles pures sans symboles.
+   - ⚠️ ESPACEMENT DES SYMBOLES : Toujours séparer les quantificateurs et symboles de leurs variables par un espace : écris \\exists x \\in I (avec espaces) et NON \\existsx \\inI. Pour la non-appartenance, écris toujours \\notin (ex: \\sqrt{2} \\notin \\mathbb{Q}).
    - ⚠️ INTERDICTION STRICTE DE LA COMMANDE \\cline : KaTeX ne supporte pas \\cline (cela provoque un échec d'affichage). Utiliser EXCLUSIVEMENT \\hline pour toutes les lignes horizontales !
    - ⚠️ ENCADREMENT PAR $$ ... $$ : Tout environnement \\begin{array} ... \\end{array} DOIT ÊTRE OBLIGATOIREMENT encadré par $$ ouvrant et $$ fermant.
    - Modèle officiel pour le Tableau de Signes :

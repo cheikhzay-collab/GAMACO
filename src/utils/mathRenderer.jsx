@@ -144,10 +144,27 @@ export const repairMathExpression = (latex) => {
     .replace(/(?<![a-zA-Z\\])implies\b/g, '\\implies')
     .replace(/(?<![a-zA-Z\\])iff\b/g, '\\iff');
 
-  // 8. Ensure words with spaces inside \boxed{} are wrapped in \text{} for crisp KaTeX rendering
-  repaired = repaired.replace(/\\boxed\{([^{}]+)\}/g, (match, inner) => {
-    if (/[a-zA-Z]{2,}\s+[a-zA-Z]/.test(inner) && !inner.includes('\\text{')) {
-      return `\\boxed{\\text{${inner}}}`;
+  // 8. Unwrap invalid \text{...} inside math if it wraps LaTeX commands
+  repaired = repaired.replace(/\\text\{((?:[^{}]|\{[^{}]*\})*\\(?:exists|forall|in|notin|subset|supset|implies|iff|land|lor|neg|ne|neq|le|leq|ge|geq|to|cdot|times|frac|dfrac|sqrt|int|sum|prod|lim|alpha|beta|gamma|delta|pi|theta|infty|mathbb|mathbf|mathcal)\b(?:[^{}]|\{[^{}]*\})*)\}/g, '$1');
+
+  // 8b. Repair broken otin -> \notin (e.g. \sqrt{2}otin\mathbb{R} -> \sqrt{2}\notin\mathbb{R})
+  repaired = repaired.replace(/(?<![a-zA-Z\\])otin(?=[\\\{\sA-Z0-9\(\[]|$)/g, '\\notin ');
+
+  // 8c. Repair missing spaces after quantifiers & set relations
+  repaired = repaired
+    .replace(/\\exists([a-zA-Z0-9])/g, (_, l) => `\\exists ${l}`)
+    .replace(/\\exists!([a-zA-Z0-9])/g, (_, l) => `\\exists! ${l}`)
+    .replace(/\\forall([a-zA-Z0-9])/g, (_, l) => `\\forall ${l}`)
+    .replace(/\\in([A-Z])(?![a-zA-Z])/g, (_, l) => `\\in ${l}`)
+    .replace(/\\notin([A-Z])(?![a-zA-Z])/g, (_, l) => `\\notin ${l}`);
+
+  // 8d. Ensure PURE words with spaces inside \boxed{} are wrapped in \text{} for crisp KaTeX rendering
+  // (NEVER wrap if it contains LaTeX commands or math operators)
+  repaired = repaired.replace(/\\boxed\{((?:[^{}]|\{[^{}]*\})+)\}/g, (match, inner) => {
+    const cleanInner = inner.trim();
+    const isPureText = !cleanInner.includes('\\') && !/[=<>+\-*\/^_]/.test(cleanInner) && /[a-zA-ZÀ-ÿ]{2,}\s+[a-zA-ZÀ-ÿ]/.test(cleanInner);
+    if (isPureText && !cleanInner.includes('\\text{')) {
+      return `\\boxed{\\text{${cleanInner}}}`;
     }
     return match;
   });
@@ -351,17 +368,18 @@ export const wrapStandaloneLatexCommands = (text) => {
       .replace(/[\u2124]/g, '$\\mathbb{Z}$')
       .replace(/[\u211A]/g, '$\\mathbb{Q}$')
       .replace(/[\u2102]/g, '$\\mathbb{C}$')
-      .replace(/(?<![$\w\\])(\\boxed\{[^{}]+\})(?![$\w\\])/g, (_, m) => {
-        const inner = m.slice(7, -1).trim();
-        const formattedInner = (/[a-zA-Z]{2,}\s+[a-zA-Z]/.test(inner) && !inner.includes('\\text{'))
-          ? `\\text{${inner}}`
-          : inner;
+      .replace(/(?<![$\w\\])(\\boxed\{((?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})+)\})(?![$\w\\])/g, (_, m, inner) => {
+        const cleanInner = inner.trim();
+        const isPureText = !cleanInner.includes('\\') && !/[=<>+\-*\/^_]/.test(cleanInner) && /[a-zA-ZÀ-ÿ]{2,}\s+[a-zA-ZÀ-ÿ]/.test(cleanInner);
+        const formattedInner = isPureText && !cleanInner.includes('\\text{')
+          ? `\\text{${cleanInner}}`
+          : cleanInner;
         return `$\\boxed{${formattedInner}}$`;
       })
       .replace(/(?<![$\w\\])(\\(?:mathbb|mathbf|mathcal|mathrm)\{[a-zA-Z0-9]+\}(?:[\^_][a-zA-Z0-9\+\*\-]+)*)(?![$\w\\])/g, (_, m) => `$${m}$`)
       .replace(/(?<![$\w\\])(?:\\?mathbb\{?([RNZQCKrnzqck])\}?((?:[\^_][a-zA-Z0-9\+\*\-]+)*))(?![$\w\\])/g, (_, l, suf) => `$\\mathbb{${l.toUpperCase()}}${suf || ''}$`)
       .replace(/(?<![$\w\\])(\\(?:sqrt|vec|overrightarrow)\{[^{}]+\})(?![$\w\\])/g, (_, m) => `$${m}$`)
-      .replace(/(?<![$\w\\])(\\(?:notin|in|subset|subseteq|cap|cup|emptyset|implies|iff|to|rightarrow|leftarrow|leq|geq|neq|approx|pm|mp|times|cdot))\b(?![$\w\\])/g, (_, m) => `$${m}$`);
+      .replace(/(?<![$\w\\])(\\(?:notin|in|subset|subseteq|cap|cup|emptyset|implies|iff|to|rightarrow|leftarrow|leq|geq|neq|approx|pm|mp|times|cdot|forall|exists))\b(?![$\w\\])/g, (_, m) => `$${m}$`);
   }).join('');
 };
 
@@ -479,10 +497,19 @@ export const autoRepairMathText = (text) => {
     .replace(/(?<!\\)left\b/g, '\\left')
     .replace(/(?<![a-zA-Z\\])frac\{/g, '\\frac{')
     .replace(/(?<![a-zA-Z\\])dfrac\{/g, '\\dfrac{')
-    .replace(/(?<![a-zA-Z\\])rac\{/g, '\\frac{');
+    .replace(/(?<![a-zA-Z\\])rac\{/g, '\\frac{')
+    .replace(/(?<![a-zA-Z\\])otin(?=[\\\{\sA-Z0-9\(\[]|$)/g, '\\notin ')
+    .replace(/\\exists([a-zA-Z0-9])/g, (_, l) => `\\exists ${l}`)
+    .replace(/\\exists!([a-zA-Z0-9])/g, (_, l) => `\\exists! ${l}`)
+    .replace(/\\forall([a-zA-Z0-9])/g, (_, l) => `\\forall ${l}`)
+    .replace(/\\in([A-Z])(?![a-zA-Z])/g, (_, l) => `\\in ${l}`)
+    .replace(/\\notin([A-Z])(?![a-zA-Z])/g, (_, l) => `\\notin ${l}`);
 
-  // 4. Wrap standalone bare \boxed{...} with $ if not already in math
-  res = res.replace(/(?<![$a-zA-Z0-9_\\])(\\boxed\{[^{}]+\})(?![$a-zA-Z0-9_\\])/g, '$$$1$$');
+  // 5. Unwrap invalid \text{...} inside \boxed{} that wraps math formulas
+  res = res.replace(/\\boxed\{\\text\{((?:[^{}]|\{[^{}]*\})*\\(?:exists|forall|in|notin|subset|supset|implies|iff|land|lor|neg|ne|neq|le|leq|ge|geq|to|cdot|times|frac|dfrac|sqrt|int|sum|prod|lim|alpha|beta|gamma|delta|pi|theta|infty|mathbb|mathbf|mathcal)\b(?:[^{}]|\{[^{}]*\})*)\}\}/g, '\\boxed{$1}');
+
+  // 6. Wrap standalone bare \boxed{...} with $ if not already in math (supports nested braces)
+  res = res.replace(/(?<![$a-zA-Z0-9_\\])(\\boxed\{((?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})+)\})(?![$a-zA-Z0-9_\\])/g, '$$$1$$');
 
   return res;
 };
@@ -813,11 +840,35 @@ function renderWithMathInternal(text) {
       .trim();
     if (!cleaned) return null;
 
-    // ── Markdown Headings: ### ## #
+    // ── Markdown Headings: ###### ##### #### ### ## #
+    if (/^######\s+/.test(cleaned)) {
+      const text = cleaned.replace(/^######\s+/, '');
+      return (
+        <div key={key} style={{ fontWeight: 800, fontSize: '0.85rem', color: '#334155', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0.5rem 0 0.25rem' }}>
+          {renderLineContent(text)}
+        </div>
+      );
+    }
+    if (/^#####\s+/.test(cleaned)) {
+      const text = cleaned.replace(/^#####\s+/, '');
+      return (
+        <div key={key} style={{ fontWeight: 800, fontSize: '0.88rem', color: '#005086', margin: '0.6rem 0 0.3rem' }}>
+          {renderLineContent(text)}
+        </div>
+      );
+    }
+    if (/^####\s+/.test(cleaned)) {
+      const text = cleaned.replace(/^####\s+/, '');
+      return (
+        <div key={key} style={{ fontWeight: 800, fontSize: '0.92rem', color: '#005086', borderBottom: '1px dashed rgba(0,80,134,0.15)', paddingBottom: '0.2rem', margin: '0.75rem 0 0.35rem' }}>
+          {renderLineContent(text)}
+        </div>
+      );
+    }
     if (/^###\s+/.test(cleaned)) {
       const text = cleaned.replace(/^###\s+/, '');
       return (
-        <div key={key} style={{ fontWeight: 800, fontSize: '0.95rem', color: '#005086', borderBottom: '1px solid rgba(0,80,134,0.15)', paddingBottom: '0.25rem', margin: '0.75rem 0 0.4rem' }}>
+        <div key={key} style={{ fontWeight: 800, fontSize: '0.98rem', color: '#005086', borderBottom: '1px solid rgba(0,80,134,0.15)', paddingBottom: '0.25rem', margin: '0.85rem 0 0.4rem' }}>
           {renderLineContent(text)}
         </div>
       );
@@ -825,7 +876,7 @@ function renderWithMathInternal(text) {
     if (/^##\s+/.test(cleaned)) {
       const text = cleaned.replace(/^##\s+/, '');
       return (
-        <div key={key} style={{ fontWeight: 900, fontSize: '1.05rem', color: '#005086', borderBottom: '1.5px solid rgba(0,80,134,0.2)', paddingBottom: '0.3rem', margin: '1rem 0 0.5rem' }}>
+        <div key={key} style={{ fontWeight: 900, fontSize: '1.08rem', color: '#005086', borderBottom: '1.5px solid rgba(0,80,134,0.2)', paddingBottom: '0.3rem', margin: '1rem 0 0.5rem' }}>
           {renderLineContent(text)}
         </div>
       );
@@ -833,10 +884,15 @@ function renderWithMathInternal(text) {
     if (/^#\s+/.test(cleaned)) {
       const text = cleaned.replace(/^#\s+/, '');
       return (
-        <div key={key} style={{ fontWeight: 900, fontSize: '1.2rem', color: '#005086', borderBottom: '2px solid rgba(0,80,134,0.3)', paddingBottom: '0.4rem', margin: '1rem 0 0.6rem' }}>
+        <div key={key} style={{ fontWeight: 900, fontSize: '1.25rem', color: '#005086', borderBottom: '2px solid rgba(0,80,134,0.3)', paddingBottom: '0.4rem', margin: '1.1rem 0 0.6rem' }}>
           {renderLineContent(text)}
         </div>
       );
+    }
+
+    // ── Horizontal Rule / Separator: ---, ***, ___
+    if (/^(?:---|\*\*\*|___)\s*$/.test(cleaned)) {
+      return <hr key={key} style={{ border: 'none', borderTop: '1px solid #cbd5e1', margin: '0.85rem 0' }} />;
     }
 
     // ── Markdown unordered list: - item  or  • item  or  * item (but not LaTeX like \mu, ** bold, etc.)

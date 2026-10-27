@@ -4,7 +4,8 @@ import QRCode from 'qrcode';
 const cleanLatexStr = (str) => {
   if (!str || typeof str !== 'string') return '';
   return str
-    .replace(/\\n([a-zA-Z])/g, '\n $1') // Fix \nSoit -> \n Soit
+    .replace(/\\n(?!(?:eq|ne|notin|nabla|nsubseteq|nsupseteq|nexists|nparallel|natural|nearrow|nwarrow|ni|not|neg)\b)([A-ZÀ-ÖØ-ß])/g, '\n $1') // Fix \nSoit -> \n Soit
+    .replace(/(?<![a-zA-Z\\])otin(?=[\\\{\sA-Z0-9\(\[]|$)/g, '\\notin ') // Fix corrupted \notin (otin -> \notin)
     .replace(/\\\\([a-zA-Z]+)/g, '\\$1') // Fix \\overrightarrow -> \overrightarrow
     .replace(/\*\*/g, '') // Strip markdown **
     .trim();

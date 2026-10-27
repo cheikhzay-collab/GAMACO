@@ -63,29 +63,17 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// ── NEVER cache: Supabase Cloud Database & Auth API ────────────────────────────
-// Caching database responses would return stale data.
-registerRoute(
-  ({ url }) =>
-    url.hostname.includes('supabase.co') ||
-    url.pathname.startsWith('/auth/'),
-  new NetworkOnly()
-);
-
 // ── NEVER cache: Auth routes ───────────────────────────────────────────────
 registerRoute(
   ({ url }) =>
+    url.pathname.startsWith('/api/auth/') ||
     url.pathname.startsWith('/auth/'),
   new NetworkOnly()
 );
 
-// ── Local Companion API (/api/*) — NetworkFirst with 5-min cache ───────────
-// When the companion server is running: always try network first (fresh data).
-// When offline/server down: serve cached response (up to 5 min old).
+// ── Native API (/api/*) — NetworkFirst with fresh fallback cache ───────────
 registerRoute(
-  ({ url }) =>
-    (url.hostname === 'localhost' || url.hostname === '127.0.0.1') &&
-    url.pathname.startsWith('/api/'),
+  ({ url }) => url.pathname.startsWith('/api/'),
   new NetworkFirst({
     cacheName: CACHE.api,
     networkTimeoutSeconds: 3, // Fall back to cache after 3s

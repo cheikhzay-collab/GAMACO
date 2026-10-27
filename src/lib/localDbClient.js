@@ -1,10 +1,31 @@
 // src/lib/localDbClient.js
 // Client API wrapper for communicating with the local Companion server database on port 5002.
 
-const getHost = () => (typeof window !== 'undefined' && window.location && window.location.hostname) ? window.location.hostname : '127.0.0.1';
-const BASE_URL = `http://${getHost()}:5002/api`;
-const PING_URL = `http://${getHost()}:5002/ping`;
-const PROBE_TIMEOUT_MS = 2000;
+const isLocalDev = () => {
+  if (typeof window === 'undefined' || !window.location) return false;
+  const p = window.location.port;
+  return p === '5173' || p === '3000' || p === '5002';
+};
+
+const getBaseUrl = () => {
+  if (typeof window === 'undefined') return 'http://127.0.0.1:5002/api';
+  if (isLocalDev()) {
+    const h = window.location.hostname || '127.0.0.1';
+    return `http://${h}:5002/api`;
+  }
+  return '/api';
+};
+
+const getPingUrl = () => {
+  if (typeof window === 'undefined') return 'http://127.0.0.1:5002/ping';
+  if (isLocalDev()) {
+    const h = window.location.hostname || '127.0.0.1';
+    return `http://${h}:5002/ping`;
+  }
+  return '/ping';
+};
+
+const PROBE_TIMEOUT_MS = 2500;
 const REQUEST_TIMEOUT_MS = 15000;
 const OFFLINE_COOLDOWN_MS = 5000;
 const GET_CACHE_TTL_MS = 2000;
@@ -16,22 +37,12 @@ const inFlightGets = new Map();
 const getCache = new Map();
 
 const unavailableError = () => {
-  const error = new Error('Local companion server unavailable');
-  error.code = 'COMPANION_UNAVAILABLE';
+  const error = new Error('Database API server unavailable');
+  error.code = 'API_UNAVAILABLE';
   return error;
 };
 
-const isLocalHost = () => {
-  if (typeof window === 'undefined' || !window.location) return false;
-  const h = window.location.hostname;
-  return h === 'localhost' || h === '127.0.0.1' || h === '';
-};
-
 const probeCompanion = async () => {
-  if (!isLocalHost()) {
-    companionAvailable = false;
-    return false;
-  }
   if (companionAvailable === true) return true;
   if (companionAvailable === false && Date.now() < companionUnavailableUntil) return false;
   if (companionProbe) return companionProbe;
@@ -40,7 +51,7 @@ const probeCompanion = async () => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
     try {
-      const response = await fetch(PING_URL, { method: 'GET', signal: controller.signal });
+      const response = await fetch(getPingUrl(), { method: 'GET', signal: controller.signal });
       companionAvailable = response.ok;
       if (!companionAvailable) companionUnavailableUntil = Date.now() + OFFLINE_COOLDOWN_MS;
       return companionAvailable;
@@ -60,7 +71,7 @@ const probeCompanion = async () => {
 const request = async (endpoint, options = {}) => {
   if (!(await probeCompanion())) throw unavailableError();
 
-  const url = `${BASE_URL}${endpoint}`;
+  const url = `${getBaseUrl()}${endpoint}`;
   const headers = {
     'Content-Type': 'application/json',
     ...(options.headers || {})

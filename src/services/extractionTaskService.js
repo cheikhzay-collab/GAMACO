@@ -4,15 +4,13 @@
 
 import { supabase } from '../lib/supabase';
 
-const isLocalHost = () => {
-  if (typeof window === 'undefined' || !window.location) return false;
-  const h = window.location.hostname;
-  return h === 'localhost' || h === '127.0.0.1' || h === '';
-};
-
 const getCandidateBaseUrls = () => {
-  if (!isLocalHost()) return [];
-  return ['/companion-api', 'http://localhost:5002', 'http://127.0.0.1:5002'];
+  const isDev = typeof window !== 'undefined' && window.location && (window.location.port === '5173' || window.location.port === '3000');
+  if (isDev) {
+    const h = window.location.hostname || 'localhost';
+    return [`http://${h}:5002`, 'http://localhost:5002', 'http://127.0.0.1:5002'];
+  }
+  return [''];
 };
 
 let activeBaseUrl = null;
@@ -20,20 +18,15 @@ let companionOnline = null;
 let lastCheckTime = 0;
 
 /**
- * Check if the local companion server (port 5002) is running
+ * Check if the server API (/ping) is running
  */
 export const isCompanionAvailable = async (forceCheck = false) => {
-  if (!isLocalHost()) {
-    companionOnline = false;
-    return false;
-  }
-
   const now = Date.now();
   if (!forceCheck && companionOnline !== null && now - lastCheckTime < 5000) {
     return companionOnline;
   }
 
-  const candidateBases = ['/companion-api', 'http://localhost:5002', 'http://127.0.0.1:5002'];
+  const candidateBases = getCandidateBaseUrls();
 
   for (const base of candidateBases) {
     try {
