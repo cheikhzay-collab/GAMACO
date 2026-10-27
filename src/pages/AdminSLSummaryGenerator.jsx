@@ -433,8 +433,8 @@ RÈGLES DE RÉDACTION :
       const userPrompt = `Rédige un résumé ${depthObj.label} sur : "${resolvedTopic}" — ${moduleName} (${semester}, Licence MA Maroc).`;
 
       const storedModel = (localStorage.getItem('geminiModel') || '').trim();
-      const preferred = storedModel || 'gemini-2.5-flash';
-      const models = [preferred, 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+      const preferred = (storedModel && !storedModel.includes('3.') && !storedModel.includes('2.5') && !storedModel.includes('3.6')) ? storedModel : 'gemini-2.0-flash';
+      const models = [preferred, 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-pro'];
 
       let rawText = null, lastErr = null;
       for (const model of models) {

@@ -518,8 +518,8 @@ RÈGLE TECHNIQUE CRITIQUE :
 
       // Models to try in order of capability
       const storedModel = (localStorage.getItem('geminiModel') || '').trim();
-      const preferredModel = (storedModel === '3.7' || storedModel === 'gemini-3.7') ? 'gemini-3.7-flash' : (storedModel === '3.5' || storedModel === 'gemini-3.5') ? 'gemini-3.5-flash' : (storedModel || 'gemini-2.5-flash');
-      const modelsToTry = [preferredModel, 'gemini-2.5-flash', 'gemini-3.7-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+      const preferredModel = (storedModel && !storedModel.includes('3.') && !storedModel.includes('2.5') && !storedModel.includes('3.6')) ? storedModel : 'gemini-2.0-flash';
+      const modelsToTry = [preferredModel, 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-pro'];
 
       let rawResponseText = null;
       let lastError = null;

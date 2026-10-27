@@ -275,8 +275,8 @@ Génère le JSON strict contenant la liste des questions équivalentes pour le M
     // 2. Essai Gemini si DeepSeek non disponible ou échoué
     if (!generatedBatch && availableEngines.includes('gemini')) {
       const storedModel = (localStorage.getItem('geminiModel') || '').trim();
-      const preferredModel = (storedModel === '3.7' || storedModel === 'gemini-3.7') ? 'gemini-3.7-flash' : (storedModel === '3.5' || storedModel === 'gemini-3.5') ? 'gemini-3.5-flash' : (storedModel || 'gemini-3.7-flash');
-      const modelsToTry = [preferredModel, 'gemini-3.7-flash', 'gemini-3.5-flash', 'gemini-3.7-pro', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.5-pro', 'gemini-1.5-pro'];
+      const preferredModel = (storedModel && !storedModel.includes('3.') && !storedModel.includes('2.5') && !storedModel.includes('3.6')) ? storedModel : 'gemini-2.0-flash';
+      const modelsToTry = [preferredModel, 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-pro'];
 
       for (const model of modelsToTry) {
         if (generatedBatch) break;

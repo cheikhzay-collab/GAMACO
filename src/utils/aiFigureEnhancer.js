@@ -319,7 +319,7 @@ Régénère cette figure avec une fidélité mathématique totale en code SVG pu
   onStatusUpdate('توليد الشكل الهندسي المتجهي فائق الدقة بالذكاء الاصطناعي (Génération vectorielle SVG)...');
 
   // Modèles candidats de Gemini supportant la vision multimodale
-  const modelsToTry = ['gemini-2.5-flash', 'gemini-3.6-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+  const modelsToTry = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-pro'];
   let lastError = null;
 
   for (const model of modelsToTry) {

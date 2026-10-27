@@ -701,7 +701,7 @@ export default function AdminAIImport({ onBack }) {
   const [geminiKey, setGeminiKey] = useState(() => localStorage.getItem('geminiApiKey') || '');
   const [geminiModel, setGeminiModel] = useState(() => {
     let m = draft?.geminiModel || localStorage.getItem('geminiModel');
-    return m || 'gemini-3.7-flash';
+    return m || 'gemini-2.0-flash';
   });
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('claudeApiKey') || '');
   const [proxyUrl, setProxyUrl] = useState(() => localStorage.getItem('claudeProxyUrl') || '');
@@ -844,7 +844,7 @@ export default function AdminAIImport({ onBack }) {
     setCorrectionPageFrom(1);
     setCorrectionPageTo(1);
     setProvider('gemini');
-    setGeminiModel('gemini-3.6-flash');
+    setGeminiModel('gemini-2.0-flash');
     setDeepseekModel('deepseek-reasoner');
     setClaudeModel('claude-3-5-sonnet-20241022');
     setError('');
@@ -894,7 +894,7 @@ Pour le champ 'astuce', extrais/résume l'explication officielle fournie dans le
     }
 
     let rawModel = (geminiModel || 'gemini-2.0-flash').trim();
-    if (['gemini-1.5-pro', '3.7', 'gemini-3.7', 'gemini-3.7-flash', 'gemini-3.7-pro', '3.5', 'gemini-3.5', 'gemini-3.5-flash'].includes(rawModel)) {
+    if (!rawModel || rawModel.includes('3.') || rawModel.includes('2.5') || rawModel.includes('3.6')) {
       rawModel = 'gemini-2.0-flash';
     }
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${rawModel}:generateContent?key=${geminiKey}`;
@@ -1787,12 +1787,8 @@ ${pdfText}
               <label>Modèle Gemini <span style={{fontWeight:400, color:'var(--text-muted)'}}>— ID exact de l'API</span></label>
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
                 {[
-                  { id: 'gemini-3.7-flash', label: 'Gemini 3.7 Flash (Nouveau)' },
-                  { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash' },
-                  { id: 'gemini-3.7-pro', label: 'Gemini 3.7 Pro' },
-                  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
-                  { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
-                  { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
+                  { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (Recommandé)' },
+                  { id: 'gemini-2.0-flash-lite', label: 'Gemini 2.0 Flash-Lite' },
                   { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
                   { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' }
                 ].map(item => (
@@ -1810,11 +1806,11 @@ ${pdfText}
                 className="input-control"
                 value={geminiModel}
                 onChange={e => { setGeminiModel(e.target.value); localStorage.setItem('geminiModel', e.target.value); }}
-                placeholder="ex: gemini-3.7-flash"
+                placeholder="ex: gemini-2.0-flash"
                 style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}
               />
               <p style={{ marginTop: '0.4rem', fontSize: '0.73rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                💡 Recommandé : <strong>gemini-3.7-flash</strong>, <strong>gemini-3.5-flash</strong> ou <strong>gemini-2.5-flash</strong> (Haute fidélité LaTeX et extraction intégrale).
+                💡 Recommandé : <strong>gemini-2.0-flash</strong>, <strong>gemini-2.0-flash-lite</strong> ou <strong>gemini-1.5-pro</strong> (Dernières versions Google officielles).
               </p>
             </div>
           )}

@@ -395,8 +395,8 @@ export async function callAIWithFailover(prompt, options = {}) {
       if (prov === 'gemini') {
         const key = options.geminiKey || localStorage.getItem('geminiApiKey') || '';
         if (!key) continue;
-        const rawModel = (options.geminiModel || localStorage.getItem('geminiModel') || 'gemini-3.7-flash').trim();
-        const model = (rawModel === '3.7' || rawModel === 'gemini-3.7') ? 'gemini-3.7-flash' : (rawModel === '3.5' || rawModel === 'gemini-3.5') ? 'gemini-3.5-flash' : rawModel;
+        const rawModel = (options.geminiModel || localStorage.getItem('geminiModel') || 'gemini-2.0-flash').trim();
+        const model = (rawModel === '3.7' || rawModel === 'gemini-3.7' || rawModel === 'gemini-3.7-flash' || rawModel === 'gemini-2.5-flash') ? 'gemini-2.0-flash' : rawModel;
         console.log(`[AI Failover] Attemping generation with Gemini (${model})...`);
         const text = await callGemini(prompt, key, model);
         return { text, provider: 'gemini' };

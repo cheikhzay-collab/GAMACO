@@ -146,8 +146,8 @@ export default function AdminLessons() {
 
       // 2. Call Gemini model
       const storedModel = localStorage.getItem('geminiModel');
-      // Validate model name — accept known valid Gemini models including 3.7 and 3.5
-      const validModels = ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash-lite', 'gemini-2.5-pro'];
+      // Validate model name — accept known valid Gemini models
+      const validModels = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-pro'];
       const modelToUse = (storedModel && validModels.includes(storedModel)) ? storedModel : 'gemini-2.0-flash';
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${geminiKey}`;
 

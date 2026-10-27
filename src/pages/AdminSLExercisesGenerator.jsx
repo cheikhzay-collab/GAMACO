@@ -451,8 +451,8 @@ RÈGLES IMPORTANTES DE RÉDACTION ET STRUCTURE :
    - Ne mets pas d'antislash double : écris \\mathbb{R}, \\frac{a}{b}, \\sqrt{x}.`;
 
       const storedModel = (localStorage.getItem('geminiModel') || '').trim();
-      const preferred = storedModel || 'gemini-2.5-flash';
-      const models = [preferred, 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+      const preferred = (storedModel && !storedModel.includes('3.') && !storedModel.includes('2.5') && !storedModel.includes('3.6')) ? storedModel : 'gemini-2.0-flash';
+      const models = [preferred, 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-pro'];
 
       let rawText = null, lastErr = null;
       for (const model of models) {
