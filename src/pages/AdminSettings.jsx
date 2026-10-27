@@ -2188,9 +2188,9 @@ export default function AdminSettings() {
                     </div>
 
                     <div className="flex items-center gap-1.5 flex-wrap mb-3">
-                      <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.45rem', borderRadius: '6px', background: 'rgba(66,133,244,0.1)', color: '#4285F4' }}>Gemini 2.5 Flash</span>
-                      <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.45rem', borderRadius: '6px', background: 'rgba(66,133,244,0.1)', color: '#4285F4' }}>Thinking</span>
-                      <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.45rem', borderRadius: '6px', background: 'rgba(66,133,244,0.1)', color: '#4285F4' }}>Imagen 3</span>
+                      <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.45rem', borderRadius: '6px', background: 'rgba(66,133,244,0.1)', color: '#4285F4' }}>Gemini 3.1 Flash-Lite</span>
+                      <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.45rem', borderRadius: '6px', background: 'rgba(66,133,244,0.1)', color: '#4285F4' }}>Gemini 3.5 Flash</span>
+                      <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.45rem', borderRadius: '6px', background: 'rgba(66,133,244,0.1)', color: '#4285F4' }}>Gemini 3.8 Flash</span>
                     </div>
 
                     <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: '1.25rem' }}>

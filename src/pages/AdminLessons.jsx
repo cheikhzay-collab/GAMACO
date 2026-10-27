@@ -145,10 +145,11 @@ export default function AdminLessons() {
         .join('\n\n');
 
       // 2. Call Gemini model
-      const storedModel = localStorage.getItem('geminiModel');
-      // Validate model name — accept known valid Gemini models
-      const validModels = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-pro'];
-      const modelToUse = (storedModel && validModels.includes(storedModel)) ? storedModel : 'gemini-2.0-flash';
+      const storedModel = (localStorage.getItem('geminiModel') || '').trim();
+      let modelToUse = storedModel;
+      if (!modelToUse || ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-2.5-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-pro', 'gemini-2.5-flash-lite', '3.7', 'gemini-3.7', 'gemini-3.7-flash', '3.5'].includes(modelToUse)) {
+        modelToUse = 'gemini-3.1-flash-lite';
+      }
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${geminiKey}`;
 
       // 3. Detect lesson language (Arabic or French)

@@ -1,0 +1,17 @@
+name: Feature Request
+description: Propose an idea or enhancement for L'CONQ.
+title: "[FEAT]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or Pedagogical Goal
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Suggested Solution
+    validations:
+      required: true

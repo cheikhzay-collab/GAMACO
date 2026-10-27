@@ -1,6 +1,28 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import { handleApiRequest, initMySQL } from './server.js'
+
+function apiServerPlugin() {
+  let isDbInit = false;
+  return {
+    name: 'api-server-middleware',
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+        if (parsedUrl.pathname === '/ping' || parsedUrl.pathname.startsWith('/api/')) {
+          if (!isDbInit) {
+            isDbInit = true;
+            await initMySQL().catch(() => {});
+          }
+          await handleApiRequest(req, res, next);
+          return;
+        }
+        next();
+      });
+    }
+  };
+}
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -10,6 +32,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       react(),
+      apiServerPlugin(),
     VitePWA({
       selfDestroying: true,
       strategies: 'injectManifest',
@@ -120,15 +143,11 @@ export default defineConfig(({ mode }) => {
     },
   },
 
-  // Dev server: faster HMR & Companion proxy
+  // Dev server on port 3000 with host 0.0.0.0
   server: {
-    proxy: {
-      '/companion-api': {
-        target: 'http://127.0.0.1:5002',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/companion-api/, '')
-      }
-    },
+    host: '0.0.0.0',
+    port: 3000,
+    allowedHosts: true,
     warmup: {
       // Pre-bundle these on server start to avoid first-request lag
       clientFiles: [

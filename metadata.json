@@ -1,0 +1,7 @@
+{
+  "name": "L'CONQ",
+  "description": "Plateforme SRS gamifiée pour préparer les concours de médecine et le baccalauréat au Maroc.",
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

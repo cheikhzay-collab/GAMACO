@@ -607,8 +607,11 @@ export default function AdminExamEdit() {
     setIsGeneratingAiFigure(true);
 
     try {
-      const rawModel = (localStorage.getItem('geminiModel') || 'gemini-2.0-flash').trim();
-      const model = (rawModel === '3.7' || rawModel === 'gemini-3.7' || rawModel === 'gemini-3.7-flash' || rawModel === 'gemini-2.5-flash') ? 'gemini-2.0-flash' : rawModel;
+      let rawModel = (localStorage.getItem('geminiModel') || '').trim();
+      if (!rawModel || ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-2.5-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-pro', 'gemini-2.5-flash-lite', '3.7', '3.5'].includes(rawModel)) {
+        rawModel = 'gemini-3.1-flash-lite';
+      }
+      const model = rawModel;
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
       const prompt = `Tu es un expert en conception de figures scientifiques vectorielles en SVG pour des QCM de mathématiques, physique et chimie.

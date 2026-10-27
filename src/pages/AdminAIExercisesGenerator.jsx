@@ -518,27 +518,58 @@ RÈGLE TECHNIQUE CRITIQUE :
 
       // Models to try in order of capability
       const storedModel = (localStorage.getItem('geminiModel') || '').trim();
-      const preferredModel = (storedModel && !storedModel.includes('3.') && !storedModel.includes('2.5') && !storedModel.includes('3.6')) ? storedModel : 'gemini-2.0-flash';
-      const modelsToTry = [preferredModel, 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+      const preferredModel = (storedModel === '3.7' || storedModel === 'gemini-3.7') ? 'gemini-3.7-flash' : (storedModel === '3.5' || storedModel === 'gemini-3.5') ? 'gemini-3.5-flash' : (storedModel || 'gemini-2.5-flash');
+      const modelsToTry = [preferredModel, 'gemini-2.5-flash', 'gemini-3.7-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
 
       let rawResponseText = null;
       let lastError = null;
 
       for (const model of modelsToTry) {
         try {
-          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
-          const res = await fetch(endpoint, {
+          if (geminiKey && geminiKey.trim()) {
+            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey.trim()}`;
+            const res = await fetch(endpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [
+                  {
+                    role: 'user',
+                    parts: [
+                      { text: `${systemPrompt}\n\n---\n\n${userPrompt}` }
+                    ]
+                  }
+                ],
+                generationConfig: {
+                  temperature: 0.45,
+                  maxOutputTokens: 8192,
+                  responseMimeType: "application/json"
+                }
+              })
+            });
+
+            if (res.ok) {
+              const data = await res.json();
+              const candidate = data.candidates?.[0];
+              const nonThoughtParts = candidate?.content?.parts?.filter(p => !p.thought) || [];
+              const text = (nonThoughtParts.length > 0 ? nonThoughtParts : (candidate?.content?.parts || []))
+                .map(p => p.text || '')
+                .join('');
+              if (text) {
+                rawResponseText = text;
+                break;
+              }
+            }
+          }
+
+          // Server proxy fallback
+          const proxyRes = await fetch('/api/gemini/generate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              contents: [
-                {
-                  role: 'user',
-                  parts: [
-                    { text: `${systemPrompt}\n\n---\n\n${userPrompt}` }
-                  ]
-                }
-              ],
+              model,
+              apiKey: geminiKey || undefined,
+              contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\n---\n\n${userPrompt}` }] }],
               generationConfig: {
                 temperature: 0.45,
                 maxOutputTokens: 8192,
@@ -546,21 +577,17 @@ RÈGLE TECHNIQUE CRITIQUE :
               }
             })
           });
-
-          if (!res.ok) {
-            const errJson = await res.json().catch(() => ({}));
-            throw new Error(errJson?.error?.message || `Gemini ${model} HTTP ${res.status}`);
-          }
-
-          const data = await res.json();
-          const candidate = data.candidates?.[0];
-          const nonThoughtParts = candidate?.content?.parts?.filter(p => !p.thought) || [];
-          const text = (nonThoughtParts.length > 0 ? nonThoughtParts : (candidate?.content?.parts || []))
-            .map(p => p.text || '')
-            .join('');
-          if (text) {
-            rawResponseText = text;
-            break;
+          if (proxyRes.ok) {
+            const proxyData = await proxyRes.json();
+            const candidate = proxyData?.data?.candidates?.[0];
+            const nonThoughtParts = candidate?.content?.parts?.filter(p => !p.thought) || [];
+            const text = (nonThoughtParts.length > 0 ? nonThoughtParts : (candidate?.content?.parts || []))
+              .map(p => p.text || '')
+              .join('');
+            if (text) {
+              rawResponseText = text;
+              break;
+            }
           }
         } catch (mErr) {
           console.warn(`[AI Exercise Gen] Model ${model} failed:`, mErr.message);
@@ -1559,7 +1586,7 @@ RÈGLE TECHNIQUE CRITIQUE :
                   padding: '0.2rem 0.65rem', 
                   borderRadius: '99px' 
                 }}>
-                  ⚡ Gemini 2.5 Flash / Pro
+                  ⚡ Gemini 3.1 Flash-Lite / 3.5 Flash
                 </span>
               </div>
 

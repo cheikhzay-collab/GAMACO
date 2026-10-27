@@ -692,10 +692,10 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 // Verified high-performing models per provider
 const FALLBACK_MODELS = {
   gemini: [
-    'gemini-2.5-flash',
-    'gemini-3.6-flash',
-    'gemini-3.5-flash-lite',
-    'gemini-2.5-pro'
+    'gemini-3.1-flash-lite',
+    'gemini-3.5-flash',
+    'gemini-3.8-flash',
+    'gemini-flash-latest'
   ],
   claude: [
     'claude-3-7-sonnet-20250219',
@@ -715,8 +715,8 @@ const resolveModelCascade = (provider, userPreferredModel) => {
 
   // Normalize aliases and deprecated models
   if (provider === 'gemini') {
-    if (['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', '3.7', 'gemini-3.7', 'gemini-3.7-flash', 'gemini-3.7-pro', '3.5', 'gemini-3.5', 'gemini-3.5-flash'].includes(cleanUser)) {
-      cleanUser = 'gemini-2.5-flash';
+    if (['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-2.5-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-pro', 'gemini-2.5-flash-lite', '3.7', 'gemini-3.7', 'gemini-3.7-flash', 'gemini-3.7-pro', '3.5', 'gemini-3.5', 'gemini-3.5-flash'].includes(cleanUser)) {
+      cleanUser = 'gemini-3.1-flash-lite';
     }
   }
 
@@ -905,7 +905,8 @@ const validateExtractedDocument = (parsed) => {
 // ─── Single Model Invocation Drivers ──────────────────────────────────────────
 
 const callGeminiSingleAttempt = async ({ model, base64Data, safeMime, userText, systemContent, apiKey }) => {
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const effectiveKey = (apiKey || '').trim() || (process.env.GEMINI_API_KEY || '').trim();
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${effectiveKey}`;
 
   const payload = {
     contents: [

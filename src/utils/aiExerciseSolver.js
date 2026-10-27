@@ -502,45 +502,60 @@ ${customInstructions ? `Instructions supplémentaires : ${customInstructions}\n\
   // ── 2. Engine 2 : Google Gemini (Haute disponibilité et rapidité) ──
   if (availableEngines.includes('gemini')) {
     const storedModel = (localStorage.getItem('geminiModel') || '').trim();
-    const preferredModel = (storedModel && !storedModel.includes('3.') && !storedModel.includes('2.5') && !storedModel.includes('3.6')) ? storedModel : 'gemini-2.0-flash';
-    const modelsToTry = [preferredModel, 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-pro'];
-    const uniqueModels = Array.from(new Set(modelsToTry));
+    let preferredModel = storedModel;
+    if (!preferredModel || ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-2.5-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-pro', 'gemini-2.5-flash-lite', '3.7', 'gemini-3.7', 'gemini-3.7-flash', '3.5'].includes(preferredModel)) {
+      preferredModel = 'gemini-3.1-flash-lite';
+    }
+    const uniqueModels = Array.from(new Set([preferredModel, 'gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-flash-latest']));
 
     for (const model of uniqueModels) {
       try {
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
-        const response = await fetch(endpoint, {
+        if (geminiKey && geminiKey.trim()) {
+          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey.trim()}`;
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: userPrompt }] }],
+              systemInstruction: { parts: [{ text: systemPrompt }] },
+              generationConfig: {
+                temperature: 0.15,
+                topK: 40,
+                maxOutputTokens: 8192
+              }
+            })
+          });
+          if (response.ok) {
+            const data = await response.json();
+            const text = (data.candidates?.[0]?.content?.parts || []).filter(p => !p.thought).map(p => p.text || '').join('');
+            if (text.trim()) return filterBaremeByDocType(text.trim(), docType, docTitle || chapterTitle);
+          }
+        }
+        // Proxy fallback
+        const proxyRes = await fetch('/api/gemini/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            model,
+            apiKey: geminiKey || undefined,
             contents: [{ parts: [{ text: userPrompt }] }],
             systemInstruction: { parts: [{ text: systemPrompt }] },
             generationConfig: {
               temperature: 0.15,
               topK: 40,
-              topP: 0.95,
               maxOutputTokens: 8192
             }
           })
         });
-
-        if (!response.ok) {
-          const errJson = await response.json().catch(() => ({}));
-          throw new Error(errJson?.error?.message || `Erreur Gemini HTTP ${response.status}`);
-        }
-
-        const data = await response.json();
-        const candidate = data?.candidates?.[0];
-        const nonThoughtParts = candidate?.content?.parts?.filter(p => !p.thought) || [];
-        const generatedText = (nonThoughtParts.length > 0 ? nonThoughtParts : (candidate?.content?.parts || []))
-          .map(p => p.text || '')
-          .join('');
-
-        if (generatedText && generatedText.trim()) {
-          return filterBaremeByDocType(generatedText.trim(), docType, docTitle || chapterTitle);
+        if (proxyRes.ok) {
+          const proxyData = await proxyRes.json();
+          const text = (proxyData?.data?.candidates?.[0]?.content?.parts || []).filter(p => !p.thought).map(p => p.text || '').join('');
+          if (text.trim()) {
+            return filterBaremeByDocType(text.trim(), docType, docTitle || chapterTitle);
+          }
         }
       } catch (err) {
-        console.warn(`[AI Solver] Gemini model ${model} failed:`, err.message);
+        console.warn(`[ExerciseSolver] Gemini ${model} failed:`, err.message);
         lastError = err;
       }
     }

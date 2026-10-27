@@ -164,14 +164,50 @@ ${JSON.stringify(lesson.content, null, 2)}
 /**
  * استدعاء Gemini API
  */
-async function callGemini(prompt, geminiKey, model = 'gemini-2.0-flash') {
-  const cleanModel = (model === '3.7' || model === 'gemini-3.7' || model === 'gemini-1.5-pro' || !model) ? 'gemini-2.0-flash' : (model === '3.5' || model === 'gemini-3.5') ? 'gemini-2.0-flash' : model;
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${geminiKey}`;
+async function callGemini(prompt, geminiKey, model = 'gemini-3.1-flash-lite') {
+  let cleanModel = (model || '').trim();
+  if (!cleanModel || ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-2.5-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-pro', 'gemini-2.5-flash-lite', '3.7', 'gemini-3.7', 'gemini-3.7-flash', '3.5'].includes(cleanModel)) {
+    cleanModel = 'gemini-3.1-flash-lite';
+  }
 
-  const response = await fetch(endpoint, {
+  // If client key is available, try direct call
+  if (geminiKey && geminiKey.trim()) {
+    try {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${geminiKey.trim()}`;
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.1,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 8192,
+            responseMimeType: "application/json"
+          }
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const candidate = data?.candidates?.[0];
+        if (candidate?.content?.parts) {
+          const nonThoughtParts = candidate.content.parts.filter(p => !p.thought);
+          const text = (nonThoughtParts.length > 0 ? nonThoughtParts : candidate.content.parts).map(p => p.text || '').join('');
+          if (text.trim()) return text;
+        }
+      }
+    } catch (_) {}
+  }
+
+  // Fallback to server proxy with server API key
+  const proxyRes = await fetch('/api/gemini/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
+      model: cleanModel,
+      apiKey: geminiKey || undefined,
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: {
         temperature: 0.1,
@@ -179,26 +215,21 @@ async function callGemini(prompt, geminiKey, model = 'gemini-2.0-flash') {
         topP: 0.95,
         maxOutputTokens: 8192,
         responseMimeType: "application/json"
-      },
-      safetySettings: [
-        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-      ]
+      }
     })
   });
 
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(err?.error?.message || `Gemini HTTP ${response.status}`);
+  if (!proxyRes.ok) {
+    const err = await proxyRes.json().catch(() => ({}));
+    throw new Error(err?.error || `Gemini HTTP ${proxyRes.status}`);
   }
 
-  const data = await response.json();
-  const candidate = data?.candidates?.[0];
+  const proxyData = await proxyRes.json();
+  const candidate = proxyData?.data?.candidates?.[0];
   if (!candidate || !candidate.content?.parts) {
     throw new Error('لم يُرجع Gemini أي محتوى');
   }
+
   const nonThoughtParts = candidate.content.parts.filter(p => !p.thought);
   const text = (nonThoughtParts.length > 0 ? nonThoughtParts : candidate.content.parts)
     .map(p => p.text || '')
@@ -395,8 +426,8 @@ export async function callAIWithFailover(prompt, options = {}) {
       if (prov === 'gemini') {
         const key = options.geminiKey || localStorage.getItem('geminiApiKey') || '';
         if (!key) continue;
-        const rawModel = (options.geminiModel || localStorage.getItem('geminiModel') || 'gemini-2.0-flash').trim();
-        const model = (rawModel === '3.7' || rawModel === 'gemini-3.7' || rawModel === 'gemini-3.7-flash' || rawModel === 'gemini-2.5-flash') ? 'gemini-2.0-flash' : rawModel;
+        const rawModel = (options.geminiModel || localStorage.getItem('geminiModel') || 'gemini-3.7-flash').trim();
+        const model = (rawModel === '3.7' || rawModel === 'gemini-3.7') ? 'gemini-3.7-flash' : (rawModel === '3.5' || rawModel === 'gemini-3.5') ? 'gemini-3.5-flash' : rawModel;
         console.log(`[AI Failover] Attemping generation with Gemini (${model})...`);
         const text = await callGemini(prompt, key, model);
         return { text, provider: 'gemini' };

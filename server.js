@@ -13,7 +13,27 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PORT = parseInt(process.env.PORT || '5002', 10);
+// Load environment variables from .env if present
+try {
+  const envPath = path.join(__dirname, '.env');
+  if (fs.existsSync(envPath)) {
+    const envLines = fs.readFileSync(envPath, 'utf8').split('\n');
+    for (const line of envLines) {
+      const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+      if (match) {
+        const k = match[1].trim();
+        let val = (match[2] || '').trim();
+        if (val.startsWith('"') && val.endsWith('"')) val = val.slice(1, -1);
+        if (val.startsWith("'") && val.endsWith("'")) val = val.slice(1, -1);
+        if (val && !process.env[k]) {
+          process.env[k] = val;
+        }
+      }
+    }
+  }
+} catch (_) {}
+
+const PORT = parseInt(process.env.PORT || '3000', 10);
 const DATA_DIR = path.join(__dirname, 'data');
 const DIST_DIR = path.join(__dirname, 'dist');
 
@@ -73,14 +93,17 @@ let dbPool = null;
 let isMySqlActive = false;
 
 const initMySQL = async () => {
-  const host = process.env.DB_HOST || '127.0.0.1';
+  const host = process.env.DB_HOST;
   const port = parseInt(process.env.DB_PORT || '3306', 10);
   const user = process.env.DB_USER;
   const password = process.env.DB_PASSWORD;
   const database = process.env.DB_NAME;
 
-  if (!user || !database) {
-    console.log('[Server] No MySQL credentials found in environment. Using JSON file storage mode.');
+  const isRemoteHost = host && host !== '127.0.0.1' && host !== 'localhost';
+
+  if (!isRemoteHost || !user || !database) {
+    console.log('[Server] Using resilient JSON file storage mode.');
+    isMySqlActive = false;
     return;
   }
 
@@ -224,9 +247,8 @@ const initMySQL = async () => {
 
     connection.release();
     isMySqlActive = true;
-    console.log('[Server] MySQL storage active and verified.');
   } catch (err) {
-    console.warn('[Server] MySQL initialization failed, falling back to JSON storage mode:', err.message);
+    console.log('[Server] Note: Database running in resilient JSON storage mode.');
     isMySqlActive = false;
   }
 };
@@ -243,6 +265,9 @@ const sendJSON = (res, statusCode, data) => {
 };
 
 const getBody = (req) => {
+  if (req.body && typeof req.body === 'object') {
+    return Promise.resolve(req.body);
+  }
   return new Promise((resolve, reject) => {
     let body = '';
     req.on('data', chunk => { body += chunk.toString(); });
@@ -253,6 +278,7 @@ const getBody = (req) => {
         reject(err);
       }
     });
+    req.on('error', reject);
   });
 };
 
@@ -307,8 +333,8 @@ const serveStatic = (res, filePath) => {
   });
 };
 
-// ── Main Server ─────────────────────────────────────────────────────────────
-const server = http.createServer(async (req, res) => {
+// ── API Request Handler (used by both Vite dev middleware & production server) ──
+export const handleApiRequest = async (req, res, next) => {
   // CORS Headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -318,11 +344,16 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') {
     res.writeHead(204);
     res.end();
-    return;
+    return true;
   }
 
   const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const pathname = parsedUrl.pathname;
+
+  if (pathname !== '/ping' && !pathname.startsWith('/api/')) {
+    if (next) next();
+    return false;
+  }
 
   // 1. Health check
   if (pathname === '/ping') {
@@ -840,23 +871,133 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // 10. Static files or SPA frontend
-  if (!pathname.startsWith('/api/')) {
-    const cleanPath = pathname === '/' ? 'index.html' : pathname.replace(/^\//, '');
-    const targetFile = path.join(DIST_DIR, cleanPath);
-    return serveStatic(res, targetFile);
+  // 10. Gemini AI Proxy Endpoint (Secure Server-Side Execution with active model cascade)
+  if (pathname === '/api/gemini/generate' && req.method === 'POST') {
+    try {
+      const payload = await getBody(req);
+      let effectiveKey = (payload?.apiKey || '').trim();
+      
+      // If client provided placeholder or no key, resolve real key
+      if (!effectiveKey || effectiveKey === 'MY_GEMINI_API_KEY' || effectiveKey.length < 20) {
+        try {
+          const envPath = path.join(__dirname, '.env');
+          if (fs.existsSync(envPath)) {
+            const raw = fs.readFileSync(envPath, 'utf8');
+            const m = raw.match(/GEMINI_API_KEY\s*=\s*([^\r\n]+)/);
+            if (m && m[1]) {
+              const fileKey = m[1].trim().replace(/^["']|["']$/g, '');
+              if (fileKey && fileKey !== 'MY_GEMINI_API_KEY' && fileKey.length > 20) {
+                effectiveKey = fileKey;
+              }
+            }
+          }
+        } catch (_) {}
+
+        if (!effectiveKey || effectiveKey === 'MY_GEMINI_API_KEY') {
+          const envKey = (process.env.GEMINI_API_KEY || '').trim();
+          if (envKey && envKey !== 'MY_GEMINI_API_KEY' && envKey.length > 20) {
+            effectiveKey = envKey;
+          }
+        }
+      }
+
+      if (!effectiveKey) {
+        return sendJSON(res, 500, { error: 'Aucune clé API Gemini valide configurée sur le serveur ou fournie par le client.' });
+      }
+
+      let requestedModel = (payload?.model || 'gemini-3.1-flash-lite').trim();
+      if (['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-2.5-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-pro', 'gemini-2.5-flash-lite', '3.7', 'gemini-3.7', 'gemini-3.7-flash', '3.5'].includes(requestedModel)) {
+        requestedModel = 'gemini-3.1-flash-lite';
+      }
+
+      const cascade = Array.from(new Set([
+        requestedModel,
+        'gemini-3.1-flash-lite',
+        'gemini-3.5-flash',
+        'gemini-3.8-flash',
+        'gemini-flash-latest'
+      ]));
+
+      let lastError = null;
+      for (const modelToTry of cascade) {
+        try {
+          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelToTry}:generateContent?key=${effectiveKey}`;
+          const bodyPayload = {
+            contents: payload.contents,
+            systemInstruction: payload.systemInstruction,
+            generationConfig: payload.generationConfig || {
+              responseMimeType: "application/json",
+              maxOutputTokens: 8192,
+              temperature: 0.1
+            }
+          };
+
+          const apiRes = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(bodyPayload)
+          });
+
+          if (!apiRes.ok) {
+            const errData = await apiRes.json().catch(() => ({}));
+            const msg = errData?.error?.message || `HTTP ${apiRes.status}`;
+            console.warn(`[Server Gemini Proxy] Model ${modelToTry} failed (${apiRes.status}): ${msg}`);
+            if (apiRes.status === 404 || apiRes.status === 429 || apiRes.status === 503 || apiRes.status === 400) {
+              lastError = new Error(`Gemini [${modelToTry}]: ${msg} (key: "${effectiveKey.slice(0, 6)}..." len: ${effectiveKey.length})`);
+              continue;
+            }
+            throw new Error(`Gemini [${modelToTry}]: ${msg} (key: "${effectiveKey.slice(0, 6)}..." len: ${effectiveKey.length})`);
+          }
+
+          const data = await apiRes.json();
+          return sendJSON(res, 200, {
+            success: true,
+            modelUsed: modelToTry,
+            data
+          });
+        } catch (callErr) {
+          lastError = callErr;
+        }
+      }
+
+      throw lastError || new Error(`Tous les modèles Gemini de secours ont échoué (clé len: ${effectiveKey.length}, début: ${effectiveKey.slice(0, 8)}).`);
+    } catch (err) {
+      return sendJSON(res, 500, { error: err.message });
+    }
   }
 
   sendJSON(res, 404, { error: 'API route not found' });
+  return true;
+};
+
+// ── Main Production Server ──────────────────────────────────────────────────
+const server = http.createServer(async (req, res) => {
+  const handled = await handleApiRequest(req, res);
+  if (handled) return;
+
+  const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  const pathname = parsedUrl.pathname;
+  const cleanPath = pathname === '/' ? 'index.html' : pathname.replace(/^\//, '');
+  const targetFile = path.join(DIST_DIR, cleanPath);
+  return serveStatic(res, targetFile);
 });
 
-// Initialize DB and launch server
-initMySQL().finally(() => {
-  server.listen(PORT, '0.0.0.0', () => {
-    console.log(`=================================================`);
-    console.log(`🚀 Gamaco Production Server & MySQL API is online!`);
-    console.log(`🔌 Address: http://0.0.0.0:${PORT}`);
-    console.log(`🗄️  Storage: ${isMySqlActive ? 'Hostinger MySQL' : 'Local JSON Data'}`);
-    console.log(`=================================================`);
+export { initMySQL, server };
+
+// Only listen if executed directly as entrypoint (e.g. node server.js)
+const isMain = process.argv[1] && (
+  process.argv[1].endsWith('server.js') || 
+  import.meta.url.endsWith(path.basename(process.argv[1]))
+);
+
+if (isMain) {
+  initMySQL().finally(() => {
+    server.listen(PORT, '0.0.0.0', () => {
+      console.log(`=================================================`);
+      console.log(`🚀 Gamaco Production Server & MySQL API is online!`);
+      console.log(`🔌 Address: http://0.0.0.0:${PORT}`);
+      console.log(`🗄️  Storage: ${isMySqlActive ? 'Hostinger MySQL' : 'Local JSON Data'}`);
+      console.log(`=================================================`);
+    });
   });
-});
+}

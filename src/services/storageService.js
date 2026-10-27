@@ -35,10 +35,7 @@ export const uploadAsset = async (fileOrDataUrl, path, mimeType = 'image/png') =
 
   // 1. Try Native API Server (/api/assets)
   try {
-    const isLocalDev = typeof window !== 'undefined' && window.location && (window.location.port === '5173' || window.location.port === '3000');
-    const apiUrl = isLocalDev 
-      ? `http://${window.location.hostname || '127.0.0.1'}:5002/api/assets`
-      : '/api/assets';
+    const apiUrl = '/api/assets';
 
     // If we only have a blob, convert to base64 first
     if (!base64Data && fileBlob) {

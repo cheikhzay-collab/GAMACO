@@ -433,31 +433,51 @@ RÈGLES DE RÉDACTION :
       const userPrompt = `Rédige un résumé ${depthObj.label} sur : "${resolvedTopic}" — ${moduleName} (${semester}, Licence MA Maroc).`;
 
       const storedModel = (localStorage.getItem('geminiModel') || '').trim();
-      const preferred = (storedModel && !storedModel.includes('3.') && !storedModel.includes('2.5') && !storedModel.includes('3.6')) ? storedModel : 'gemini-2.0-flash';
-      const models = [preferred, 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+      let preferred = storedModel;
+      if (!preferred || ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-2.5-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-pro', 'gemini-2.5-flash-lite', '3.7', 'gemini-3.7', 'gemini-3.7-flash', '3.5'].includes(preferred)) {
+        preferred = 'gemini-3.1-flash-lite';
+      }
+      const models = Array.from(new Set([preferred, 'gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-flash-latest']));
 
       let rawText = null, lastErr = null;
       for (const model of models) {
         try {
-          const res = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\n---\n\n${userPrompt}` }] }],
-                generationConfig: { temperature: 0.35, maxOutputTokens: 6144 }
-              })
+          if (geminiKey && geminiKey.trim()) {
+            const res = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey.trim()}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\n---\n\n${userPrompt}` }] }],
+                  generationConfig: { temperature: 0.35, maxOutputTokens: 6144 }
+                })
+              }
+            );
+            if (res.ok) {
+              const data = await res.json();
+              const parts = (data.candidates?.[0]?.content?.parts || []).filter(p => !p.thought);
+              const text = parts.map(p => p.text || '').join('');
+              if (text) { rawText = text; break; }
             }
-          );
-          if (!res.ok) {
-            const e = await res.json().catch(() => ({}));
-            throw new Error(e?.error?.message || `HTTP ${res.status}`);
           }
-          const data = await res.json();
-          const parts = (data.candidates?.[0]?.content?.parts || []).filter(p => !p.thought);
-          const text = parts.map(p => p.text || '').join('');
-          if (text) { rawText = text; break; }
+          // Fallback to server proxy with server API key
+          const proxyRes = await fetch('/api/gemini/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model,
+              apiKey: geminiKey || undefined,
+              contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\n---\n\n${userPrompt}` }] }],
+              generationConfig: { temperature: 0.35, maxOutputTokens: 6144 }
+            })
+          });
+          if (proxyRes.ok) {
+            const proxyData = await proxyRes.json();
+            const parts = (proxyData?.data?.candidates?.[0]?.content?.parts || []).filter(p => !p.thought);
+            const text = parts.map(p => p.text || '').join('');
+            if (text) { rawText = text; break; }
+          }
         } catch (e) { lastErr = e; }
       }
 

@@ -235,14 +235,6 @@ export default function MockExamMode() {
   const isCritical = useMemo(() => timeLeft <= 300, [timeLeft]);
   const answeredCount = useMemo(() => Object.keys(answers).length, [answers]);
 
-  const onReturn = useCallback(() => {
-    if (Object.keys(answers).length > 0 && !isFinished) {
-      setShowExitModal(true);
-    } else {
-      navigate(fromPath);
-    }
-  }, [navigate, fromPath, answers, isFinished]);
-
   if ((isGuest && !user) ? guestExamLoading : (loading || loadingQuestions || (currentExam && !questions.length))) {
     return (
       <div className="focus-layout" style={{
@@ -278,13 +270,59 @@ export default function MockExamMode() {
   }
 
   if (!currentExam) {
+    const availableExams = exams.filter(e => e.isActive && !e.isArchived);
+
     return (
-      <div className="focus-layout flex items-center justify-center" style={{ height: '100vh' }}>
-        <div className="glass-panel text-center" style={{ padding: '3rem' }}>
-          <h2 style={{ marginBottom: '1rem' }}>Aucun examen sélectionné</h2>
-          <button className="btn" onClick={handleReturn}>
-            <ArrowLeft size={16} /> Retour
+      <div className="focus-layout min-h-screen p-4 sm:p-8 max-w-5xl mx-auto space-y-8 antialiased">
+        <div className="flex items-center justify-between pb-4 border-b border-zinc-800">
+          <div>
+            <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest">Banque Nationale Officielle</span>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-zinc-100 tracking-tight mt-1">
+              Choisir une Épreuve de Concours
+            </h1>
+          </div>
+          <button 
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-bold text-zinc-200 transition"
+            onClick={handleReturn}
+          >
+            <ArrowLeft className="w-3.5 h-3.5" /> Quitter
           </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {availableExams.length === 0 ? (
+            <div className="col-span-2 p-12 text-center text-zinc-400 rounded-3xl bg-zinc-900/40 border border-zinc-800">
+              Aucune épreuve active disponible pour le moment.
+            </div>
+          ) : (
+            availableExams.map((ex) => (
+              <div 
+                key={ex.id}
+                className="group relative p-6 rounded-3xl bg-zinc-900/60 hover:bg-zinc-900 border border-zinc-800 hover:border-indigo-500/40 transition-all duration-200 flex flex-col justify-between gap-5 shadow-lg"
+              >
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs text-zinc-400 font-semibold">
+                    <span className="text-indigo-400 uppercase">{ex.school || "Concours Médecine"}</span>
+                    <span>Année {ex.year || "2024"}</span>
+                  </div>
+                  <h3 className="text-lg font-bold text-zinc-100 group-hover:text-white transition">
+                    {ex.name}
+                  </h3>
+                  <p className="text-xs text-zinc-400">
+                    {ex.questionsCount || ex.questions?.length || 20} questions QCM • Barème officiel (-0.25 pt / erreur)
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => navigate(`/exam?exam=${encodeURIComponent(ex.id)}`)}
+                  className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-md shadow-indigo-600/25"
+                >
+                  <Timer className="w-3.5 h-3.5" />
+                  <span>Démarrer l'épreuve chronométrée</span>
+                </button>
+              </div>
+            ))
+          )}
         </div>
       </div>
     );

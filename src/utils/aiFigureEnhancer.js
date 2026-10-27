@@ -319,50 +319,88 @@ Régénère cette figure avec une fidélité mathématique totale en code SVG pu
   onStatusUpdate('توليد الشكل الهندسي المتجهي فائق الدقة بالذكاء الاصطناعي (Génération vectorielle SVG)...');
 
   // Modèles candidats de Gemini supportant la vision multimodale
-  const modelsToTry = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+  const modelsToTry = ['gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-flash-latest'];
   let lastError = null;
 
   for (const model of modelsToTry) {
     try {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                { text: userPrompt },
-                {
-                  inlineData: {
-                    mimeType: mimeType,
-                    data: base64Data
+      let generatedText = '';
+      if (apiKey && apiKey.trim()) {
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey.trim()}`;
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  { text: userPrompt },
+                  {
+                    inlineData: {
+                      mimeType: mimeType,
+                      data: base64Data
+                    }
                   }
-                }
-              ]
+                ]
+              }
+            ],
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            generationConfig: {
+              temperature: 0.1,
+              topK: 32,
+              topP: 0.95,
+              maxOutputTokens: 8192
             }
-          ],
-          systemInstruction: { parts: [{ text: systemPrompt }] },
-          generationConfig: {
-            temperature: 0.1,
-            topK: 32,
-            topP: 0.95,
-            maxOutputTokens: 8192
-          }
-        })
-      });
+          })
+        });
 
-      if (!response.ok) {
-        const errJson = await response.json().catch(() => ({}));
-        throw new Error(errJson?.error?.message || `Erreur Gemini HTTP ${response.status}`);
+        if (response.ok) {
+          const data = await response.json();
+          const candidate = data?.candidates?.[0];
+          const nonThoughtParts = candidate?.content?.parts?.filter(p => !p.thought) || [];
+          generatedText = (nonThoughtParts.length > 0 ? nonThoughtParts : (candidate?.content?.parts || []))
+            .map(p => p.text || '')
+            .join('');
+        }
       }
 
-      const data = await response.json();
-      const candidate = data?.candidates?.[0];
-      const nonThoughtParts = candidate?.content?.parts?.filter(p => !p.thought) || [];
-      const generatedText = (nonThoughtParts.length > 0 ? nonThoughtParts : (candidate?.content?.parts || []))
-        .map(p => p.text || '')
-        .join('');
+      // Proxy fallback
+      if (!generatedText) {
+        const proxyRes = await fetch('/api/gemini/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model,
+            apiKey: apiKey || undefined,
+            contents: [
+              {
+                parts: [
+                  { text: userPrompt },
+                  {
+                    inlineData: {
+                      mimeType: mimeType,
+                      data: base64Data
+                    }
+                  }
+                ]
+              }
+            ],
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            generationConfig: {
+              temperature: 0.1,
+              maxOutputTokens: 8192
+            }
+          })
+        });
+        if (proxyRes.ok) {
+          const proxyData = await proxyRes.json();
+          const candidate = proxyData?.data?.candidates?.[0];
+          const nonThoughtParts = candidate?.content?.parts?.filter(p => !p.thought) || [];
+          generatedText = (nonThoughtParts.length > 0 ? nonThoughtParts : (candidate?.content?.parts || []))
+            .map(p => p.text || '')
+            .join('');
+        }
+      }
 
       const cleanSvg = extractCleanSvg(generatedText);
       if (cleanSvg) {

@@ -802,10 +802,10 @@ export default function AdminLessonsImport({ onBack }) {
   const [provider, setProvider] = useState(() => localStorage.getItem('aiImportProvider') || 'gemini');
   const [geminiKey, setGeminiKey] = useState(() => localStorage.getItem('geminiApiKey') || '');
   const [geminiModel, setGeminiModel] = useState(() => {
-    const m = localStorage.getItem('geminiModel');
-    if (!m || m.includes('3.') || m.includes('2.5') || m.includes('3.6')) {
-      localStorage.setItem('geminiModel', 'gemini-2.0-flash');
-      return 'gemini-2.0-flash';
+    const m = (localStorage.getItem('geminiModel') || '').trim();
+    if (!m || ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-2.5-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-pro', 'gemini-2.5-flash-lite', 'gemini-3.7', '3.7', '3.5'].includes(m)) {
+      localStorage.setItem('geminiModel', 'gemini-3.1-flash-lite');
+      return 'gemini-3.1-flash-lite';
     }
     return m;
   });
@@ -1023,8 +1023,12 @@ export default function AdminLessonsImport({ onBack }) {
     const sync = () => {
       setProvider(localStorage.getItem('aiImportProvider') || 'gemini');
       setGeminiKey(localStorage.getItem('geminiApiKey') || '');
-      const rawGemini = localStorage.getItem('geminiModel');
-      setGeminiModel(rawGemini || 'gemini-2.0-flash');
+      let rawGemini = (localStorage.getItem('geminiModel') || '').trim();
+      if (!rawGemini || ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-2.5-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-pro', 'gemini-2.5-flash-lite', '3.7', 'gemini-3.7', '3.5'].includes(rawGemini)) {
+        rawGemini = 'gemini-3.1-flash-lite';
+        localStorage.setItem('geminiModel', rawGemini);
+      }
+      setGeminiModel(rawGemini);
       setClaudeKey(localStorage.getItem('claudeApiKey') || '');
       const rawClaude = localStorage.getItem('claudeModel');
       setClaudeModel((!rawClaude || rawClaude.includes('4-5') || rawClaude === 'claude-3-haiku-20240307') ? 'claude-3-5-sonnet-20241022' : rawClaude);
@@ -1168,106 +1172,137 @@ Pour chaque exercice, activité ou application résolue dans le champ "solution"
 
     const userText = buildExtractionUserPrompt(pageCount, solveSolutions, preExtractedPdfText);
 
-    // Dynamic model cascade for Gemini with automatic failover & quota resilience
+    // Dynamic model cascade for Gemini with active production models & backend fallback
     let userPref = (geminiModel || '').trim();
-    if (!userPref || userPref.includes('3.') || userPref.includes('2.5') || userPref.includes('3.6')) {
-      userPref = 'gemini-2.0-flash';
+    if (!userPref || ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-2.5-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-pro', 'gemini-2.5-flash-lite', 'gemini-3.7', 'gemini-3.7-flash', 'gemini-3.7-pro', '3.7', 'gemini-3.5', 'gemini-3.5-flash', '3.5'].includes(userPref)) {
+      userPref = 'gemini-3.1-flash-lite';
     }
-    const defaultCascade = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+    const defaultCascade = ['gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-flash-latest'];
     const cascade = Array.from(new Set([userPref, ...defaultCascade].filter(Boolean)));
 
     let lastErr = null;
 
+    // Helper: try backend server proxy which uses server GEMINI_API_KEY
+    const tryServerProxy = async (modelToUse) => {
+      try {
+        const proxyRes = await fetch('/api/gemini/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: modelToUse,
+            apiKey: geminiKey || undefined,
+            contents: [
+              {
+                parts: [
+                  {
+                    inlineData: {
+                      mimeType: safeMime,
+                      data: base64Data
+                    }
+                  },
+                  { text: userText }
+                ]
+              }
+            ],
+            systemInstruction: { parts: [{ text: systemContent }] },
+            generationConfig: {
+              responseMimeType: "application/json",
+              maxOutputTokens: 8192,
+              temperature: 0.1
+            }
+          })
+        });
+        if (proxyRes.ok) {
+          const proxyData = await proxyRes.json();
+          const candidate = proxyData?.data?.candidates?.[0];
+          if (candidate?.content?.parts) {
+            const nonThoughtParts = candidate.content.parts.filter(p => !p.thought);
+            const textParts = (nonThoughtParts.length > 0 ? nonThoughtParts : candidate.content.parts)
+              .map(p => p.text || '')
+              .join('');
+            if (textParts.trim()) return textParts;
+          }
+        }
+      } catch (proxyErr) {
+        console.warn('[Server Proxy Fallback] Failed:', proxyErr.message);
+      }
+      return null;
+    };
+
     for (let i = 0; i < cascade.length; i++) {
       const modelToUse = cascade[i];
       setProgress(`Envoi à Google Gemini [${modelToUse}] (${i + 1}/${cascade.length})...`);
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${geminiKey}`;
 
-      const payload = {
-        contents: [
-          {
-            parts: [
-              {
-                inlineData: {
-                  mimeType: safeMime,
-                  data: base64Data
+      // If geminiKey is available, try direct endpoint first
+      if (geminiKey && geminiKey.trim()) {
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${geminiKey.trim()}`;
+
+        const payload = {
+          contents: [
+            {
+              parts: [
+                {
+                  inlineData: {
+                    mimeType: safeMime,
+                    data: base64Data
+                  }
+                },
+                {
+                  text: userText
                 }
-              },
-              {
-                text: userText
-              }
-            ]
+              ]
+            }
+          ],
+          systemInstruction: {
+            parts: [{ text: systemContent }]
+          },
+          generationConfig: {
+            responseMimeType: "application/json",
+            maxOutputTokens: 8192,
+            temperature: 0.1
           }
-        ],
-        systemInstruction: {
-          parts: [{ text: systemContent }]
-        },
-        generationConfig: {
-          responseMimeType: "application/json",
-          maxOutputTokens: 8192,
-          temperature: 0.1
-        }
-      };
+        };
 
-      try {
-        const res = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
+        try {
+          const res = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
 
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          const msg = err?.error?.message || `Erreur HTTP ${res.status}`;
-          const isQuota = (res.status === 429 || /quota|resource_exhausted/i.test(msg));
-          const isNotFound = (res.status === 404 || /not found|not supported/i.test(msg));
-
-          if (isNotFound) {
-            console.warn(`[Gemini Direct] Model ${modelToUse} not found (404). Trying next fallback...`);
-            continue;
-          }
-
-          if (isQuota) {
-            console.warn(`[Gemini Direct] Model ${modelToUse} hit quota (429). Trying next fallback tier...`);
-            if (i < cascade.length - 1) {
-              setProgress(`Quota atteint sur ${modelToUse}. Bascule automatique vers le modèle de secours...`);
-              await new Promise(r => setTimeout(r, 2000));
-              continue;
-            } else {
-              // Wait for quota reset on last attempt
-              for (let rem = 20; rem > 0; rem -= 5) {
-                setProgress(`Quota saturé (429). Pause de régénération : reprise dans ${rem}s...`);
-                await new Promise(r => setTimeout(r, 5000));
+          if (res.ok) {
+            const data = await res.json();
+            const candidate = data?.candidates?.[0];
+            if (candidate?.content?.parts) {
+              const nonThoughtParts = candidate.content.parts.filter(p => !p.thought);
+              const textParts = (nonThoughtParts.length > 0 ? nonThoughtParts : candidate.content.parts)
+                .map(p => p.text || '')
+                .join('');
+              if (textParts.trim()) {
+                return textParts;
               }
             }
+          } else {
+            const err = await res.json().catch(() => ({}));
+            const msg = err?.error?.message || `Erreur HTTP ${res.status}`;
+            console.warn(`[Gemini Direct] Model ${modelToUse} failed (${res.status}): ${msg}`);
           }
-          throw new Error(`Gemini [${modelToUse}]: ${msg}`);
+        } catch (err) {
+          lastErr = err;
+          console.warn(`[Gemini Direct] Model ${modelToUse} direct fetch failed:`, err.message);
         }
+      }
 
-        const data = await res.json();
-        const candidate = data?.candidates?.[0];
-        if (!candidate || !candidate.content?.parts) {
-          throw new Error(`Gemini [${modelToUse}] n'a retourné aucun contenu.`);
-        }
+      // Try server proxy fallback (uses server-side GEMINI_API_KEY)
+      setProgress(`Connexion via passerelle serveur sécurisée [${modelToUse}]...`);
+      const proxyResult = await tryServerProxy(modelToUse);
+      if (proxyResult) {
+        return proxyResult;
+      }
 
-        // Filter out thought parts (Gemini thinking reasoning)
-        const nonThoughtParts = candidate.content.parts.filter(p => !p.thought);
-        const textParts = (nonThoughtParts.length > 0 ? nonThoughtParts : candidate.content.parts)
-          .map(p => p.text || '')
-          .join('');
-
-        if (!textParts.trim()) {
-          throw new Error(`La réponse textuelle de Gemini [${modelToUse}] est vide.`);
-        }
-
-        return textParts;
-      } catch (err) {
-        lastErr = err;
-        console.warn(`[Gemini Direct] Model ${modelToUse} failed:`, err.message);
-        if (i < cascade.length - 1) {
-          setProgress(`Incident sur [${modelToUse}]. Bascule automatique vers le secours suivant...`);
-          await new Promise(r => setTimeout(r, 1500));
-        }
+      if (i < cascade.length - 1) {
+        setProgress(`Bascule vers le modèle de secours suivant...`);
+        await new Promise(r => setTimeout(r, 1000));
       }
     }
 
@@ -2826,7 +2861,7 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                   boxShadow: isCompanionOnline ? '0 0 8px rgba(16, 185, 129, 0.6)' : '0 0 8px rgba(2, 132, 199, 0.6)',
                   display: 'inline-block'
                 }} />
-                {isCompanionOnline ? 'Serveur Compagnon actif (port 5002)' : 'File d\'attente Cloud active (Supabase Cloud)'}
+                {isCompanionOnline ? 'Serveur API actif' : 'File d\'attente Cloud active'}
               </span>
             </div>
           </div>
@@ -2875,16 +2910,48 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                       <option value="deepseek-chat">DeepSeek-V3 (Chat - Flash & Rapide)</option>
                     </select>
                   ) : (
-                    <select
-                      className="input-control"
-                      value={geminiModel}
-                      onChange={e => { setGeminiModel(e.target.value); localStorage.setItem('geminiModel', e.target.value); }}
-                    >
-                      <option value="gemini-2.0-flash">Gemini 2.0 Flash (Recommandé - Ultra Rapide & Précis)</option>
-                      <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash-Lite (Économique & Léger)</option>
-                      <option value="gemini-1.5-pro">Gemini 1.5 Pro (Raisonnement Approfondi & Grand Contexte)</option>
-                      <option value="gemini-1.5-flash">Gemini 1.5 Flash (Stable & Haute Vitesse)</option>
-                    </select>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                      <select
+                        className="input-control"
+                        value={['gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-flash-latest'].includes(geminiModel) ? geminiModel : 'gemini-3.1-flash-lite'}
+                        onChange={e => { setGeminiModel(e.target.value); localStorage.setItem('geminiModel', e.target.value); }}
+                      >
+                        <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash-Lite (Recommandé - Ultra Rapide & Précis)</option>
+                        <option value="gemini-3.5-flash">Gemini 3.5 Flash (Haute Fidélité & LaTeX)</option>
+                        <option value="gemini-3.8-flash">Gemini 3.8 Flash (Modèle Avancé Multimodal)</option>
+                        <option value="gemini-flash-latest">Gemini Flash Latest (Dernière Génération)</option>
+                      </select>
+                      <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                        {[
+                          { id: 'gemini-3.1-flash-lite', label: '⚡ 3.1 Flash-Lite (Recommandé)' },
+                          { id: 'gemini-3.5-flash', label: '📐 3.5 Flash (LaTeX)' },
+                          { id: 'gemini-3.8-flash', label: '🚀 3.8 Flash (Avancé)' },
+                          { id: 'gemini-flash-latest', label: '🔄 Flash Latest' }
+                        ].map(m => {
+                          const isSel = (geminiModel === m.id) || (!['gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-flash-latest'].includes(geminiModel) && m.id === 'gemini-3.1-flash-lite');
+                          return (
+                            <button
+                              key={m.id}
+                              type="button"
+                              onClick={() => { setGeminiModel(m.id); localStorage.setItem('geminiModel', m.id); }}
+                              style={{
+                                padding: '0.2rem 0.55rem',
+                                borderRadius: 6,
+                                border: isSel ? '1.5px solid #4285F4' : '1px solid var(--border)',
+                                background: isSel ? 'rgba(66, 133, 244, 0.18)' : 'var(--bg-glass)',
+                                color: isSel ? '#4285F4' : 'var(--text-muted)',
+                                fontSize: '0.72rem',
+                                fontWeight: isSel ? 700 : 500,
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              {m.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>

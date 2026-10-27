@@ -275,16 +275,53 @@ Génère le JSON strict contenant la liste des questions équivalentes pour le M
     // 2. Essai Gemini si DeepSeek non disponible ou échoué
     if (!generatedBatch && availableEngines.includes('gemini')) {
       const storedModel = (localStorage.getItem('geminiModel') || '').trim();
-      const preferredModel = (storedModel && !storedModel.includes('3.') && !storedModel.includes('2.5') && !storedModel.includes('3.6')) ? storedModel : 'gemini-2.0-flash';
-      const modelsToTry = [preferredModel, 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+      let preferredModel = storedModel;
+      if (!preferredModel || ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-2.5-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-pro', 'gemini-2.5-flash-lite', '3.7', '3.5'].includes(preferredModel)) {
+        preferredModel = 'gemini-3.1-flash-lite';
+      }
+      const modelsToTry = Array.from(new Set([preferredModel, 'gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-flash-latest']));
 
       for (const model of modelsToTry) {
         if (generatedBatch) break;
         try {
-          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`, {
+          if (geminiKey && geminiKey.trim()) {
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey.trim()}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: userPrompt }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                generationConfig: {
+                  temperature: 0.2,
+                  responseMimeType: 'application/json'
+                }
+              })
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+              const candidate = data?.candidates?.[0];
+              const nonThoughtParts = candidate?.content?.parts?.filter(p => !p.thought) || [];
+              const text = (nonThoughtParts.length > 0 ? nonThoughtParts : (candidate?.content?.parts || []))
+                .map(p => p.text || '')
+                .join('');
+              if (text) {
+                const parsed = JSON.parse(text);
+                if (Array.isArray(parsed.questions) && parsed.questions.length > 0) {
+                  generatedBatch = parsed.questions;
+                  break;
+                }
+              }
+            }
+          }
+
+          // Fallback to server proxy
+          const proxyRes = await fetch('/api/gemini/generate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+              model,
+              apiKey: geminiKey || undefined,
               contents: [{ parts: [{ text: userPrompt }] }],
               systemInstruction: { parts: [{ text: systemPrompt }] },
               generationConfig: {
@@ -293,10 +330,9 @@ Génère le JSON strict contenant la liste des questions équivalentes pour le M
               }
             })
           });
-
-          if (response.ok) {
-            const data = await response.json();
-            const candidate = data?.candidates?.[0];
+          if (proxyRes.ok) {
+            const proxyData = await proxyRes.json();
+            const candidate = proxyData?.data?.candidates?.[0];
             const nonThoughtParts = candidate?.content?.parts?.filter(p => !p.thought) || [];
             const text = (nonThoughtParts.length > 0 ? nonThoughtParts : (candidate?.content?.parts || []))
               .map(p => p.text || '')
@@ -305,6 +341,7 @@ Génère le JSON strict contenant la liste des questions équivalentes pour le M
               const parsed = JSON.parse(text);
               if (Array.isArray(parsed.questions) && parsed.questions.length > 0) {
                 generatedBatch = parsed.questions;
+                break;
               }
             }
           }

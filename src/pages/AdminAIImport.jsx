@@ -700,8 +700,12 @@ export default function AdminAIImport({ onBack }) {
   const [provider, setProvider] = useState(() => draft?.provider || localStorage.getItem('aiImportProvider') || 'gemini');
   const [geminiKey, setGeminiKey] = useState(() => localStorage.getItem('geminiApiKey') || '');
   const [geminiModel, setGeminiModel] = useState(() => {
-    let m = draft?.geminiModel || localStorage.getItem('geminiModel');
-    return m || 'gemini-2.0-flash';
+    let m = (draft?.geminiModel || localStorage.getItem('geminiModel') || '').trim();
+    if (!m || ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-2.5-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-pro', 'gemini-2.5-flash-lite', '3.7', '3.5'].includes(m)) {
+      m = 'gemini-3.1-flash-lite';
+      localStorage.setItem('geminiModel', m);
+    }
+    return m;
   });
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('claudeApiKey') || '');
   const [proxyUrl, setProxyUrl] = useState(() => localStorage.getItem('claudeProxyUrl') || '');
@@ -844,7 +848,7 @@ export default function AdminAIImport({ onBack }) {
     setCorrectionPageFrom(1);
     setCorrectionPageTo(1);
     setProvider('gemini');
-    setGeminiModel('gemini-2.0-flash');
+    setGeminiModel('gemini-3.6-flash');
     setDeepseekModel('deepseek-reasoner');
     setClaudeModel('claude-3-5-sonnet-20241022');
     setError('');
@@ -893,15 +897,22 @@ Pour le champ 'astuce', extrais/résume l'explication officielle fournie dans le
       userPromptText = `${pageNote}Extrais TOUTES les questions QCM de ce document de la première à la toute dernière sans exception, sans aucune omission ni troncature, et retourne le JSON demandé.`;
     }
 
-    let rawModel = (geminiModel || 'gemini-2.0-flash').trim();
-    if (!rawModel || rawModel.includes('3.') || rawModel.includes('2.5') || rawModel.includes('3.6')) {
-      rawModel = 'gemini-2.0-flash';
+    let rawModel = (geminiModel || 'gemini-3.1-flash-lite').trim();
+    if (!rawModel || ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-2.5-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-pro', 'gemini-2.5-flash-lite', '3.7', 'gemini-3.7', 'gemini-3.7-flash', 'gemini-3.7-pro', '3.5'].includes(rawModel)) {
+      rawModel = 'gemini-3.1-flash-lite';
     }
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${rawModel}:generateContent?key=${geminiKey}`;
-    
+
+    const cascade = Array.from(new Set([
+      rawModel,
+      'gemini-3.1-flash-lite',
+      'gemini-3.5-flash',
+      'gemini-3.8-flash',
+      'gemini-flash-latest'
+    ]));
+
     // Create fresh AbortController for this request
     abortRef.current = new AbortController();
-    
+
     const payload = {
       contents: [
         {
@@ -919,64 +930,92 @@ Pour le champ 'astuce', extrais/résume l'explication officielle fournie dans le
         }
       ],
       systemInstruction: {
-        parts: [
-          {
-            text: SYSTEM_PROMPT
-          }
-        ]
+        parts: [{ text: SYSTEM_PROMPT }]
       },
       generationConfig: {
         responseMimeType: "application/json",
         maxOutputTokens: 8192,
-        temperature: 0.1,
-        responseSchema: {
-          type: "ARRAY",
-          items: {
-            type: "OBJECT",
-            properties: {
-              question_number: { type: "INTEGER" },
-              context: { type: "STRING" },
-              subject: { type: "STRING" },
-              question: { type: "STRING" },
-              options: {
-                type: "ARRAY",
-                items: { type: "STRING" }
-              },
-              correct_answer: { type: "STRING" },
-              astuce: { type: "STRING" },
-              trick: { type: "STRING" }
-            },
-            required: ["question_number", "context", "subject", "question", "options", "correct_answer", "astuce", "trick"]
-          }
-        }
+        temperature: 0.1
       }
     };
 
-    const res = await fetch(endpoint, {
-      signal: abortRef.current.signal,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
+    let lastError = null;
+    for (let i = 0; i < cascade.length; i++) {
+      const modelToUse = cascade[i];
+      setProgressStep(`Envoi à Gemini [${modelToUse}] (${i + 1}/${cascade.length})...`);
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      const msg = err?.error?.message || err?.message || JSON.stringify(err);
-      throw new Error(`Erreur Gemini ${res.status}: ${msg}`);
+      // Try direct API call if user has configured geminiKey
+      if (geminiKey && geminiKey.trim()) {
+        try {
+          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${geminiKey.trim()}`;
+          const res = await fetch(endpoint, {
+            signal: abortRef.current.signal,
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            const candidate = data?.candidates?.[0];
+            if (candidate?.content?.parts) {
+              const nonThoughtParts = candidate.content.parts.filter(p => !p.thought);
+              const rawText = (nonThoughtParts.length > 0 ? nonThoughtParts : candidate.content.parts)
+                .map(p => p.text || '')
+                .join('');
+              if (rawText.trim()) {
+                return parseAiJson(rawText);
+              }
+            }
+          } else {
+            const err = await res.json().catch(() => ({}));
+            const msg = err?.error?.message || `Erreur HTTP ${res.status}`;
+            console.warn(`[Gemini Direct] Model ${modelToUse} failed:`, msg);
+          }
+        } catch (err) {
+          if (err.name === 'AbortError') throw err;
+          console.warn(`[Gemini Direct] ${modelToUse} fetch failed:`, err.message);
+          lastError = err;
+        }
+      }
+
+      // Try secure server-side proxy fallback with server GEMINI_API_KEY
+      try {
+        setProgressStep(`Connexion via passerelle serveur sécurisée [${modelToUse}]...`);
+        const proxyRes = await fetch('/api/gemini/generate', {
+          signal: abortRef.current?.signal,
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: modelToUse,
+            apiKey: geminiKey || undefined,
+            contents: payload.contents,
+            systemInstruction: payload.systemInstruction,
+            generationConfig: payload.generationConfig
+          })
+        });
+
+        if (proxyRes.ok) {
+          const proxyData = await proxyRes.json();
+          const candidate = proxyData?.data?.candidates?.[0];
+          if (candidate?.content?.parts) {
+            const nonThoughtParts = candidate.content.parts.filter(p => !p.thought);
+            const rawText = (nonThoughtParts.length > 0 ? nonThoughtParts : candidate.content.parts)
+              .map(p => p.text || '')
+              .join('');
+            if (rawText.trim()) {
+              return parseAiJson(rawText);
+            }
+          }
+        }
+      } catch (proxyErr) {
+        if (proxyErr.name === 'AbortError') throw proxyErr;
+        console.warn(`[Gemini Proxy Fallback] Failed for ${modelToUse}:`, proxyErr.message);
+        lastError = proxyErr;
+      }
     }
 
-    const data = await res.json();
-    const candidate = data?.candidates?.[0];
-    if (!candidate || !candidate.content?.parts) {
-      throw new Error("L'API Gemini n'a retourné aucun contenu.");
-    }
-    const nonThoughtParts = candidate.content.parts.filter(p => !p.thought);
-    const rawText = (nonThoughtParts.length > 0 ? nonThoughtParts : candidate.content.parts)
-      .map(p => p.text || '')
-      .join('');
-    return parseAiJson(rawText);
+    throw lastError || new Error("Tous les modèles Gemini de secours ont échoué.");
   };
 
   // Stream PDF to Claude using SSE streaming API
@@ -1787,10 +1826,10 @@ ${pdfText}
               <label>Modèle Gemini <span style={{fontWeight:400, color:'var(--text-muted)'}}>— ID exact de l'API</span></label>
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
                 {[
-                  { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (Recommandé)' },
-                  { id: 'gemini-2.0-flash-lite', label: 'Gemini 2.0 Flash-Lite' },
-                  { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
-                  { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' }
+                  { id: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash-Lite (Recommandé - Ultra Rapide)' },
+                  { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash (Haute Fidélité LaTeX)' },
+                  { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash (Multimodal Avancé)' },
+                  { id: 'gemini-flash-latest', label: 'Gemini Flash Latest' }
                 ].map(item => (
                   <button key={item.id} type="button"
                     onClick={() => { setGeminiModel(item.id); localStorage.setItem('geminiModel', item.id); }}
@@ -1806,11 +1845,11 @@ ${pdfText}
                 className="input-control"
                 value={geminiModel}
                 onChange={e => { setGeminiModel(e.target.value); localStorage.setItem('geminiModel', e.target.value); }}
-                placeholder="ex: gemini-2.0-flash"
+                placeholder="ex: gemini-3.1-flash-lite"
                 style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}
               />
               <p style={{ marginTop: '0.4rem', fontSize: '0.73rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                💡 Recommandé : <strong>gemini-2.0-flash</strong>, <strong>gemini-2.0-flash-lite</strong> ou <strong>gemini-1.5-pro</strong> (Dernières versions Google officielles).
+                💡 Recommandé : <strong>gemini-3.1-flash-lite</strong> (Ultra rapide et fiable), <strong>gemini-3.5-flash</strong> ou <strong>gemini-3.8-flash</strong>.
               </p>
             </div>
           )}

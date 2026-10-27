@@ -5,11 +5,6 @@
 import { supabase } from '../lib/supabase';
 
 const getCandidateBaseUrls = () => {
-  const isDev = typeof window !== 'undefined' && window.location && (window.location.port === '5173' || window.location.port === '3000');
-  if (isDev) {
-    const h = window.location.hostname || 'localhost';
-    return [`http://${h}:5002`, 'http://localhost:5002', 'http://127.0.0.1:5002'];
-  }
   return [''];
 };
 
