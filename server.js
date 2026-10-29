@@ -929,7 +929,7 @@ export const handleApiRequest = async (req, res, next) => {
             systemInstruction: payload.systemInstruction,
             generationConfig: payload.generationConfig || {
               responseMimeType: "application/json",
-              maxOutputTokens: 8192,
+              maxOutputTokens: 65536,
               temperature: 0.1
             }
           };

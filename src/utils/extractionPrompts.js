@@ -6,7 +6,11 @@ export const STORAGE_KEY_EXAM_PROMPT = 'lconq_prompt_exam';
 export const STORAGE_KEY_LESSON_PROMPT = 'lconq_prompt_lesson';
 export const STORAGE_KEY_EXTRACTOR_DIRECTIVES = 'lconq_extractor_directives';
 
-export const DEFAULT_EXTRACTOR_DIRECTIVES = `• الحفاظ الصارم على لغة الوثيقة الأصلية (العربية للعربية والفرنسية للفرنسية) دون أي ترجمة غير مبررة.
+export const DEFAULT_EXTRACTOR_DIRECTIVES = `• ⚠️ الضمان الصارم لاستخراج الملف كاملاً 100% دون أي نقصان (Exhaustivité Absolue Obligatoire) :
+  - التزام حتمي باستخراج كل سؤال وكل تمرين وكل فقرة من الصفحة الأولى حتى آخر سطر في الصفحة الأخيرة.
+  - يُمنع منعاً باتاً الاكتفاء بعينة جزئية، أو التوقف في منتصف الوثيقة، أو اختصار الأسئلة. إذا كان المستند يضم 20 سؤالاً، يجب أن يحتوي الـ JSON على 20 سؤالاً بالتمام والكمال.
+  - الحفاظ على تسلسل الترقيم وتضمين جميع المعطيات والصيغ الرياضية كاملة دون تلخيص.
+• الحفاظ الصارم على لغة الوثيقة الأصلية (العربية للعربية والفرنسية للفرنسية) دون أي ترجمة غير مبررة.
 • كتابة كافة الرموز والمتغيرات والمعادلات الرياضية بصيغة LaTeX محاطة بـ $...$ للأسطر أو $$...$$ للفقرات المستقلة.
 • الحرص على صياغة خيارات بديلة (distracteurs) دقيقة علمياً ومرتبطة بالأخطاء الشائعة للتلاميذ.
 • استخراج الحل المفصل (astuce) بأسلوب تفتيش تربوي رسمي: خطوات واضحة، ترقيم مرتب، وذكر المبررات والنظريات المستعملة.`;
@@ -39,6 +43,15 @@ RÈGLE ABSOLUE DE LANGUE — CONSERVATION RIGOUREUSE DE LA LANGUE D'ORIGINE
 - Ne traduis AUCUN mot ou énoncé d'une langue vers une autre. Respecte scrupuleusement la langue d'origine du fichier importé !
 
 ════════════════════════════════════════════════════════════
+🎯 RÈGLE CRITIQUE — EXTRACTION INTÉGRALE ET COMPLÈTE DE TOUT LE DOCUMENT (ضمان استخراج الملف كاملاً)
+════════════════════════════════════════
+⚠️ OBLIGATION D'EXHAUSTIVITÉ ABSOLUE (100% DU FICHIER) :
+1. Tu DOIS extraire L'INTÉGRALITÉ ABSOLUE du document du premier mot de la page 1 jusqu'au dernier mot de la toute dernière page.
+2. SÉRIES D'EXERCICES ET DEVOIRS : Extrais TOUS les exercices sans exception (Exercice 1, Exercice 2, Exercice 3, Exercice 4...). Pour chaque exercice, retranscris l'énoncé COMPLET avec ABSOLUMENT TOUTES les questions et sous-questions (1., 2.a., 2.b., 3.a., etc.) dans "content" et dans "items".
+3. COURS THÉORIQUES : Extrais chaque définition, théorème, corollaire, propriété, remarque, exemple, démonstration, activité et application sans omission.
+4. Ne résume JAMAIS les énoncés d'exercices : copie FIDÈLEMENT tout le texte de l'énoncé, chaque formule et chaque indication.
+
+════════════════════════════════════════
 ✨ EXIGENCES D'EXTRACTION INTELLIGENTE : TENSIIQ, NUMÉROTATION ET CORRECTION LINGUISTIQUE
 ════════════════════════════════════════════════════════════
 
@@ -144,9 +157,17 @@ STYLE INTERDIT:
   ❌ Conclure sans énoncer le théorème utilisé
 
 ════════════════════════════════════════
-🎯 MISSION
+🎯 MISSION & RÈGLE D'EXHAUSTIVITÉ ABSOLUE (ضمان استخراج الملف كاملاً 100%)
 ════════════════════════════════════════
-Extrais TOUTES les questions QCM du document PDF fourni, sans en omettre absolument aucune. Tu dois impérativement extraire TOUTES les questions du premier au dernier numéro du document, sans aucune troncature ni omission, même si le document est très long.
+⚠️ DIRECTIVES STRICTES D'EXTRACTION TOTALE DU PREMIER AU DERNIER NUMÉRO :
+1. Tu DOIS IMPÉRATIVEMENT extraire 100% DES QUESTIONS QCM du document fourni, de la toute première question (ex: Q1) jusqu'à la toute dernière question visible sur la dernière page du document (ex: Q20, Q25, Q30, Q40...).
+2. Il est FORMELLEMENT ET STRICTEMENT INTERDIT :
+   - De t'arrêter au milieu du document, même s'il est long.
+   - De ne traiter que la première page ou les premières questions.
+   - D'omettre des questions intermédiaires ou de sauter des numéros.
+   - De résumer ou tronquer le texte des questions, des options ou des astuces.
+3. Chaque question du document source DOIT correspondre à un objet JSON distinct dans le tableau final.
+4. Auto-vérification finale obligatoire : Avant de clore le JSON, vérifie scrupuleusement que le dernier question_number extrait correspond bien au dernier numéro de question du document original.
 Pour chaque question:
 - Respecte EXACTEMENT le format JSON standard [ {"question_number": 1, "context": "", "subject": "...", "question": "...", "options": ["A) ...", "B) ...", "C) ...", "D) ..."], "correct_answer": "A", "astuce": "...", "trick": "⚡ ..."} ]
 - Astuce en style INSPECTEUR MAROCAIN: étapes numérotées, connecteurs officiels, citations du cours, conclusion en gras

@@ -348,7 +348,7 @@ async function executeGeminiExtraction({ base64Data, fileType, pageCount, apiKey
         systemInstruction: { parts: [{ text: systemContent }] },
         generationConfig: {
           responseMimeType: "application/json",
-          maxOutputTokens: 8192,
+          maxOutputTokens: 65536,
           temperature: 0.1
         }
       };

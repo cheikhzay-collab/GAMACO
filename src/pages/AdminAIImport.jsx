@@ -934,7 +934,7 @@ Pour le champ 'astuce', extrais/résume l'explication officielle fournie dans le
       },
       generationConfig: {
         responseMimeType: "application/json",
-        maxOutputTokens: 8192,
+        maxOutputTokens: 65536,
         temperature: 0.1
       }
     };

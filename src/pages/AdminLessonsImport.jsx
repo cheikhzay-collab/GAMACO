@@ -1207,7 +1207,7 @@ Pour chaque exercice, activité ou application résolue dans le champ "solution"
             systemInstruction: { parts: [{ text: systemContent }] },
             generationConfig: {
               responseMimeType: "application/json",
-              maxOutputTokens: 8192,
+              maxOutputTokens: 65536,
               temperature: 0.1
             }
           })
@@ -1258,7 +1258,7 @@ Pour chaque exercice, activité ou application résolue dans le champ "solution"
           },
           generationConfig: {
             responseMimeType: "application/json",
-            maxOutputTokens: 8192,
+            maxOutputTokens: 65536,
             temperature: 0.1
           }
         };

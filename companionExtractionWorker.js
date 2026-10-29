@@ -927,7 +927,7 @@ const callGeminiSingleAttempt = async ({ model, base64Data, safeMime, userText, 
     },
     generationConfig: {
       responseMimeType: "application/json",
-      maxOutputTokens: 8192,
+      maxOutputTokens: 65536,
       temperature: 0.1
     }
   };
