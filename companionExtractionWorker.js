@@ -692,6 +692,9 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 // Verified high-performing models per provider
 const FALLBACK_MODELS = {
   gemini: [
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-lite',
+    'gemini-2.5-pro',
     'gemini-2.0-flash',
     'gemini-2.0-flash-lite',
     'gemini-1.5-pro',
@@ -711,17 +714,17 @@ const FALLBACK_MODELS = {
 // Build unique ordered cascade list of models to try
 const resolveModelCascade = (provider, userPreferredModel) => {
   const defaults = FALLBACK_MODELS[provider] || FALLBACK_MODELS.gemini;
-  let cleanUser = (userPreferredModel || '').trim();
+  let cleanUser = (userPreferredModel || '').trim().replace(/^models\//, '');
 
   // Normalize aliases and deprecated models
   if (provider === 'gemini') {
-    if (['gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-flash-latest', '3.7', '3.5'].includes(cleanUser)) {
-      cleanUser = 'gemini-2.0-flash';
+    if (!cleanUser || ['gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-flash-latest', '3.7', '3.5'].includes(cleanUser)) {
+      cleanUser = 'gemini-2.5-flash';
     }
   }
 
   const cascade = [];
-  if (cleanUser) {
+  if (cleanUser && cleanUser !== 'default') {
     cascade.push(cleanUser);
   }
   for (const m of defaults) {
@@ -905,66 +908,98 @@ const validateExtractedDocument = (parsed) => {
 // ─── Single Model Invocation Drivers ──────────────────────────────────────────
 
 const callGeminiSingleAttempt = async ({ model, base64Data, safeMime, userText, systemContent, apiKey }) => {
-  const effectiveKey = (apiKey || '').trim() || (process.env.GEMINI_API_KEY || '').trim();
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${effectiveKey}`;
-
-  const payload = {
-    contents: [
-      {
-        parts: [
-          {
-            inlineData: {
-              mimeType: safeMime,
-              data: base64Data
-            }
-          },
-          { text: userText }
-        ]
-      }
-    ],
-    systemInstruction: {
-      parts: [{ text: systemContent }]
-    },
-    generationConfig: {
-      responseMimeType: "application/json",
-      maxOutputTokens: 65536,
-      temperature: 0.1
-    }
-  };
-
-  const res = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
-
-  if (!res.ok) {
-    const errJson = await res.json().catch(() => ({}));
-    const status = res.status;
-    const msg = errJson?.error?.message || `Erreur HTTP ${status}`;
-    const err = new Error(`Gemini [${model}]: ${msg}`);
-    err.status = status;
-    err.isQuotaExceeded = (status === 429 || /resource_exhausted|quota|rate limit/i.test(msg));
-    err.isNotFound = (status === 404 || /not found/i.test(msg));
+  const effectiveKey = (apiKey || '').trim().replace(/^[\"']|[\"']$/g, '') || (process.env.GEMINI_API_KEY || '').trim().replace(/^[\"']|[\"']$/g, '');
+  if (!effectiveKey) {
+    const err = new Error("Clé API Google Gemini manquante. Veuillez renseigner votre clé API dans les paramètres.");
+    err.status = 401;
+    err.isAuthError = true;
     throw err;
   }
 
-  const data = await res.json();
-  const candidate = data?.candidates?.[0];
-  if (!candidate || !candidate.content?.parts) {
-    throw new Error(`Gemini [${model}] n'a retourné aucun contenu.`);
+  const cleanModel = (model || '').trim().replace(/^models\//, '');
+  const versions = ['v1beta', 'v1'];
+  let lastErr = null;
+
+  for (const apiVersion of versions) {
+    const endpoint = `https://generativelanguage.googleapis.com/${apiVersion}/models/${cleanModel}:generateContent?key=${effectiveKey}`;
+
+    const payload = {
+      contents: [
+        {
+          parts: [
+            ...(base64Data ? [{
+              inlineData: {
+                mimeType: safeMime,
+                data: base64Data
+              }
+            }] : []),
+            { text: userText }
+          ]
+        }
+      ],
+      systemInstruction: {
+        parts: [{ text: systemContent }]
+      },
+      generationConfig: {
+        responseMimeType: "application/json",
+        maxOutputTokens: 65536,
+        temperature: 0.1
+      }
+    };
+
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': effectiveKey
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        const status = res.status;
+        const msg = errJson?.error?.message || `Erreur HTTP ${status}`;
+        const err = new Error(`Gemini [${cleanModel}]: ${msg}`);
+        err.status = status;
+        err.apiMessage = msg;
+        err.isQuotaExceeded = (status === 429 || /resource_exhausted|quota|rate limit/i.test(msg));
+        err.isNotFound = (status === 404 || /not found/i.test(msg));
+        err.isAuthError = (status === 400 && /API_KEY_INVALID|API key not valid/i.test(msg)) || status === 401 || status === 403;
+        lastErr = err;
+
+        if (status === 404 && apiVersion === 'v1beta') {
+          continue; // Try v1 before giving up
+        }
+        throw err;
+      }
+
+      const data = await res.json();
+      const candidate = data?.candidates?.[0];
+      if (!candidate || !candidate.content?.parts) {
+        throw new Error(`Gemini [${cleanModel}] n'a retourné aucun contenu.`);
+      }
+
+      const nonThoughtParts = candidate.content.parts.filter(p => !p.thought);
+      const text = (nonThoughtParts.length > 0 ? nonThoughtParts : candidate.content.parts)
+        .map(p => p.text || '')
+        .join('');
+
+      if (!text.trim()) {
+        throw new Error(`Gemini [${cleanModel}] a produit une réponse textuelle vide.`);
+      }
+
+      return text;
+    } catch (fetchErr) {
+      if (fetchErr.isNotFound && apiVersion === 'v1beta') {
+        continue;
+      }
+      throw fetchErr;
+    }
   }
 
-  const nonThoughtParts = candidate.content.parts.filter(p => !p.thought);
-  const text = (nonThoughtParts.length > 0 ? nonThoughtParts : candidate.content.parts)
-    .map(p => p.text || '')
-    .join('');
-
-  if (!text.trim()) {
-    throw new Error(`Gemini [${model}] a produit une réponse textuelle vide.`);
-  }
-
-  return text;
+  throw lastErr || new Error(`Gemini [${cleanModel}]: indisponible`);
 };
 
 const callClaudeSingleAttempt = async ({ model, base64Data, safeMime, userText, systemContent, apiKey, proxyUrl }) => {
@@ -1019,13 +1054,9 @@ const callClaudeSingleAttempt = async ({ model, base64Data, safeMime, userText, 
   return text;
 };
 
-const callDeepSeekSingleAttempt = async ({ model, preExtractedPdfText, pageCount, solveSolutions, apiKey, deepseekUrl }) => {
+const callDeepSeekSingleAttempt = async ({ model, preExtractedPdfText, pageCount, systemContent, apiKey, deepseekUrl }) => {
   const cleanUrl = (deepseekUrl || 'https://api.deepseek.com').trim().replace(/\/$/, '');
   const endpoint = `${cleanUrl}/v1/chat/completions`;
-
-  const systemContent = solveSolutions
-    ? SYSTEM_PROMPT + MOROCCAN_SOLVE_ADDENDUM
-    : SYSTEM_PROMPT + NO_SOLUTION_ADDENDUM;
 
   const userContent = `TEXTE DU DOCUMENT EXTRAIT DU PDF :\n${preExtractedPdfText || ''}\n\n${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
 
@@ -1132,9 +1163,17 @@ export const processQueue = async () => {
     const safeMime = isPdf ? 'application/pdf' : (nextTask.fileType && nextTask.fileType.includes('/') ? nextTask.fileType : 'image/jpeg');
     const solveSolutions = nextTask.solveSolutions !== false;
 
-    const systemContent = solveSolutions
-      ? SYSTEM_PROMPT + MOROCCAN_SOLVE_ADDENDUM
-      : SYSTEM_PROMPT + NO_SOLUTION_ADDENDUM;
+    let systemContent = '';
+    if (nextTask.customPrompt && nextTask.customPrompt.trim()) {
+      systemContent = nextTask.customPrompt.trim();
+    } else {
+      systemContent = solveSolutions
+        ? SYSTEM_PROMPT + MOROCCAN_SOLVE_ADDENDUM
+        : SYSTEM_PROMPT + NO_SOLUTION_ADDENDUM;
+    }
+    if (nextTask.customDirectives && nextTask.customDirectives.trim()) {
+      systemContent += `\n\n════════════════════════════════════════\n📌 DIRECTIVES SPÉCIALES D'EXTRACTION :\n${nextTask.customDirectives.trim()}\n════════════════════════════════════════`;
+    }
 
     const userText = buildExtractionUserPrompt(nextTask.pageCount || 1, solveSolutions, nextTask.preExtractedPdfText);
 
@@ -1174,9 +1213,7 @@ export const processQueue = async () => {
               model: currentModel,
               preExtractedPdfText: nextTask.preExtractedPdfText || '',
               pageCount: nextTask.pageCount || 1,
-              solveSolutions,
-              apiKey: nextTask.apiKey,
-              deepseekUrl: nextTask.deepseekUrl
+              systemContent, apiKey: nextTask.apiKey, deepseekUrl: nextTask.deepseekUrl
             });
           } else {
             // Default: Gemini
@@ -1198,9 +1235,14 @@ export const processQueue = async () => {
 
           console.warn(`[Worker] Model ${currentModel} attempt ${attempt} failed: ${apiErr.message}`);
 
+          const isAuth = Boolean(apiErr.isAuthError || apiErr.status === 401 || (apiErr.status === 400 && /API_KEY_INVALID|API key not valid/i.test(apiErr.apiMessage || '')));
+          if (isAuth) {
+            failureLog.push(`${currentModel}: مفتاح API غير صالح`);
+            throw new Error(`خطأ في مصادقة مفتاح Google Gemini : المفتاح غير صالح أو منتهي الصلاحية (${apiErr.apiMessage || apiErr.message}). يرجى إدخال مفتاح صالح في صفحة الإعدادات.`);
+          }
+
           if (isNotFound) {
-            // Model doesn't exist on API, immediately skip to next model
-            failureLog.push(`${currentModel}: non supporté ou introuvable (404)`);
+            failureLog.push(`${currentModel}: غير متوفر (404)`);
             break;
           }
 

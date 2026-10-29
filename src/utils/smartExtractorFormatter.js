@@ -203,8 +203,8 @@ export function smartNumberQuestions(questions) {
 /**
  * Helper API call to Gemini for Copilot actions
  */
-async function callGeminiAi(prompt, systemPrompt, apiKey, model = 'gemini-1.5-flash') {
-  const modelToUse = model || 'gemini-1.5-flash';
+async function callGeminiAi(prompt, systemPrompt, apiKey, model = 'gemini-2.5-flash') {
+  const modelToUse = (model || 'gemini-2.5-flash').replace(/^models\//, '');
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${apiKey}`;
 
   const payload = {

@@ -907,62 +907,72 @@ export const handleApiRequest = async (req, res, next) => {
         return sendJSON(res, 500, { error: 'Aucune clé API Gemini valide configurée sur le serveur ou fournie par le client.' });
       }
 
-      let requestedModel = (payload?.model || 'gemini-3.1-flash-lite').trim();
-      if (['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-2.5-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-pro', 'gemini-2.5-flash-lite', '3.7', 'gemini-3.7', 'gemini-3.7-flash', '3.5'].includes(requestedModel)) {
-        requestedModel = 'gemini-3.1-flash-lite';
+      let requestedModel = (payload?.model || 'gemini-2.5-flash').trim().replace(/^models\//, '');
+      if (!requestedModel || ['gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-flash-latest', '3.7', '3.5'].includes(requestedModel)) {
+        requestedModel = 'gemini-2.5-flash';
       }
 
       const cascade = Array.from(new Set([
         requestedModel,
-        'gemini-3.1-flash-lite',
-        'gemini-3.5-flash',
-        'gemini-3.8-flash',
-        'gemini-flash-latest'
-      ]));
+        'gemini-2.5-flash',
+        'gemini-2.5-flash-lite',
+        'gemini-2.5-pro',
+        'gemini-2.0-flash',
+        'gemini-2.0-flash-lite',
+        'gemini-1.5-pro',
+        'gemini-1.5-flash'
+      ].filter(Boolean)));
 
       let lastError = null;
       for (const modelToTry of cascade) {
-        try {
-          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelToTry}:generateContent?key=${effectiveKey}`;
-          const bodyPayload = {
-            contents: payload.contents,
-            systemInstruction: payload.systemInstruction,
-            generationConfig: payload.generationConfig || {
-              responseMimeType: "application/json",
-              maxOutputTokens: 65536,
-              temperature: 0.1
-            }
-          };
+        const cleanModel = modelToTry.replace(/^models\//, '');
+        for (const apiVer of ['v1beta', 'v1']) {
+          try {
+            const endpoint = `https://generativelanguage.googleapis.com/${apiVer}/models/${cleanModel}:generateContent?key=${effectiveKey}`;
+            const bodyPayload = {
+              contents: payload.contents,
+              systemInstruction: payload.systemInstruction,
+              generationConfig: payload.generationConfig || {
+                responseMimeType: "application/json",
+                maxOutputTokens: 65536,
+                temperature: 0.1
+              }
+            };
 
-          const apiRes = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(bodyPayload)
-          });
+            const apiRes = await fetch(endpoint, {
+              method: 'POST',
+              headers: { 
+                'Content-Type': 'application/json',
+                'x-goog-api-key': effectiveKey
+              },
+              body: JSON.stringify(bodyPayload)
+            });
 
-          if (!apiRes.ok) {
-            const errData = await apiRes.json().catch(() => ({}));
-            const msg = errData?.error?.message || `HTTP ${apiRes.status}`;
-            console.warn(`[Server Gemini Proxy] Model ${modelToTry} failed (${apiRes.status}): ${msg}`);
-            if (apiRes.status === 404 || apiRes.status === 429 || apiRes.status === 503 || apiRes.status === 400) {
-              lastError = new Error(`Gemini [${modelToTry}]: ${msg} (key: "${effectiveKey.slice(0, 6)}..." len: ${effectiveKey.length})`);
-              continue;
+            if (!apiRes.ok) {
+              const errData = await apiRes.json().catch(() => ({}));
+              const msg = errData?.error?.message || `HTTP ${apiRes.status}`;
+              console.warn(`[Server Gemini Proxy] Model ${cleanModel} (${apiVer}) failed (${apiRes.status}): ${msg}`);
+              if (apiRes.status === 404 && apiVer === 'v1beta') {
+                continue; // Try v1 before skipping model
+              }
+              lastError = new Error(`Gemini [${cleanModel}]: ${msg}`);
+              break; // Try next model in cascade
             }
-            throw new Error(`Gemini [${modelToTry}]: ${msg} (key: "${effectiveKey.slice(0, 6)}..." len: ${effectiveKey.length})`);
+
+            const data = await apiRes.json();
+            return sendJSON(res, 200, {
+              success: true,
+              modelUsed: cleanModel,
+              apiVersion: apiVer,
+              data
+            });
+          } catch (callErr) {
+            lastError = callErr;
           }
-
-          const data = await apiRes.json();
-          return sendJSON(res, 200, {
-            success: true,
-            modelUsed: modelToTry,
-            data
-          });
-        } catch (callErr) {
-          lastError = callErr;
         }
       }
 
-      throw lastError || new Error(`Tous les modèles Gemini de secours ont échoué (clé len: ${effectiveKey.length}, début: ${effectiveKey.slice(0, 8)}).`);
+      throw lastError || new Error(`Tous les modèles Gemini de secours ont échoué.`);
     } catch (err) {
       return sendJSON(res, 500, { error: err.message });
     }

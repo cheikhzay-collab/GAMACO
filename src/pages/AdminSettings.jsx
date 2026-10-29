@@ -2267,9 +2267,9 @@ export default function AdminSettings() {
                     </div>
 
                     <div className="flex items-center gap-1.5 flex-wrap mb-3">
-                      <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.45rem', borderRadius: '6px', background: 'rgba(66,133,244,0.12)', color: '#4285F4' }}>Gemini 2.0 Flash (Recommandé)</span>
-                      <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.45rem', borderRadius: '6px', background: 'rgba(66,133,244,0.12)', color: '#4285F4' }}>Gemini 2.0 Flash-Lite</span>
-                      <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.45rem', borderRadius: '6px', background: 'rgba(66,133,244,0.12)', color: '#4285F4' }}>Gemini 1.5 Pro</span>
+                      <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.45rem', borderRadius: '6px', background: 'rgba(66,133,244,0.12)', color: '#4285F4' }}>Gemini 2.5 Flash (الأحدث والموصى به)</span>
+                      <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.45rem', borderRadius: '6px', background: 'rgba(66,133,244,0.12)', color: '#4285F4' }}>Gemini 2.5 Pro (الأقوى في الرياضيات)</span>
+                      <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.45rem', borderRadius: '6px', background: 'rgba(66,133,244,0.12)', color: '#4285F4' }}>Gemini 2.0 Flash</span>
                     </div>
 
                     <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: '1.25rem' }}>

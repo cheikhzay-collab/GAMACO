@@ -30,6 +30,7 @@ import { openLessonPrintWindow } from '../utils/generateLessonPDF';
 import { loadPdfDocument, renderPdfPageToCanvas, cropPdfRegion } from '../utils/pdfFigureExtractor';
 import { buildPageSnapshotsMap, attachImagesToSections } from '../utils/pdfImageExtractor';
 import { validateExercisePoints, sanitizeMoroccanLatex } from '../utils/scoreBalancingValidator';
+import { getEffectiveLessonPrompt } from '../utils/extractionPrompts';
 import * as pdfjsLib from 'pdfjs-dist';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.mjs', import.meta.url).href;
@@ -804,8 +805,8 @@ export default function AdminLessonsImport({ onBack }) {
   const [geminiModel, setGeminiModel] = useState(() => {
     const m = (localStorage.getItem('geminiModel') || '').trim();
     if (!m || ['gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-flash-latest', '3.7', '3.5'].includes(m)) {
-      localStorage.setItem('geminiModel', 'gemini-2.0-flash');
-      return 'gemini-2.0-flash';
+      localStorage.setItem('geminiModel', 'gemini-2.5-flash');
+      return 'gemini-2.5-flash';
     }
     return m;
   });
@@ -1173,11 +1174,19 @@ Pour chaque exercice, activité ou application résolue dans le champ "solution"
     const userText = buildExtractionUserPrompt(pageCount, solveSolutions, preExtractedPdfText);
 
     // Dynamic model cascade for Gemini with active production models & backend fallback
-    let userPref = (geminiModel || '').trim();
+    let userPref = (geminiModel || '').trim().replace(/^models\//, '');
     if (!userPref || ['gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-flash-latest', '3.7', '3.5'].includes(userPref)) {
-      userPref = 'gemini-2.0-flash';
+      userPref = 'gemini-2.5-flash';
     }
-    const defaultCascade = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro', 'gemini-1.5-flash'];
+    const defaultCascade = [
+      'gemini-2.5-flash',
+      'gemini-2.5-flash-lite',
+      'gemini-2.5-pro',
+      'gemini-2.0-flash',
+      'gemini-2.0-flash-lite',
+      'gemini-1.5-pro',
+      'gemini-1.5-flash'
+    ];
     const cascade = Array.from(new Set([userPref, ...defaultCascade].filter(Boolean)));
 
     let lastErr = null;
@@ -1235,7 +1244,8 @@ Pour chaque exercice, activité ou application résolue dans le champ "solution"
 
       // If geminiKey is available, try direct endpoint first
       if (geminiKey && geminiKey.trim()) {
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${geminiKey.trim()}`;
+        const cleanModelToUse = modelToUse.replace(/^models\//, '');
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModelToUse}:generateContent?key=${geminiKey.trim()}`;
 
         const payload = {
           contents: [
@@ -2181,10 +2191,12 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
           base64Data,
           preExtractedPdfText,
           provider,
-          apiKey: provider === 'gemini' ? geminiKey : (provider === 'claude' ? claudeKey : deepseekKey),
-          model: provider === 'gemini' ? geminiModel : (provider === 'claude' ? claudeModel : deepseekModel),
+          apiKey: provider === 'gemini' ? (geminiKey || localStorage.getItem('geminiApiKey') || '') : (provider === 'claude' ? (claudeKey || localStorage.getItem('claudeApiKey') || '') : (deepseekKey || localStorage.getItem('deepseekApiKey') || '')),
+          model: provider === 'gemini' ? (geminiModel || 'gemini-2.5-flash') : (provider === 'claude' ? claudeModel : deepseekModel),
           proxyUrl,
           deepseekUrl,
+          customPrompt: typeof getEffectiveLessonPrompt === 'function' ? getEffectiveLessonPrompt() : (localStorage.getItem('lesson_extraction_prompt') || ''),
+          customDirectives: localStorage.getItem('extractor_custom_directives') || '',
           solveSolutions: localStorage.getItem(`${provider}_solve_solutions`) !== 'false'
         });
 
@@ -2244,7 +2256,10 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
   // Retry a failed task
   const handleRetryTask = async (taskId) => {
     try {
-      await retryExtractionTask(taskId);
+      const activeKey = provider === 'gemini' 
+        ? (geminiKey || localStorage.getItem('geminiApiKey') || '').trim()
+        : (provider === 'claude' ? (claudeKey || localStorage.getItem('claudeApiKey') || '').trim() : (deepseekKey || localStorage.getItem('deepseekApiKey') || '').trim());
+      await retryExtractionTask(taskId, activeKey);
       fetchTasksList();
     } catch (err) {
       setError(`Impossible de relancer la tâche : ${err.message}`);
@@ -2913,22 +2928,26 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
                       <select
                         className="input-control"
-                        value={['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro', 'gemini-1.5-flash'].includes(geminiModel) ? geminiModel : 'gemini-2.0-flash'}
+                        value={['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.5-flash-lite', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro', 'gemini-1.5-flash'].includes(geminiModel) ? geminiModel : 'gemini-2.5-flash'}
                         onChange={e => { setGeminiModel(e.target.value); localStorage.setItem('geminiModel', e.target.value); }}
                       >
-                        <option value="gemini-2.0-flash">Gemini 2.0 Flash (Recommandé - Vitesse & Haute Précision)</option>
-                        <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash-Lite (Économique & Ultra Rapide)</option>
-                        <option value="gemini-1.5-pro">Gemini 1.5 Pro (Raisonnement Complexe & Mathématiques)</option>
-                        <option value="gemini-1.5-flash">Gemini Flash Latest (Dernière Génération)</option>
+                        <option value="gemini-2.5-flash">Gemini 2.5 Flash (الأحدث من جوجل - فائق السرعة والدقة)</option>
+                        <option value="gemini-2.5-pro">Gemini 2.5 Pro (الأقوى استدلالاً وتفصيلاً للرياضيات المعقدة)</option>
+                        <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite (خفيف وسريع جداً)</option>
+                        <option value="gemini-2.0-flash">Gemini 2.0 Flash (مستقر وموثوق)</option>
+                        <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash-Lite (اقتصادي وسريع)</option>
+                        <option value="gemini-1.5-pro">Gemini 1.5 Pro (رياضيات واستدلال عميق)</option>
+                        <option value="gemini-1.5-flash">Gemini 1.5 Flash (إصدار قياسي سابق)</option>
                       </select>
                       <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
                         {[
-                          { id: 'gemini-2.0-flash', label: '⚡ 2.0 Flash (Recommandé)' },
-                          { id: 'gemini-2.0-flash-lite', label: '🚀 2.0 Flash-Lite' },
-                          { id: 'gemini-1.5-pro', label: '🧠 1.5 Pro' },
-                          { id: 'gemini-1.5-flash', label: '🔄 Flash Latest' }
+                          { id: 'gemini-2.5-flash', label: '⚡ 2.5 Flash (الأحدث)' },
+                          { id: 'gemini-2.5-pro', label: '🧠 2.5 Pro (الأقوى)' },
+                          { id: 'gemini-2.5-flash-lite', label: '🚀 2.5 Lite' },
+                          { id: 'gemini-2.0-flash', label: '⭐ 2.0 Flash' },
+                          { id: 'gemini-1.5-pro', label: '🔬 1.5 Pro' }
                         ].map(m => {
-                          const isSel = (geminiModel === m.id) || (!['gemini-2.0-flash-lite', 'gemini-1.5-pro', 'gemini-1.5-flash'].includes(geminiModel) && m.id === 'gemini-2.0-flash');
+                          const isSel = (geminiModel === m.id) || (!['gemini-2.5-pro', 'gemini-2.5-flash-lite', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro', 'gemini-1.5-flash'].includes(geminiModel) && m.id === 'gemini-2.5-flash');
                           return (
                             <button
                               key={m.id}

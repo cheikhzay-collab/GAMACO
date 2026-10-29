@@ -309,15 +309,17 @@ async function executeGeminiExtraction({ base64Data, fileType, pageCount, apiKey
 
   const userText = buildExtractionUserPrompt(pageCount, solveSolutions, preExtractedPdfText);
 
-  let userPref = (model || '').trim();
-  // Map retired / nonexistent models to active ones
-  if (['gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-flash-latest', '3.7', '3.5'].includes(userPref)) {
-    userPref = 'gemini-2.0-flash';
+  let userPref = (model || '').trim().replace(/^models\//, '');
+  if (!userPref || ['gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-flash-latest', '3.7', '3.5'].includes(userPref)) {
+    userPref = 'gemini-2.5-flash';
   }
 
   // Active production models recommended by Google
   const defaultCascade = [
-    'gemini-3.1-flash-lite',
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-lite',
+    'gemini-2.5-pro',
+    'gemini-2.0-flash',
     'gemini-2.0-flash-lite',
     'gemini-1.5-pro',
     'gemini-1.5-flash'
@@ -330,32 +332,14 @@ async function executeGeminiExtraction({ base64Data, fileType, pageCount, apiKey
     const modelToUse = cascade[i];
     try {
       console.log(`[Server Extraction] Trying model [${modelToUse}] (${i + 1}/${cascade.length})...`);
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${effectiveKey}`;
-      const payload = {
-        contents: [
-          {
-            parts: [
-              ...(base64Data ? [{
-                inlineData: {
-                  mimeType: safeMime,
-                  data: base64Data
-                }
-              }] : []),
-              { text: userText }
-            ]
-          }
-        ],
-        systemInstruction: { parts: [{ text: systemContent }] },
-        generationConfig: {
-          responseMimeType: "application/json",
-          maxOutputTokens: 65536,
-          temperature: 0.1
-        }
-      };
-
+      const cleanModelToUse = modelToUse.replace(/^models\//, '');
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModelToUse}:generateContent?key=${effectiveKey}`;
       const res = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-goog-api-key': effectiveKey
+        },
         body: JSON.stringify(payload)
       });
 
