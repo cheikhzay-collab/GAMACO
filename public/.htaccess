@@ -26,3 +26,4 @@
   ExpiresByType font/woff "access plus 1 year"
   ExpiresByType font/ttf "access plus 1 year"
 </IfModule>
+

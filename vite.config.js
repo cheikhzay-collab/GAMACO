@@ -101,7 +101,7 @@ export default defineConfig(({ mode }) => {
           if (!id.includes('node_modules')) return;
 
           // ── Core React ────────────────────────────────────────────
-          if (id.includes('react/') || id.includes('react-dom/') || id.includes('scheduler/')) {
+          if (id.includes('react/') || id.includes('react-dom/') || id.includes('scheduler/') || id.includes('react-is')) {
             return 'vendor-react';
           }
           // ── Router ────────────────────────────────────────────────
@@ -165,6 +165,7 @@ export default defineConfig(({ mode }) => {
     include: [
       'react',
       'react-dom',
+      'react-is',
       'react-router-dom',
       'lucide-react',
       'recharts',
