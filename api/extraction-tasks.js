@@ -326,6 +326,30 @@ async function executeGeminiExtraction({ base64Data, fileType, pageCount, apiKey
   ];
   const cascade = Array.from(new Set([userPref, ...defaultCascade].filter(Boolean)));
 
+  // Build the Gemini API request payload (system instruction + user content with file)
+  const payload = {
+    system_instruction: {
+      parts: [{ text: systemContent }]
+    },
+    contents: [{
+      role: 'user',
+      parts: [
+        {
+          inline_data: {
+            mime_type: safeMime,
+            data: base64Data
+          }
+        },
+        { text: userText }
+      ]
+    }],
+    generationConfig: {
+      temperature: 0.2,
+      maxOutputTokens: 65536,
+      responseMimeType: 'text/plain'
+    }
+  };
+
   const failureLog = [];
   const effectiveKey = (apiKey || '').trim() || (process.env.GEMINI_API_KEY || '').trim();
   for (let i = 0; i < cascade.length; i++) {
