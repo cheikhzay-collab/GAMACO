@@ -1354,15 +1354,18 @@ export default function LessonViewerPage() {
         }
 
         /* KaTeX stays LTR always — math direction is always LTR */
-        .sheet-body[dir="rtl"] .katex,
+        .sheet-body[dir="rtl"] .katex {
+          direction: ltr !important;
+          text-align: left !important;
+        }
         .sheet-body[dir="rtl"] .katex-display {
           direction: ltr !important;
-          text-align: center;
+          text-align: center !important;
         }
         .sheet-body[dir="rtl"] .inline-math-container {
-          direction: ltr;
-          unicode-bidi: embed;
-          display: inline-block;
+          direction: ltr !important;
+          unicode-bidi: normal !important;
+          display: inline-block !important;
         }
 
         /* ═══════════════════════════════════════
@@ -1427,7 +1430,6 @@ export default function LessonViewerPage() {
         .homework-row .katex,
         .homework-subq-item .katex {
           font-size: 1.0em !important;
-          line-height: inherit !important;
         }
         .homework-content-header {
           font-size: 1.05rem;
@@ -2333,20 +2335,48 @@ export default function LessonViewerPage() {
             color: #1a202c !important;
           }
 
-          /* KaTeX math — always crisp regular weight and non-wrapping inline */
+          /* KaTeX math — always crisp regular weight, metric isolated, and strictly LTR */
+          .katex, .katex *, .katex *::before, .katex *::after {
+            box-sizing: content-box !important;
+          }
+          .katex .fbox, .katex .fcolorbox, .katex .angl {
+            box-sizing: border-box !important;
+          }
           .katex, .katex *, .katex .mathnormal, .katex .mord, .katex .mbin, .katex .mrel, .katex .mopen, .katex .mclose, .katex .mpunct {
             color: #1a202c !important;
             font-weight: normal !important;
+            line-height: 1.2 !important;
           }
           .katex .mathbf, .katex .mathbf * { font-weight: bold !important; }
+          .katex, .katex * {
+            direction: ltr !important;
+            unicode-bidi: normal !important;
+          }
           .inline-math-container, .katex-inline, .katex {
             white-space: nowrap !important;
             font-weight: normal !important;
+            direction: ltr !important;
           }
           .inline-math-container .katex .base {
             white-space: nowrap !important;
-            display: inline !important;
+            display: inline-block !important;
             font-weight: normal !important;
+          }
+          .katex .hide-tail {
+            width: 100% !important;
+            position: relative !important;
+            overflow: hidden !important;
+          }
+          .katex .sqrt > .vlist-t {
+            position: relative !important;
+          }
+          .katex .mfrac .vlist-t {
+            margin-top: 0.12em !important;
+            margin-bottom: 0.12em !important;
+          }
+          .katex .mfrac .frac-line {
+            margin-top: 0.06em !important;
+            margin-bottom: 0.06em !important;
           }
           /* Targeted refined scale for superscripts / powers only (leaves subscripts untouched) */
           .katex .msupsub .vlist-t:not(.vlist-t2) .sizing.size3,

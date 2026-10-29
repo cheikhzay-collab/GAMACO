@@ -114,6 +114,10 @@ export const repairMathExpression = (latex) => {
   // Case D: number/var / number/var -> \frac{number/var}{number/var}
   repaired = repaired.replace(/(?<![a-zA-Z0-9\\_])([a-zA-Z0-9\\_]+)\s*\/\s*([a-zA-Z0-9\\_]+)(?![a-zA-Z0-9\\_])/g, '\\frac{$1}{$2}');
 
+  // 4b. Enhance fractions containing square roots to \dfrac for optimal textbook vertical clearance
+  repaired = repaired.replace(/\\frac(?=\s*\{(?:[^{}]|\{[^{}]*\})*\\sqrt)/g, '\\dfrac');
+  repaired = repaired.replace(/\\frac(\s*\{(?:[^{}]|\{[^{}]*\})*\})(\s*\{(?:[^{}]|\{[^{}]*\})*\\sqrt)/g, '\\dfrac$1$2');
+
   // 5. Repair common LaTeX symbols corrupted in JSON/extraction
   repaired = repaired
     .replace(/(?:ext\s*)?extgreater\s*=/gi, '\\geq')
@@ -222,12 +226,12 @@ export function SafeBlockMath({ math }) {
   const html = renderBlockKatex(math);
   return (
     <span
-      className="notranslate inline-math-container"
+      className="notranslate block-math-container"
       translate="no"
       style={{
-        display: 'inline-block',
-        margin: '0.15em 0.35em',
-        verticalAlign: 'middle',
+        display: 'block',
+        margin: '0.35em auto',
+        textAlign: 'center',
         overflowX: 'auto',
         overflowY: 'hidden',
         maxWidth: '100%',

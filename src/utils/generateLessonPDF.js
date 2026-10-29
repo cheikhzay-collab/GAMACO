@@ -240,6 +240,10 @@ const repairMathExpression = (latex) => {
   // Case D: number/var / number/var -> \frac{number/var}{number/var}
   repaired = repaired.replace(/(?<![a-zA-Z0-9\\_])([a-zA-Z0-9\\_]+)\s*\/\s*([a-zA-Z0-9\\_]+)(?![a-zA-Z0-9\\_])/g, '\\frac{$1}{$2}');
 
+  // 4b. Enhance fractions containing square roots to \dfrac for optimal textbook vertical clearance
+  repaired = repaired.replace(/\\frac(?=\s*\{(?:[^{}]|\{[^{}]*\})*\\sqrt)/g, '\\dfrac');
+  repaired = repaired.replace(/\\frac(\s*\{(?:[^{}]|\{[^{}]*\})*\})(\s*\{(?:[^{}]|\{[^{}]*\})*\\sqrt)/g, '\\dfrac$1$2');
+
   // 5. Convert multi-letter vectors to \overrightarrow for standard textbook styling
   repaired = repaired
     .replace(/\\vec\{([a-zA-Z0-9]{2,})\}/g, '\\overrightarrow{$1}')
@@ -2369,6 +2373,19 @@ body.hide-solutions .modern-solution-block {
   font-weight: normal !important;
 }
 
+/* Universal content-box metric isolation for KaTeX (prevents border-box metric distortions) */
+.katex,
+.katex *,
+.katex *::before,
+.katex *::after {
+  box-sizing: content-box !important;
+}
+.katex .fbox,
+.katex .fcolorbox,
+.katex .angl {
+  box-sizing: border-box !important;
+}
+
 /* KaTeX base spans: must remain inline-block with relative positioning for radical clipping */
 .inline-math-container .katex .base {
   white-space: nowrap !important;
@@ -2384,6 +2401,16 @@ body.hide-solutions .modern-solution-block {
 }
 .katex .sqrt > .vlist-t {
   position: relative !important;
+}
+
+/* Fraction vertical breathing room: prevents radical vinculum collision with fraction bar */
+.katex .mfrac .vlist-t {
+  margin-top: 0.12em !important;
+  margin-bottom: 0.12em !important;
+}
+.katex .mfrac .frac-line {
+  margin-top: 0.06em !important;
+  margin-bottom: 0.06em !important;
 }
 .math-punct-wrapper {
   white-space: nowrap !important;

@@ -2242,6 +2242,19 @@ body.light-theme select.input-control {
 
 /* ─── KATEX — PREMIUM ACADEMIC TYPOGRAPHY ───────────────────────── */
 
+/* Universal content-box metric isolation for KaTeX (prevents border-box metric distortions) */
+.katex,
+.katex *,
+.katex *::before,
+.katex *::after {
+  box-sizing: content-box !important;
+}
+.katex .fbox,
+.katex .fcolorbox,
+.katex .angl {
+  box-sizing: border-box !important;
+}
+
 /* Base: strict non-bold, never inherits weight from bold parent */
 .katex,
 .katex *,
@@ -2256,6 +2269,7 @@ body.light-theme select.input-control {
 .katex .mop {
   color: inherit;
   font-weight: normal !important;
+  line-height: 1.2 !important;
 }
 
 /* Explicit \mathbf{} remains bold — correct academic behavior */
@@ -2270,6 +2284,13 @@ b .katex,
 strong .katex *,
 b .katex * {
   font-weight: normal !important;
+}
+
+/* Math must always remain strictly LTR */
+.katex,
+.katex * {
+  direction: ltr !important;
+  unicode-bidi: normal !important;
 }
 
 /* KaTeX inside cards & homework tables — match surrounding text exactly, no jump */
@@ -2290,10 +2311,14 @@ b .katex * {
   overflow-y: hidden !important;
   max-width: 100% !important;
   padding-bottom: 0.5rem;
+  direction: ltr !important;
+  text-align: center !important;
   -webkit-overflow-scrolling: touch;
 }
 .katex-display > .katex {
   max-width: 100% !important;
+  direction: ltr !important;
+  text-align: left !important;
 }
 
 /* Inline math container: crisp, non-wrapping, perfect baseline */
@@ -2302,16 +2327,38 @@ b .katex * {
   white-space: nowrap !important;
   max-width: 100%;
   vertical-align: -0.1em;
+  direction: ltr !important;
 }
 .inline-math-container .katex {
   white-space: nowrap !important;
   font-size: 1.0em !important; /* Perfect 1:1 harmony with surrounding body text */
   font-weight: normal !important;
+  direction: ltr !important;
 }
 .inline-math-container .katex .base {
   white-space: nowrap !important;
-  display: inline !important;
+  display: inline-block !important;
   font-weight: normal !important;
+}
+
+/* Ensure KaTeX radicals and bounding boxes never overflow or distort */
+.katex .hide-tail {
+  width: 100% !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+.katex .sqrt > .vlist-t {
+  position: relative !important;
+}
+
+/* Fraction vertical breathing room: prevents radical vinculum collision with fraction bar */
+.katex .mfrac .vlist-t {
+  margin-top: 0.12em !important;
+  margin-bottom: 0.12em !important;
+}
+.katex .mfrac .frac-line {
+  margin-top: 0.06em !important;
+  margin-bottom: 0.06em !important;
 }
 
 /* Targeted refined scale for superscripts / powers only (leaves subscripts untouched) */
@@ -2422,72 +2469,7 @@ b .katex * {
 ::-webkit-scrollbar-thumb { background: var(--navy-700); border-radius: 99px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--navy-600); }
 
-/* ─── KATEX OVERRIDES ────────────────────────────────────────────── */
-.katex,
-.katex *,
-.katex .mathnormal,
-.katex .mord,
-.katex .mbin,
-.katex .mrel,
-.katex .mopen,
-.katex .mclose,
-.katex .mpunct,
-.katex .minner,
-.katex .mop {
-  color: inherit;
-  font-weight: normal !important;
-}
-
-/* Explicit \mathbf{} remains bold — correct academic behavior */
-.katex .mathbf,
-.katex .mathbf * {
-  font-weight: bold !important;
-}
-
-/* Bold/strong context must NOT propagate into math symbols */
-strong .katex,
-b .katex,
-strong .katex *,
-b .katex * {
-  font-weight: normal !important;
-}
-
-/* KaTeX inside cards — match surrounding text exactly, no jump */
-.flashcard-card .katex,
-.mfc-phase .katex,
-.astuce-match-content .katex,
-.mfc-astuce-body .katex {
-  font-size: 1em !important;
-}
-
-/* Block math: always scrollable, never wider than container */
-.katex-display {
-  overflow-x: auto !important;
-  overflow-y: hidden !important;
-  max-width: 100% !important;
-  padding-bottom: 0.5rem;
-  -webkit-overflow-scrolling: touch;
-}
-.katex-display > .katex {
-  max-width: 100% !important;
-}
-
-.inline-math-container {
-  display: inline-block !important;
-  white-space: nowrap !important;
-  max-width: 100%;
-  vertical-align: -0.1em;
-}
-.inline-math-container .katex {
-  white-space: nowrap !important;
-  font-size: 1.08em !important;
-  font-weight: normal !important;
-}
-.inline-math-container .katex .base {
-  white-space: nowrap !important;
-  display: inline !important;
-  font-weight: normal !important;
-}
+/* Consolidated into main KaTeX section */
 
 /* ─── ANIMATIONS ─────────────────────────────────────────────────── */
 @keyframes fadeIn {
@@ -7640,9 +7622,11 @@ body.light-theme .settings-content .bento-card .settings-title {
 .rtl-text {
   font-family: 'UKIJ Merdane', 'UKIJMerdane', 'UKIJMerdaneRegular', 'Cairo', 'Amiri', sans-serif;
 }
-[dir="rtl"] .katex,
-[dir="rtl"] .katex * {
+[dir="rtl"] .katex {
   font-family: KaTeX_Main, KaTeX_Math, 'STIX Two Text', serif !important;
+  direction: ltr !important;
+}
+[dir="rtl"] .katex * {
   direction: ltr !important;
 }
 
