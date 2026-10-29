@@ -1,7 +1,21 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Trash2, Settings, School, KeyRound, Eye, EyeOff, CheckCircle2, Sparkles, RefreshCw, Layers, MousePointerClick, Crown, Download, Sliders, FileText, Camera, MessageCircle, Volume2, BookOpen, Calendar, Palmtree, Pencil, Upload, ExternalLink, ShieldCheck, Cpu, Zap, Globe, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Settings, School, KeyRound, Eye, EyeOff, CheckCircle2, Sparkles, RefreshCw, Layers, MousePointerClick, Crown, Download, Sliders, FileText, Camera, MessageCircle, Volume2, BookOpen, Calendar, Palmtree, Pencil, Upload, ExternalLink, ShieldCheck, Cpu, Zap, Globe, Loader2, Copy, RotateCcw, FileCode, Check } from 'lucide-react';
 import { getAllClasses } from '../services/classService';
+import {
+  DEFAULT_EXAM_SYSTEM_PROMPT,
+  DEFAULT_LESSON_SYSTEM_PROMPT,
+  DEFAULT_EXTRACTOR_DIRECTIVES,
+  getStoredExamPrompt,
+  getStoredLessonPrompt,
+  getStoredExtractorDirectives,
+  saveExamPrompt,
+  saveLessonPrompt,
+  saveExtractorDirectives,
+  resetExamPrompt,
+  resetLessonPrompt,
+  resetExtractorDirectives
+} from '../utils/extractionPrompts';
 import { 
   getAiSettingsConfig, 
   saveAiSettingsConfig,
@@ -128,6 +142,14 @@ export default function AdminSettings() {
   const [showOpenaiKey, setShowOpenaiKey] = useState(false);
   const [openaiKeySaved, setOpenaiKeySaved] = useState(false);
 
+  // AI Extraction Prompts & Custom Directives
+  const [examPrompt, setExamPrompt] = useState(() => getStoredExamPrompt());
+  const [lessonPrompt, setLessonPrompt] = useState(() => getStoredLessonPrompt());
+  const [extractorDirectives, setExtractorDirectives] = useState(() => getStoredExtractorDirectives());
+  const [promptsSaved, setPromptsSaved] = useState(false);
+  const [activePromptSubTab, setActivePromptSubTab] = useState('exam');
+  const [copiedField, setCopiedField] = useState(null);
+
   // Charger les paramètres IA distants depuis Supabase Cloud DB (config table) au montage
   useEffect(() => {
     getAiSettingsConfig({ forceRefresh: true }).then(remoteSettings => {
@@ -172,6 +194,18 @@ export default function AdminSettings() {
           setOpenaiKey(remoteSettings.openaiApiKey);
           localStorage.setItem('openaiApiKey', remoteSettings.openaiApiKey);
         }
+        if (remoteSettings.exam_extraction_prompt !== undefined) {
+          setExamPrompt(remoteSettings.exam_extraction_prompt);
+          saveExamPrompt(remoteSettings.exam_extraction_prompt);
+        }
+        if (remoteSettings.lesson_extraction_prompt !== undefined) {
+          setLessonPrompt(remoteSettings.lesson_extraction_prompt);
+          saveLessonPrompt(remoteSettings.lesson_extraction_prompt);
+        }
+        if (remoteSettings.extractor_custom_directives !== undefined) {
+          setExtractorDirectives(remoteSettings.extractor_custom_directives);
+          saveExtractorDirectives(remoteSettings.extractor_custom_directives);
+        }
       }
     }).catch(err => console.warn('[AdminSettings] Error fetching remote AI config:', err));
   }, []);
@@ -188,11 +222,56 @@ export default function AdminSettings() {
       deepseek_solve_solutions: overrides.deepseek_solve_solutions !== undefined ? overrides.deepseek_solve_solutions : deepseekSolveSolutions,
       groqApiKey: overrides.groqApiKey !== undefined ? overrides.groqApiKey : groqKey.trim(),
       openaiApiKey: overrides.openaiApiKey !== undefined ? overrides.openaiApiKey : openaiKey.trim(),
+      exam_extraction_prompt: overrides.exam_extraction_prompt !== undefined ? overrides.exam_extraction_prompt : examPrompt,
+      lesson_extraction_prompt: overrides.lesson_extraction_prompt !== undefined ? overrides.lesson_extraction_prompt : lessonPrompt,
+      extractor_custom_directives: overrides.extractor_custom_directives !== undefined ? overrides.extractor_custom_directives : extractorDirectives,
     };
     try {
       await saveAiSettingsConfig(payload);
     } catch (err) {
       console.warn('[AdminSettings] Failed to persist AI settings to DB:', err);
+    }
+  };
+
+  const handleSavePromptsAndDirectives = async () => {
+    saveExamPrompt(examPrompt);
+    saveLessonPrompt(lessonPrompt);
+    saveExtractorDirectives(extractorDirectives);
+    await syncAiSettingsToDb({
+      exam_extraction_prompt: examPrompt,
+      lesson_extraction_prompt: lessonPrompt,
+      extractor_custom_directives: extractorDirectives
+    });
+    setPromptsSaved(true);
+    setTimeout(() => setPromptsSaved(false), 3000);
+  };
+
+  const handleResetExamPrompt = () => {
+    if (window.confirm('هل أنت متأكد من استعادة برومبت استخراج الامتحانات الافتراضي؟')) {
+      const def = resetExamPrompt();
+      setExamPrompt(def);
+    }
+  };
+
+  const handleResetLessonPrompt = () => {
+    if (window.confirm('هل أنت متأكد من استعادة برومبت استخراج الدروس الافتراضي؟')) {
+      const def = resetLessonPrompt();
+      setLessonPrompt(def);
+    }
+  };
+
+  const handleResetDirectives = () => {
+    if (window.confirm('هل أنت متأكد من استعادة التوجيهات الافتراضية؟')) {
+      const def = resetExtractorDirectives();
+      setExtractorDirectives(def);
+    }
+  };
+
+  const handleCopyText = (text, fieldName) => {
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(text);
+      setCopiedField(fieldName);
+      setTimeout(() => setCopiedField(null), 2000);
     }
   };
 
@@ -2188,9 +2267,9 @@ export default function AdminSettings() {
                     </div>
 
                     <div className="flex items-center gap-1.5 flex-wrap mb-3">
-                      <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.45rem', borderRadius: '6px', background: 'rgba(66,133,244,0.1)', color: '#4285F4' }}>Gemini 3.1 Flash-Lite</span>
-                      <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.45rem', borderRadius: '6px', background: 'rgba(66,133,244,0.1)', color: '#4285F4' }}>Gemini 3.5 Flash</span>
-                      <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.45rem', borderRadius: '6px', background: 'rgba(66,133,244,0.1)', color: '#4285F4' }}>Gemini 3.8 Flash</span>
+                      <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.45rem', borderRadius: '6px', background: 'rgba(66,133,244,0.12)', color: '#4285F4' }}>Gemini 2.0 Flash (Recommandé)</span>
+                      <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.45rem', borderRadius: '6px', background: 'rgba(66,133,244,0.12)', color: '#4285F4' }}>Gemini 2.0 Flash-Lite</span>
+                      <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.45rem', borderRadius: '6px', background: 'rgba(66,133,244,0.12)', color: '#4285F4' }}>Gemini 1.5 Pro</span>
                     </div>
 
                     <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: '1.25rem' }}>
@@ -2748,6 +2827,378 @@ export default function AdminSettings() {
                   >
                     {openaiKeySaved ? '✅ Configuration Enregistrée' : 'Enregistrer la clé OpenAI'}
                   </button>
+                </div>
+
+              </div>
+
+
+              {/* ── SECTION: PROMPTS ET DIRECTIVES DU مستخرج (Extraction System Prompts & Custom Directives) ── */}
+              <div className="bento-card" style={{
+                background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.4) 0%, rgba(15, 23, 42, 0.6) 100%)',
+                border: '1.5px solid rgba(139, 92, 246, 0.3)',
+                borderRadius: '1.25rem',
+                padding: '1.75rem',
+                boxShadow: '0 12px 40px rgba(0, 0, 0, 0.15)',
+                position: 'relative'
+              }}>
+                {/* Header with Icon, Title, and Description */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                  <div>
+                    <div className="flex items-center gap-2.5 mb-1.5">
+                      <div style={{
+                        width: '38px', height: '38px', borderRadius: '10px',
+                        background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(99, 102, 241, 0.3) 100%)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        color: 'var(--violet)', border: '1px solid rgba(139, 92, 246, 0.4)'
+                      }}>
+                        <FileCode size={20} />
+                      </div>
+                      <div>
+                        <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
+                          إعدادات برومبت وتوجيهات المستخرج الذكي
+                        </h3>
+                        <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                          Architecture des Prompts Système & Directives d'Extraction IA (QCM, Examens, Cours)
+                        </span>
+                      </div>
+                    </div>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.6, maxWidth: '820px' }}>
+                      تحكم بدقة متناهية في سلوك محركات الذكاء الاصطناعي أثناء استخراج ملفات PDF والصور. يمكنك تعديل البرومبت الأساسي للامتحانات و QCM، برومبت الدروس والمقررات، وإضافة توجيهات وتعليمات خاصة تطبق تلقائياً على كافة عمليات الاستخراج.
+                    </p>
+                  </div>
+
+                  {/* Save Status / Button */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleSavePromptsAndDirectives}
+                      className="btn"
+                      style={{
+                        padding: '0.65rem 1.25rem',
+                        borderRadius: '10px',
+                        fontSize: '0.84rem',
+                        fontWeight: 700,
+                        background: promptsSaved ? '#10B981' : 'linear-gradient(135deg, var(--violet) 0%, #4F46E5 100%)',
+                        color: '#fff',
+                        border: 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.45rem',
+                        boxShadow: '0 4px 15px rgba(99, 102, 241, 0.25)',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {promptsSaved ? <Check size={16} /> : <Sparkles size={16} />}
+                      {promptsSaved ? 'تم الحفظ بنجاح وتفعيل التوجيهات!' : 'حفظ التعديلات'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Subtab Navigation Pills */}
+                <div className="flex items-center gap-2 mb-5 flex-wrap border-b border-[var(--border)] pb-3">
+                  <button
+                    type="button"
+                    onClick={() => setActivePromptSubTab('exam')}
+                    className="btn"
+                    style={{
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      padding: '0.45rem 0.9rem',
+                      borderRadius: '8px',
+                      background: activePromptSubTab === 'exam' ? 'rgba(99, 102, 241, 0.2)' : 'var(--bg-glass)',
+                      color: activePromptSubTab === 'exam' ? 'var(--violet)' : 'var(--text-muted)',
+                      border: activePromptSubTab === 'exam' ? '1px solid var(--violet)' : '1px solid var(--border)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem'
+                    }}
+                  >
+                    <span>📝</span> برومبت استخراج الامتحانات و QCM
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActivePromptSubTab('lesson')}
+                    className="btn"
+                    style={{
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      padding: '0.45rem 0.9rem',
+                      borderRadius: '8px',
+                      background: activePromptSubTab === 'lesson' ? 'rgba(99, 102, 241, 0.2)' : 'var(--bg-glass)',
+                      color: activePromptSubTab === 'lesson' ? 'var(--violet)' : 'var(--text-muted)',
+                      border: activePromptSubTab === 'lesson' ? '1px solid var(--violet)' : '1px solid var(--border)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem'
+                    }}
+                  >
+                    <span>📚</span> برومبت استخراج الدروس والمقررات
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActivePromptSubTab('directives')}
+                    className="btn"
+                    style={{
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      padding: '0.45rem 0.9rem',
+                      borderRadius: '8px',
+                      background: activePromptSubTab === 'directives' ? 'rgba(16, 185, 129, 0.2)' : 'var(--emerald)',
+                      color: activePromptSubTab === 'directives' ? 'var(--emerald)' : 'var(--text-muted)',
+                      border: activePromptSubTab === 'directives' ? '1px solid var(--emerald)' : '1px solid var(--border)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem'
+                    }}
+                  >
+                    <span>🎯</span> توجيهات وتعليمات المستخرج الإضافية
+                  </button>
+                </div>
+
+                {/* SubTab 1: Exam & QCM Prompt */}
+                {activePromptSubTab === 'exam' && (
+                  <div>
+                    <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
+                      <div>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', display: 'block' }}>
+                          برومبت استخراج الامتحانات و QCM (System Prompt - Examens & Concours)
+                        </span>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)' }}>
+                          يتحكم في دقة استخراج الأسئلة، الخيارات الأربعة، الإجابة الصحيحة، وصياغة الـ Astuce والـ Trick.
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', padding: '0.2rem 0.6rem', borderRadius: '6px', background: 'var(--bg-glass)', border: '1px solid var(--border)' }}>
+                          {examPrompt.length} حرف (~{Math.round(examPrompt.length / 4)} توكن)
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyText(examPrompt, 'exam')}
+                          className="btn-secondary"
+                          style={{ fontSize: '0.74rem', padding: '0.35rem 0.7rem', borderRadius: '8px', gap: '0.35rem', cursor: 'pointer' }}
+                        >
+                          {copiedField === 'exam' ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
+                          {copiedField === 'exam' ? 'تم النسخ' : 'نسخ'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleResetExamPrompt}
+                          className="btn-secondary"
+                          style={{ fontSize: '0.74rem', padding: '0.35rem 0.7rem', borderRadius: '8px', gap: '0.35rem', color: 'var(--text-subtle)', cursor: 'pointer' }}
+                        >
+                          <RotateCcw size={13} /> استعادة الافتراضي
+                        </button>
+                      </div>
+                    </div>
+
+                    <textarea
+                      value={examPrompt}
+                      onChange={e => setExamPrompt(e.target.value)}
+                      rows={14}
+                      className="input-control"
+                      style={{
+                        width: '100%',
+                        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace',
+                        fontSize: '0.8rem',
+                        lineHeight: 1.6,
+                        padding: '1rem',
+                        borderRadius: '12px',
+                        background: 'rgba(0, 0, 0, 0.25)',
+                        border: '1px solid var(--border)',
+                        color: 'var(--text-main)',
+                        resize: 'vertical',
+                        whiteSpace: 'pre-wrap',
+                        direction: 'ltr',
+                        textAlign: 'left'
+                      }}
+                    />
+                  </div>
+                )}
+
+                {/* SubTab 2: Lessons & Courses Prompt */}
+                {activePromptSubTab === 'lesson' && (
+                  <div>
+                    <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
+                      <div>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', display: 'block' }}>
+                          برومبت استخراج الدروس والمقررات (System Prompt - Cours & Résumés)
+                        </span>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)' }}>
+                          يحدد معايير استخراج ملخصات الدروس، سلاسل التمارين، والأنشطة بتنسيق الجداول وتضمين LaTeX.
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', padding: '0.2rem 0.6rem', borderRadius: '6px', background: 'var(--bg-glass)', border: '1px solid var(--border)' }}>
+                          {lessonPrompt.length} حرف (~{Math.round(lessonPrompt.length / 4)} توكن)
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyText(lessonPrompt, 'lesson')}
+                          className="btn-secondary"
+                          style={{ fontSize: '0.74rem', padding: '0.35rem 0.7rem', borderRadius: '8px', gap: '0.35rem', cursor: 'pointer' }}
+                        >
+                          {copiedField === 'lesson' ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
+                          {copiedField === 'lesson' ? 'تم النسخ' : 'نسخ'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleResetLessonPrompt}
+                          className="btn-secondary"
+                          style={{ fontSize: '0.74rem', padding: '0.35rem 0.7rem', borderRadius: '8px', gap: '0.35rem', color: 'var(--text-subtle)', cursor: 'pointer' }}
+                        >
+                          <RotateCcw size={13} /> استعادة الافتراضي
+                        </button>
+                      </div>
+                    </div>
+
+                    <textarea
+                      value={lessonPrompt}
+                      onChange={e => setLessonPrompt(e.target.value)}
+                      rows={14}
+                      className="input-control"
+                      style={{
+                        width: '100%',
+                        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace',
+                        fontSize: '0.8rem',
+                        lineHeight: 1.6,
+                        padding: '1rem',
+                        borderRadius: '12px',
+                        background: 'rgba(0, 0, 0, 0.25)',
+                        border: '1px solid var(--border)',
+                        color: 'var(--text-main)',
+                        resize: 'vertical',
+                        whiteSpace: 'pre-wrap',
+                        direction: 'ltr',
+                        textAlign: 'left'
+                      }}
+                    />
+                  </div>
+                )}
+
+                {/* SubTab 3: Extractor Directives */}
+                {activePromptSubTab === 'directives' && (
+                  <div>
+                    <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
+                      <div>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', display: 'block' }}>
+                          توجيهات وتعليمات المستخرج الإضافية (Directives Personnalisées de l'Extracteur)
+                        </span>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)' }}>
+                          تعليمات وقواعد مخصصة يتم حقنها تلقائياً مع كل طلب استخراج (لفرض أسلوب معين، لغة محددة، أو ضوابط إضافية).
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', padding: '0.2rem 0.6rem', borderRadius: '6px', background: 'var(--bg-glass)', border: '1px solid var(--border)' }}>
+                          {extractorDirectives.length} حرف
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyText(extractorDirectives, 'directives')}
+                          className="btn-secondary"
+                          style={{ fontSize: '0.74rem', padding: '0.35rem 0.7rem', borderRadius: '8px', gap: '0.35rem', cursor: 'pointer' }}
+                        >
+                          {copiedField === 'directives' ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
+                          {copiedField === 'directives' ? 'تم النسخ' : 'نسخ'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleResetDirectives}
+                          className="btn-secondary"
+                          style={{ fontSize: '0.74rem', padding: '0.35rem 0.7rem', borderRadius: '8px', gap: '0.35rem', color: 'var(--text-subtle)', cursor: 'pointer' }}
+                        >
+                          <RotateCcw size={13} /> استعادة الافتراضي
+                        </button>
+                      </div>
+                    </div>
+
+                    <div style={{
+                      padding: '0.75rem 1rem',
+                      background: 'rgba(16, 185, 129, 0.08)',
+                      border: '1px solid rgba(16, 185, 129, 0.25)',
+                      borderRadius: '10px',
+                      fontSize: '0.78rem',
+                      color: 'var(--text-main)',
+                      marginBottom: '0.75rem',
+                      lineHeight: 1.6
+                    }}>
+                      💡 <strong>ملاحظة هامة:</strong> أي توجيهات تضيفها هنا ستُضاف تلقائياً في نهاية البرومبت لكافة عمليات الاستخراج (الامتحانات، التمارين، والدروس) دون الحاجة لتعديل نصوص البرومبت الأساسية.
+                    </div>
+
+                    <textarea
+                      value={extractorDirectives}
+                      onChange={e => setExtractorDirectives(e.target.value)}
+                      rows={8}
+                      className="input-control"
+                      placeholder="أدخل توجيهات إضافية للمستخرج هنا (مثال: ركز على صياغة الحل بالعربية الفصحى، اكتب جميع الرموز بـ LaTeX...)"
+                      style={{
+                        width: '100%',
+                        fontSize: '0.82rem',
+                        lineHeight: 1.6,
+                        padding: '1rem',
+                        borderRadius: '12px',
+                        background: 'rgba(0, 0, 0, 0.25)',
+                        border: '1px solid var(--border)',
+                        color: 'var(--text-main)',
+                        resize: 'vertical',
+                        whiteSpace: 'pre-wrap',
+                        direction: 'rtl',
+                        textAlign: 'right'
+                      }}
+                    />
+                  </div>
+                )}
+
+                {/* Footer Quick Controls */}
+                <div className="flex items-center justify-between gap-4 mt-5 pt-4 border-t border-[var(--border)] flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-subtle)' }}>
+                      🔒 يتم حفظ البرومبتات والتوجيهات محلياً في المتصفح وتزامنها سحابياً مع قاعدة البيانات.
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm('هل تريد استعادة كافة البرومبتات والتوجيهات إلى الإعدادات الأصلية؟')) {
+                          setExamPrompt(resetExamPrompt());
+                          setLessonPrompt(resetLessonPrompt());
+                          setExtractorDirectives(resetExtractorDirectives());
+                        }
+                      }}
+                      className="btn-secondary"
+                      style={{ fontSize: '0.76rem', padding: '0.5rem 0.85rem', borderRadius: '9px', cursor: 'pointer' }}
+                    >
+                      <RotateCcw size={14} /> استعادة كافة الافتراضيات
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleSavePromptsAndDirectives}
+                      className="btn"
+                      style={{
+                        padding: '0.5rem 1.25rem',
+                        borderRadius: '9px',
+                        fontSize: '0.8rem',
+                        fontWeight: 700,
+                        background: promptsSaved ? '#10B981' : 'linear-gradient(135deg, var(--violet) 0%, #4F46E5 100%)',
+                        color: '#fff',
+                        border: 'none',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.4rem'
+                      }}
+                    >
+                      {promptsSaved ? <Check size={15} /> : <Sparkles size={15} />}
+                      {promptsSaved ? 'تم الحفظ بنجاح!' : 'حفظ إعدادات البرومبت'}
+                    </button>
+                  </div>
                 </div>
 
               </div>

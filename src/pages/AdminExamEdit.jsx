@@ -608,8 +608,8 @@ export default function AdminExamEdit() {
 
     try {
       let rawModel = (localStorage.getItem('geminiModel') || '').trim();
-      if (!rawModel || ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-2.5-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-pro', 'gemini-2.5-flash-lite', '3.7', '3.5'].includes(rawModel)) {
-        rawModel = 'gemini-3.1-flash-lite';
+      if (!rawModel || ['gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-flash-latest', '3.7', '3.5'].includes(rawModel)) {
+        rawModel = 'gemini-2.0-flash';
       }
       const model = rawModel;
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;

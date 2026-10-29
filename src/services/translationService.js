@@ -164,10 +164,10 @@ ${JSON.stringify(lesson.content, null, 2)}
 /**
  * استدعاء Gemini API
  */
-async function callGemini(prompt, geminiKey, model = 'gemini-3.1-flash-lite') {
+async function callGemini(prompt, geminiKey, model = 'gemini-2.0-flash') {
   let cleanModel = (model || '').trim();
-  if (!cleanModel || ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-2.5-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-pro', 'gemini-2.5-flash-lite', '3.7', 'gemini-3.7', 'gemini-3.7-flash', '3.5'].includes(cleanModel)) {
-    cleanModel = 'gemini-3.1-flash-lite';
+  if (!cleanModel || ['gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-flash-latest', '3.7', '3.5'].includes(cleanModel)) {
+    cleanModel = 'gemini-2.0-flash';
   }
 
   // If client key is available, try direct call
@@ -426,8 +426,8 @@ export async function callAIWithFailover(prompt, options = {}) {
       if (prov === 'gemini') {
         const key = options.geminiKey || localStorage.getItem('geminiApiKey') || '';
         if (!key) continue;
-        const rawModel = (options.geminiModel || localStorage.getItem('geminiModel') || 'gemini-3.7-flash').trim();
-        const model = (rawModel === '3.7' || rawModel === 'gemini-3.7') ? 'gemini-3.7-flash' : (rawModel === '3.5' || rawModel === 'gemini-3.5') ? 'gemini-3.5-flash' : rawModel;
+        const rawModel = (options.geminiModel || localStorage.getItem('geminiModel') || 'gemini-2.0-flash').trim();
+        const model = (rawModel.includes('3.') || !rawModel) ? 'gemini-2.0-flash' : rawModel;
         console.log(`[AI Failover] Attemping generation with Gemini (${model})...`);
         const text = await callGemini(prompt, key, model);
         return { text, provider: 'gemini' };

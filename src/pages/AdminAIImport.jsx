@@ -701,8 +701,8 @@ export default function AdminAIImport({ onBack }) {
   const [geminiKey, setGeminiKey] = useState(() => localStorage.getItem('geminiApiKey') || '');
   const [geminiModel, setGeminiModel] = useState(() => {
     let m = (draft?.geminiModel || localStorage.getItem('geminiModel') || '').trim();
-    if (!m || ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-2.5-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-pro', 'gemini-2.5-flash-lite', '3.7', '3.5'].includes(m)) {
-      m = 'gemini-3.1-flash-lite';
+    if (!m || ['gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-flash-latest', '3.7', '3.5'].includes(m)) {
+      m = 'gemini-2.0-flash';
       localStorage.setItem('geminiModel', m);
     }
     return m;
@@ -848,7 +848,7 @@ export default function AdminAIImport({ onBack }) {
     setCorrectionPageFrom(1);
     setCorrectionPageTo(1);
     setProvider('gemini');
-    setGeminiModel('gemini-3.6-flash');
+    setGeminiModel('gemini-2.0-flash');
     setDeepseekModel('deepseek-reasoner');
     setClaudeModel('claude-3-5-sonnet-20241022');
     setError('');
@@ -897,17 +897,17 @@ Pour le champ 'astuce', extrais/résume l'explication officielle fournie dans le
       userPromptText = `${pageNote}Extrais TOUTES les questions QCM de ce document de la première à la toute dernière sans exception, sans aucune omission ni troncature, et retourne le JSON demandé.`;
     }
 
-    let rawModel = (geminiModel || 'gemini-3.1-flash-lite').trim();
-    if (!rawModel || ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-2.5-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-pro', 'gemini-2.5-flash-lite', '3.7', 'gemini-3.7', 'gemini-3.7-flash', 'gemini-3.7-pro', '3.5'].includes(rawModel)) {
-      rawModel = 'gemini-3.1-flash-lite';
+    let rawModel = (geminiModel || 'gemini-2.0-flash').trim();
+    if (!rawModel || ['gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-flash-latest', '3.7', '3.5'].includes(rawModel)) {
+      rawModel = 'gemini-2.0-flash';
     }
 
     const cascade = Array.from(new Set([
       rawModel,
-      'gemini-3.1-flash-lite',
-      'gemini-3.5-flash',
-      'gemini-3.8-flash',
-      'gemini-flash-latest'
+      'gemini-2.0-flash',
+      'gemini-2.0-flash-lite',
+      'gemini-1.5-pro',
+      'gemini-1.5-flash'
     ]));
 
     // Create fresh AbortController for this request
@@ -1070,7 +1070,7 @@ Pour le champ 'astuce', extrais/résume l'explication officielle fournie dans le
         model: claudeModel,
         max_tokens: 16000,
         stream: true,
-        system: SYSTEM_PROMPT,
+        system: getEffectiveExamPrompt() || SYSTEM_PROMPT,
         messages: [{
           role: 'user',
           content: [
@@ -1184,7 +1184,7 @@ ${pdfText}
       messages: [
         {
           role: "system",
-          content: SYSTEM_PROMPT
+          content: getEffectiveExamPrompt() || SYSTEM_PROMPT
         },
         {
           role: "user",
@@ -1826,10 +1826,10 @@ ${pdfText}
               <label>Modèle Gemini <span style={{fontWeight:400, color:'var(--text-muted)'}}>— ID exact de l'API</span></label>
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
                 {[
-                  { id: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash-Lite (Recommandé - Ultra Rapide)' },
-                  { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash (Haute Fidélité LaTeX)' },
-                  { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash (Multimodal Avancé)' },
-                  { id: 'gemini-flash-latest', label: 'Gemini Flash Latest' }
+                  { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (Recommandé - Vitesse & Haute Précision)' },
+                  { id: 'gemini-2.0-flash-lite', label: 'Gemini 2.0 Flash-Lite (Économique & Ultra Rapide)' },
+                  { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro (Raisonnement Complexe)' },
+                  { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash (Standard Robuste)' }
                 ].map(item => (
                   <button key={item.id} type="button"
                     onClick={() => { setGeminiModel(item.id); localStorage.setItem('geminiModel', item.id); }}
@@ -1845,11 +1845,11 @@ ${pdfText}
                 className="input-control"
                 value={geminiModel}
                 onChange={e => { setGeminiModel(e.target.value); localStorage.setItem('geminiModel', e.target.value); }}
-                placeholder="ex: gemini-3.1-flash-lite"
+                placeholder="ex: gemini-2.0-flash"
                 style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}
               />
               <p style={{ marginTop: '0.4rem', fontSize: '0.73rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                💡 Recommandé : <strong>gemini-3.1-flash-lite</strong> (Ultra rapide et fiable), <strong>gemini-3.5-flash</strong> ou <strong>gemini-3.8-flash</strong>.
+                💡 Recommandé : <strong>gemini-2.0-flash</strong> (Recommandé par défaut - multimodal haute précision), <strong>gemini-2.0-flash-lite</strong> ou <strong>gemini-1.5-pro</strong>.
               </p>
             </div>
           )}

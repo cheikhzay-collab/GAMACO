@@ -503,10 +503,10 @@ ${customInstructions ? `Instructions supplémentaires : ${customInstructions}\n\
   if (availableEngines.includes('gemini')) {
     const storedModel = (localStorage.getItem('geminiModel') || '').trim();
     let preferredModel = storedModel;
-    if (!preferredModel || ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-2.5-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-pro', 'gemini-2.5-flash-lite', '3.7', 'gemini-3.7', 'gemini-3.7-flash', '3.5'].includes(preferredModel)) {
-      preferredModel = 'gemini-3.1-flash-lite';
+    if (!preferredModel || ['gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-flash-latest', '3.7', '3.5'].includes(preferredModel)) {
+      preferredModel = 'gemini-2.0-flash';
     }
-    const uniqueModels = Array.from(new Set([preferredModel, 'gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-flash-latest']));
+    const uniqueModels = Array.from(new Set([preferredModel, 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro', 'gemini-1.5-flash']));
 
     for (const model of uniqueModels) {
       try {
