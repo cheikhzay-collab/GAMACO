@@ -255,6 +255,7 @@ const initMySQL = async () => {
 
 // ── HTTP Helpers ────────────────────────────────────────────────────────────
 const sendJSON = (res, statusCode, data) => {
+  if (res.headersSent || res.writableEnded) return;
   res.writeHead(statusCode, {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -306,6 +307,7 @@ const serveStatic = (res, filePath) => {
       // Fallback to index.html for SPA routing
       const indexPath = path.join(DIST_DIR, 'index.html');
       fs.readFile(indexPath, (readErr, content) => {
+        if (res.headersSent || res.writableEnded) return;
         if (readErr) {
           res.writeHead(404, { 'Content-Type': 'text/plain' });
           res.end('404 Not Found');
