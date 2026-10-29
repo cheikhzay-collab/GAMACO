@@ -984,20 +984,18 @@ const server = http.createServer(async (req, res) => {
 
 export { initMySQL, server };
 
-// Only listen if executed directly as entrypoint (e.g. node server.js)
-const isMain = process.argv[1] && (
-  process.argv[1].endsWith('server.js') || 
-  import.meta.url.endsWith(path.basename(process.argv[1]))
-);
+// Immediate server.listen for Hostinger Node.js & local execution
+const isVite = process.argv.some(arg => typeof arg === 'string' && arg.includes('vite'));
 
-if (isMain) {
-  initMySQL().finally(() => {
-    server.listen(PORT, '0.0.0.0', () => {
-      console.log(`=================================================`);
-      console.log(`🚀 Gamaco Production Server & MySQL API is online!`);
-      console.log(`🔌 Address: http://0.0.0.0:${PORT}`);
-      console.log(`🗄️  Storage: ${isMySqlActive ? 'Hostinger MySQL' : 'Local JSON Data'}`);
-      console.log(`=================================================`);
-    });
+if (!isVite) {
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log('=================================================');
+    console.log('🚀 Gamaco Production Server & MySQL API is online!');
+    console.log(`🔌 Address: http://0.0.0.0:${PORT}`);
+    console.log('=================================================');
+  });
+
+  initMySQL().catch(err => {
+    console.error('[Server] MySQL initialization error:', err.message);
   });
 }
