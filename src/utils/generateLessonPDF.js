@@ -2438,25 +2438,7 @@ body.hide-solutions .modern-solution-block {
   font-weight: normal !important;
 }
 
-/* Ensure KaTeX radicals and bounding boxes never overflow or distort */
-.katex .hide-tail {
-  width: 100% !important;
-  position: relative !important;
-  overflow: hidden !important;
-}
-.katex .sqrt > .vlist-t {
-  position: relative !important;
-}
 
-/* Fraction vertical breathing room: prevents radical vinculum collision with fraction bar */
-.katex .mfrac .vlist-t {
-  margin-top: 0.12em !important;
-  margin-bottom: 0.12em !important;
-}
-.katex .mfrac .frac-line {
-  margin-top: 0.06em !important;
-  margin-bottom: 0.06em !important;
-}
 .math-punct-wrapper {
   white-space: nowrap !important;
   display: inline-block !important;

@@ -2409,22 +2409,7 @@ export default function LessonViewerPage() {
             display: inline-block !important;
             font-weight: normal !important;
           }
-          .katex .hide-tail {
-            width: 100% !important;
-            position: relative !important;
-            overflow: hidden !important;
-          }
-          .katex .sqrt > .vlist-t {
-            position: relative !important;
-          }
-          .katex .mfrac .vlist-t {
-            margin-top: 0.12em !important;
-            margin-bottom: 0.12em !important;
-          }
-          .katex .mfrac .frac-line {
-            margin-top: 0.06em !important;
-            margin-bottom: 0.06em !important;
-          }
+          
           /* Targeted refined scale for superscripts / powers only (leaves subscripts untouched) */
           .katex .msupsub .vlist-t:not(.vlist-t2) .sizing.size3,
           .katex .msupsub .vlist-t:not(.vlist-t2) .sizing.reset-size6.size3,

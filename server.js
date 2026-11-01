@@ -41,7 +41,27 @@ if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
-// ── JSON Memory Cache & File Helpers (Fallback Storage) ─────────────────────
+// ── External Persistent Directory & JSON Cache (Survives Ephemeral Redeploys) ──
+const getExternalPersistentDir = () => {
+  if (process.env.PERSISTENT_DATA_DIR && fs.existsSync(process.env.PERSISTENT_DATA_DIR)) {
+    return process.env.PERSISTENT_DATA_DIR;
+  }
+  const hostingerHome = '/home/u663560985';
+  if (fs.existsSync(hostingerHome)) {
+    const p = path.join(hostingerHome, 'gamaco_persistent_data');
+    try {
+      if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
+      return p;
+    } catch (_) {}
+  }
+  return null;
+};
+
+const PERSISTENT_DIR = getExternalPersistentDir();
+if (PERSISTENT_DIR) {
+  console.log(`[Server] External persistent backup directory active at: ${PERSISTENT_DIR}`);
+}
+
 const memoryCache = new Map();
 const pendingWrites = new Map();
 
@@ -49,18 +69,57 @@ const readDataFile = (fileName, defaultValue = []) => {
   if (memoryCache.has(fileName)) {
     return memoryCache.get(fileName);
   }
-  const filePath = path.join(DATA_DIR, fileName);
-  if (!fs.existsSync(filePath)) {
+
+  const localPath = path.join(DATA_DIR, fileName);
+  const persistentPath = PERSISTENT_DIR ? path.join(PERSISTENT_DIR, fileName) : null;
+
+  // 1. If persistent external file exists, verify whether it has richer data than local
+  if (persistentPath && fs.existsSync(persistentPath)) {
     try {
-      fs.writeFileSync(filePath, JSON.stringify(defaultValue, null, 2), 'utf8');
+      const pContent = fs.readFileSync(persistentPath, 'utf8');
+      const pParsed = JSON.parse(pContent);
+      
+      // If local doesn't exist or is empty, copy from persistent
+      if (!fs.existsSync(localPath)) {
+        try { fs.writeFileSync(localPath, pContent, 'utf8'); } catch (_) {}
+        memoryCache.set(fileName, pParsed);
+        return pParsed;
+      }
+
+      const lContent = fs.readFileSync(localPath, 'utf8');
+      const lParsed = JSON.parse(lContent);
+
+      if (Array.isArray(pParsed) && Array.isArray(lParsed) && pParsed.length > lParsed.length) {
+        // Persistent has more items (e.g. after a redeploy checked out an older branch)
+        memoryCache.set(fileName, pParsed);
+        try { fs.writeFileSync(localPath, pContent, 'utf8'); } catch (_) {}
+        return pParsed;
+      }
+    } catch (e) {
+      console.warn(`[Server] Persistent read error for ${fileName}:`, e.message);
+    }
+  }
+
+  // 2. Read local file
+  if (!fs.existsSync(localPath)) {
+    try {
+      fs.writeFileSync(localPath, JSON.stringify(defaultValue, null, 2), 'utf8');
+      if (persistentPath) {
+        fs.writeFileSync(persistentPath, JSON.stringify(defaultValue, null, 2), 'utf8');
+      }
     } catch (_) {}
     memoryCache.set(fileName, defaultValue);
     return defaultValue;
   }
+
   try {
-    const content = fs.readFileSync(filePath, 'utf8');
+    const content = fs.readFileSync(localPath, 'utf8');
     const parsed = JSON.parse(content);
     memoryCache.set(fileName, parsed);
+    // Sync to persistent folder if not yet copied
+    if (persistentPath && !fs.existsSync(persistentPath)) {
+      try { fs.writeFileSync(persistentPath, content, 'utf8'); } catch (_) {}
+    }
     return parsed;
   } catch (err) {
     console.error(`[Server] Error reading ${fileName}:`, err.message);
@@ -71,20 +130,35 @@ const readDataFile = (fileName, defaultValue = []) => {
 
 const writeDataFile = (fileName, data) => {
   memoryCache.set(fileName, data);
-  const filePath = path.join(DATA_DIR, fileName);
+  const localPath = path.join(DATA_DIR, fileName);
+  const persistentPath = PERSISTENT_DIR ? path.join(PERSISTENT_DIR, fileName) : null;
+
   if (pendingWrites.has(fileName)) {
     clearTimeout(pendingWrites.get(fileName));
   }
+
   const timer = setTimeout(() => {
     pendingWrites.delete(fileName);
+    const jsonStr = JSON.stringify(data, null, 2);
     try {
-      fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf8', (err) => {
-        if (err) console.error(`[Server] Error writing ${fileName}:`, err.message);
+      fs.writeFile(localPath, jsonStr, 'utf8', (err) => {
+        if (err) console.error(`[Server] Error writing local ${fileName}:`, err.message);
       });
     } catch (err) {
-      console.error(`[Server] Error writing ${fileName}:`, err.message);
+      console.error(`[Server] Error writing local ${fileName}:`, err.message);
+    }
+
+    if (persistentPath) {
+      try {
+        fs.writeFile(persistentPath, jsonStr, 'utf8', (err) => {
+          if (err) console.error(`[Server] Error writing persistent ${fileName}:`, err.message);
+        });
+      } catch (err) {
+        console.error(`[Server] Error writing persistent ${fileName}:`, err.message);
+      }
     }
   }, 100);
+
   pendingWrites.set(fileName, timer);
 };
 
@@ -93,43 +167,66 @@ let dbPool = null;
 let isMySqlActive = false;
 
 const initMySQL = async () => {
-  const host = process.env.DB_HOST;
+  const host = process.env.DB_HOST || '127.0.0.1';
   const port = parseInt(process.env.DB_PORT || '3306', 10);
   const user = process.env.DB_USER;
   const password = process.env.DB_PASSWORD;
   const database = process.env.DB_NAME;
 
-  const isRemoteHost = host && host !== '127.0.0.1' && host !== 'localhost';
-
-  if (!isRemoteHost || !user || !database) {
-    console.log('[Server] Using resilient JSON file storage mode.');
+  if (!user || !database) {
+    console.log('[Server] No MySQL user/database specified in env. Using resilient JSON file storage mode.');
     isMySqlActive = false;
     return;
   }
+
+  // Candidate hosts to attempt connection on Hostinger
+  const candidateHosts = [host];
+  if (host === '127.0.0.1' && !candidateHosts.includes('localhost')) candidateHosts.push('localhost');
+  if (host === 'localhost' && !candidateHosts.includes('127.0.0.1')) candidateHosts.push('127.0.0.1');
+  if (!candidateHosts.includes('srv977.hstgr.io')) candidateHosts.push('srv977.hstgr.io');
 
   try {
     const mysqlModule = await import('mysql2/promise').catch(() => null);
     const mysql = mysqlModule ? (mysqlModule.default || mysqlModule) : null;
     if (!mysql) {
-      console.log('[Server] mysql2 module not installed yet. Running in JSON file storage mode.');
+      console.log('[Server] mysql2 module not available. Running in JSON file storage mode.');
+      isMySqlActive = false;
       return;
     }
 
-    dbPool = mysql.createPool({
-      host,
-      port,
-      user,
-      password,
-      database,
-      waitForConnections: true,
-      connectionLimit: 10,
-      queueLimit: 0,
-      charset: 'utf8mb4'
-    });
+    let connection = null;
+    let connectedHost = null;
 
-    // Test connection
-    const connection = await dbPool.getConnection();
-    console.log(`[Server] Connected to MySQL database "${database}" on ${host}:${port}`);
+    for (const h of candidateHosts) {
+      try {
+        const pool = mysql.createPool({
+          host: h,
+          port,
+          user,
+          password,
+          database,
+          waitForConnections: true,
+          connectionLimit: 10,
+          queueLimit: 0,
+          connectTimeout: 4000,
+          charset: 'utf8mb4'
+        });
+
+        connection = await pool.getConnection();
+        connectedHost = h;
+        dbPool = pool;
+        console.log(`[Server] Connected to MySQL database "${database}" on ${h}:${port}`);
+        break;
+      } catch (connErr) {
+        console.warn(`[Server] MySQL connection attempt to ${h}:${port} failed (${connErr.code || connErr.message})`);
+      }
+    }
+
+    if (!connection) {
+      console.log('[Server] Could not connect to MySQL on candidate hosts. Running in resilient persistent JSON mode.');
+      isMySqlActive = false;
+      return;
+    }
 
     // Create tables if they do not exist
     await connection.query(`
@@ -193,62 +290,72 @@ const initMySQL = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // Auto-seed if tables are empty
-    const [[{ examCount }]] = await connection.query('SELECT COUNT(*) as examCount FROM tbl_exams');
-    if (examCount === 0) {
-      console.log('[Server] Seeding MySQL tbl_exams from data/exams.json...');
-      const exams = readDataFile('exams.json', []);
-      for (const ex of exams) {
-        if (ex.id) {
-          await connection.query('INSERT IGNORE INTO tbl_exams (id, data) VALUES (?, ?)', [ex.id, JSON.stringify(ex)]);
-        }
+    // Synchronize Lessons: seed from file if not in DB, AND dump DB back to file
+    const lessons = readDataFile('lessons.json', []);
+    for (const l of lessons) {
+      if (l.id) {
+        await connection.query(
+          'INSERT IGNORE INTO tbl_lessons (id, title, subject, level, data) VALUES (?, ?, ?, ?, ?)',
+          [l.id, l.title || '', l.subject || '', l.level || '', JSON.stringify(l)]
+        );
       }
     }
-
-    const [[{ lessonCount }]] = await connection.query('SELECT COUNT(*) as lessonCount FROM tbl_lessons');
-    if (lessonCount === 0) {
-      console.log('[Server] Seeding MySQL tbl_lessons from data/lessons.json...');
-      const lessons = readDataFile('lessons.json', []);
-      for (const l of lessons) {
-        if (l.id) {
-          await connection.query(
-            'INSERT IGNORE INTO tbl_lessons (id, title, subject, level, data) VALUES (?, ?, ?, ?, ?)',
-            [l.id, l.title || '', l.subject || '', l.level || '', JSON.stringify(l)]
-          );
-        }
-      }
+    const [dbLessonRows] = await connection.query('SELECT data FROM tbl_lessons ORDER BY updated_at DESC');
+    if (dbLessonRows.length > 0) {
+      const allDbLessons = dbLessonRows.map(r => typeof r.data === 'string' ? JSON.parse(r.data) : r.data);
+      writeDataFile('lessons.json', allDbLessons);
+      console.log(`[Server] Synced ${allDbLessons.length} lessons from MySQL database.`);
     }
 
-    const [[{ classCount }]] = await connection.query('SELECT COUNT(*) as classCount FROM tbl_classes');
-    if (classCount === 0) {
-      console.log('[Server] Seeding MySQL tbl_classes from data/classes.json...');
-      const classes = readDataFile('classes.json', []);
-      for (const c of classes) {
-        if (c.id) {
-          await connection.query('INSERT IGNORE INTO tbl_classes (id, name, data) VALUES (?, ?, ?)', [c.id, c.name || '', JSON.stringify(c)]);
-        }
+    // Synchronize Exams
+    const exams = readDataFile('exams.json', []);
+    for (const ex of exams) {
+      if (ex.id) {
+        await connection.query('INSERT IGNORE INTO tbl_exams (id, data) VALUES (?, ?)', [ex.id, JSON.stringify(ex)]);
       }
     }
+    const [dbExamRows] = await connection.query('SELECT data FROM tbl_exams ORDER BY updated_at DESC');
+    if (dbExamRows.length > 0) {
+      const allDbExams = dbExamRows.map(r => typeof r.data === 'string' ? JSON.parse(r.data) : r.data);
+      writeDataFile('exams.json', allDbExams);
+      console.log(`[Server] Synced ${allDbExams.length} exams from MySQL database.`);
+    }
 
-    const [[{ userCount }]] = await connection.query('SELECT COUNT(*) as userCount FROM tbl_users');
-    if (userCount === 0) {
-      console.log('[Server] Seeding MySQL tbl_users from data/users.json...');
-      const users = readDataFile('users.json', []);
-      for (const u of users) {
-        const id = u.id || u.uid;
-        if (id) {
-          await connection.query(
-            'INSERT IGNORE INTO tbl_users (id, email, password, role, tier, data) VALUES (?, ?, ?, ?, ?, ?)',
-            [id, u.email || `${id}@local.user`, u.password || 'student123', u.role || 'student', u.tier || 'freemium', JSON.stringify(u)]
-          );
-        }
+    // Synchronize Classes
+    const classes = readDataFile('classes.json', []);
+    for (const c of classes) {
+      if (c.id) {
+        await connection.query('INSERT IGNORE INTO tbl_classes (id, name, data) VALUES (?, ?, ?)', [c.id, c.name || '', JSON.stringify(c)]);
       }
+    }
+    const [dbClassRows] = await connection.query('SELECT data FROM tbl_classes ORDER BY updated_at DESC');
+    if (dbClassRows.length > 0) {
+      const allDbClasses = dbClassRows.map(r => typeof r.data === 'string' ? JSON.parse(r.data) : r.data);
+      writeDataFile('classes.json', allDbClasses);
+    }
+
+    // Synchronize Users
+    const users = readDataFile('users.json', []);
+    for (const u of users) {
+      const id = u.id || u.uid;
+      if (id) {
+        await connection.query(
+          'INSERT IGNORE INTO tbl_users (id, email, password, role, tier, data) VALUES (?, ?, ?, ?, ?, ?)',
+          [id, u.email || `${id}@local.user`, u.password || 'student123', u.role || 'student', u.tier || 'freemium', JSON.stringify(u)]
+        );
+      }
+    }
+    const [dbUserRows] = await connection.query('SELECT data FROM tbl_users ORDER BY updated_at DESC');
+    if (dbUserRows.length > 0) {
+      const allDbUsers = dbUserRows.map(r => typeof r.data === 'string' ? JSON.parse(r.data) : r.data);
+      writeDataFile('users.json', allDbUsers);
     }
 
     connection.release();
     isMySqlActive = true;
+    console.log('[Server] MySQL storage active and bidirectional sync verified.');
   } catch (err) {
-    console.log('[Server] Note: Database running in resilient JSON storage mode.');
+    console.warn(`[Server] MySQL initialization failed: ${err.message}. Operating in resilient JSON storage mode.`);
     isMySqlActive = false;
   }
 };
@@ -500,13 +607,12 @@ export const handleApiRequest = async (req, res, next) => {
             'INSERT INTO tbl_exams (id, data) VALUES (?, ?) ON DUPLICATE KEY UPDATE data = VALUES(data), updated_at = NOW()',
             [exam.id, JSON.stringify(exam)]
           );
-        } else {
-          const exams = readDataFile('exams.json', []);
-          const idx = exams.findIndex(e => e.id === exam.id);
-          if (idx > -1) exams[idx] = { ...exams[idx], ...exam };
-          else exams.push(exam);
-          writeDataFile('exams.json', exams);
         }
+        const exams = readDataFile('exams.json', []);
+        const idx = exams.findIndex(e => e.id === exam.id);
+        if (idx > -1) exams[idx] = { ...exams[idx], ...exam };
+        else exams.unshift(exam);
+        writeDataFile('exams.json', exams);
         return sendJSON(res, 200, { success: true, exam });
       } catch (err) {
         return sendJSON(res, 500, { error: err.message });
@@ -517,10 +623,9 @@ export const handleApiRequest = async (req, res, next) => {
       const id = parsedUrl.searchParams.get('id');
       if (isMySqlActive) {
         await dbPool.query('DELETE FROM tbl_exams WHERE id = ?', [id]);
-      } else {
-        const exams = readDataFile('exams.json', []).filter(e => e.id !== id);
-        writeDataFile('exams.json', exams);
       }
+      const exams = readDataFile('exams.json', []).filter(e => e.id !== id);
+      writeDataFile('exams.json', exams);
       return sendJSON(res, 200, { success: true });
     }
   }
@@ -583,13 +688,12 @@ export const handleApiRequest = async (req, res, next) => {
             'INSERT INTO tbl_lessons (id, title, subject, level, data) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE title = VALUES(title), subject = VALUES(subject), level = VALUES(level), data = VALUES(data), updated_at = NOW()',
             [targetId, lesson.title || '', lesson.subject || '', lesson.level || '', JSON.stringify(lesson)]
           );
-        } else {
-          const lessons = readDataFile('lessons.json', []);
-          const idx = lessons.findIndex(l => l.id === targetId);
-          if (idx > -1) lessons[idx] = { ...lessons[idx], ...lesson };
-          else lessons.push(lesson);
-          writeDataFile('lessons.json', lessons);
         }
+        const lessons = readDataFile('lessons.json', []);
+        const idx = lessons.findIndex(l => l.id === targetId);
+        if (idx > -1) lessons[idx] = { ...lessons[idx], ...lesson };
+        else lessons.unshift(lesson);
+        writeDataFile('lessons.json', lessons);
         return sendJSON(res, 200, { success: true, lesson });
       } catch (err) {
         return sendJSON(res, 500, { error: err.message });
@@ -600,10 +704,9 @@ export const handleApiRequest = async (req, res, next) => {
       const id = singleId || parsedUrl.searchParams.get('id');
       if (isMySqlActive) {
         await dbPool.query('DELETE FROM tbl_lessons WHERE id = ?', [id]);
-      } else {
-        const lessons = readDataFile('lessons.json', []).filter(l => l.id !== id);
-        writeDataFile('lessons.json', lessons);
       }
+      const lessons = readDataFile('lessons.json', []).filter(l => l.id !== id);
+      writeDataFile('lessons.json', lessons);
       return sendJSON(res, 200, { success: true });
     }
   }
@@ -647,13 +750,12 @@ export const handleApiRequest = async (req, res, next) => {
             'INSERT INTO tbl_classes (id, name, data) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name), data = VALUES(data), updated_at = NOW()',
             [cls.id, cls.name || '', JSON.stringify(cls)]
           );
-        } else {
-          const classes = readDataFile('classes.json', []);
-          const idx = classes.findIndex(c => c.id === cls.id);
-          if (idx > -1) classes[idx] = { ...classes[idx], ...cls };
-          else classes.push(cls);
-          writeDataFile('classes.json', classes);
         }
+        const classes = readDataFile('classes.json', []);
+        const idx = classes.findIndex(c => c.id === cls.id);
+        if (idx > -1) classes[idx] = { ...classes[idx], ...cls };
+        else classes.unshift(cls);
+        writeDataFile('classes.json', classes);
         return sendJSON(res, 200, { success: true, class: cls });
       } catch (err) {
         return sendJSON(res, 500, { error: err.message });
@@ -664,10 +766,9 @@ export const handleApiRequest = async (req, res, next) => {
       const id = singleId || parsedUrl.searchParams.get('id');
       if (isMySqlActive) {
         await dbPool.query('DELETE FROM tbl_classes WHERE id = ?', [id]);
-      } else {
-        const classes = readDataFile('classes.json', []).filter(c => c.id !== id);
-        writeDataFile('classes.json', classes);
       }
+      const classes = readDataFile('classes.json', []).filter(c => c.id !== id);
+      writeDataFile('classes.json', classes);
       return sendJSON(res, 200, { success: true });
     }
   }
@@ -713,13 +814,12 @@ export const handleApiRequest = async (req, res, next) => {
             'INSERT INTO tbl_users (id, email, role, tier, data) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE email = VALUES(email), role = VALUES(role), tier = VALUES(tier), data = VALUES(data), updated_at = NOW()',
             [id, userObj.email || `${id}@local.user`, userObj.role || 'student', userObj.tier || 'freemium', JSON.stringify(userObj)]
           );
-        } else {
-          const users = readDataFile('users.json', []);
-          const idx = users.findIndex(u => u.id === id || u.uid === id);
-          if (idx > -1) users[idx] = { ...users[idx], ...userObj };
-          else users.push(userObj);
-          writeDataFile('users.json', users);
         }
+        const users = readDataFile('users.json', []);
+        const idx = users.findIndex(u => u.id === id || u.uid === id);
+        if (idx > -1) users[idx] = { ...users[idx], ...userObj };
+        else users.unshift(userObj);
+        writeDataFile('users.json', users);
         return sendJSON(res, 200, { success: true, user: userObj });
       } catch (err) {
         return sendJSON(res, 500, { error: err.message });
@@ -730,10 +830,9 @@ export const handleApiRequest = async (req, res, next) => {
       const id = singleId || parsedUrl.searchParams.get('id');
       if (isMySqlActive) {
         await dbPool.query('DELETE FROM tbl_users WHERE id = ?', [id]);
-      } else {
-        const users = readDataFile('users.json', []).filter(u => u.id !== id && u.uid !== id);
-        writeDataFile('users.json', users);
       }
+      const users = readDataFile('users.json', []).filter(u => u.id !== id && u.uid !== id);
+      writeDataFile('users.json', users);
       return sendJSON(res, 200, { success: true });
     }
   }
@@ -917,6 +1016,8 @@ export const handleApiRequest = async (req, res, next) => {
         'gemini-2.5-flash',
         'gemini-2.5-flash-lite',
         'gemini-2.5-pro',
+        'gemini-flash-latest',
+        'gemini-pro-latest',
         'gemini-2.0-flash',
         'gemini-2.0-flash-lite',
         'gemini-1.5-pro',
