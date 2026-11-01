@@ -460,6 +460,47 @@ ${customInstructions ? `Instructions supplémentaires : ${customInstructions}\n\
 2. Ajoute à la suite la "💡 Remarque Pédagogique de l'Inspecteur"${isExamOrDevoir ? ' puis le tableau récapitulatif du barème indicatif officiel en fin de document' : ''}.
 ⛔ RAPPEL CRUCIAL : Ne donne JAMAIS le tableau de barème seul ! La résolution mathématique exhaustive de toutes les questions est OBLIGATOIRE et doit impérativement figurer en premier !`;
 
+  // ── 0. Primary: Server-side AI Solver (/api/ai/solve) ──
+  try {
+    const res = await fetch('/api/ai/solve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        content: exerciseContent,
+        level,
+        subject,
+        language: resolvedLang,
+        docTitle: docTitle || chapterTitle,
+        chapterTitle: chapterTitle || docTitle,
+        sectionTitle,
+        docType,
+        customInstructions,
+        userPrompt,
+        systemPrompt,
+        apiKey: geminiKey || undefined,
+        deepseekKey: deepseekKey || undefined,
+        claudeKey: claudeKey || undefined
+      })
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.success && data?.solution) {
+        return filterBaremeByDocType(data.solution.trim(), docType, docTitle || chapterTitle);
+      }
+    } else {
+      const errJson = await res.json().catch(() => ({}));
+      if (errJson?.error && (errJson.error.includes('leaked') || errJson.error.includes('مفتاح') || errJson.error.includes('403'))) {
+        throw new Error(errJson.error);
+      }
+    }
+  } catch (backendErr) {
+    if (backendErr.message.includes('leaked') || backendErr.message.includes('مفتاح')) {
+      throw backendErr;
+    }
+    console.warn('[AI Solver] Backend /api/ai/solve unavailable, attempting direct client fallback...', backendErr.message);
+  }
+
   let lastError = null;
 
   // ── 1. Engine 1 : DeepSeek (Excellence pour le raisonnement mathématique) ──
@@ -506,7 +547,7 @@ ${customInstructions ? `Instructions supplémentaires : ${customInstructions}\n\
     if (!preferredModel || ['gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-flash-latest', '3.7', '3.5'].includes(preferredModel)) {
       preferredModel = 'gemini-2.5-flash';
     }
-    const uniqueModels = Array.from(new Set([preferredModel, 'gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro', 'gemini-1.5-flash']));
+    const uniqueModels = Array.from(new Set([preferredModel, 'gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-pro', 'gemini-flash-latest', 'gemini-pro-latest', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro', 'gemini-1.5-flash']));
 
     for (const model of uniqueModels) {
       try {

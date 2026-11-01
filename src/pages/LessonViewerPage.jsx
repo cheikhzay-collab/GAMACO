@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getLessonById, updateLesson } from '../services/lessonService';
+import { solveExerciseWithAI } from '../utils/aiExerciseSolver';
+import { Sparkles, Loader2 } from 'lucide-react';
 import { renderWithMath } from '../utils/mathRenderer';
 import SmartTableRenderer from '../components/SmartTableRenderer';
 import { openLessonPrintWindow } from '../utils/generateLessonPDF';
@@ -640,6 +642,53 @@ export default function LessonViewerPage() {
   const [originalLessonBackup, setOriginalLessonBackup] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [viewSummaryMode, setViewSummaryMode] = useState(false);
+  const [solvingSecId, setSolvingSecId] = useState(null);
+
+  const handleGenerateAiSolutionForSection = async (secId, sec) => {
+    if (!sec) return;
+    const contentToSolve = (sec.content || '').trim() || (sec.items || []).map(it => it.text || (typeof it === 'string' ? it : '')).join('\n').trim();
+    if (!contentToSolve) {
+      alert(isArabic ? 'لا يوجد نص تمرين للحل.' : 'Aucun énoncé à résoudre.');
+      return;
+    }
+
+    setSolvingSecId(secId);
+    try {
+      const generated = await solveExerciseWithAI(contentToSolve, {
+        level: lesson?.level,
+        subject: lesson?.subject,
+        language: isArabic ? 'ar' : 'fr',
+        docTitle: lesson?.title,
+        chapterTitle: lesson?.title,
+        sectionTitle: sec.title || '',
+        secType: sec.type || 'exercise',
+        docType: lesson?.doc_type || 'course'
+      });
+
+      if (!generated || !generated.trim()) {
+        throw new Error(isArabic ? 'لم يتم توليد أي حل.' : 'Aucune solution n’a été générée.');
+      }
+
+      const updatedSections = (lesson?.sections || []).map(s => {
+        if (s.id === secId) {
+          return { ...s, solution: generated.trim() };
+        }
+        return s;
+      });
+
+      setLesson(prev => ({ ...prev, sections: updatedSections }));
+      setVisibleSolutions(prev => ({ ...prev, [secId]: true }));
+
+      if (lesson?.id) {
+        await updateLesson(lesson.id, { sections: updatedSections });
+      }
+    } catch (err) {
+      console.error('[LessonViewer] AI Solution error:', err);
+      alert(err.message || (isArabic ? 'حدث خطأ أثناء توليد الحل بالذكاء الاصطناعي.' : 'Erreur lors de la génération du corrigé par IA.'));
+    } finally {
+      setSolvingSecId(null);
+    }
+  };
 
   // Dynamic columns count for exercises series: 1 or 2 columns
   const [seriesColumns, setSeriesColumns] = useState(() => {
@@ -3865,16 +3914,44 @@ export default function LessonViewerPage() {
                               padding: '1.5rem'
                             }}
                           >
-                            <h4 style={{
-                              color: '#059669', fontWeight: 800,
-                              display: 'flex', alignItems: 'center', gap: '0.5rem',
-                              marginBottom: '0.75rem', fontSize: '1rem',
-                              flexDirection: isArabic ? 'row-reverse' : 'row',
-                              fontFamily: isArabic ? arabicFont : 'inherit',
-                            }}>
-                              <BookOpenCheck size={18} />
-                              {isArabic ? 'الحل المفصل' : 'Démonstration rédigée'}
-                            </h4>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexDirection: isArabic ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: '0.5rem' }}>
+                              <h4 style={{
+                                color: '#059669', fontWeight: 800,
+                                display: 'flex', alignItems: 'center', gap: '0.5rem',
+                                fontSize: '1rem',
+                                margin: 0,
+                                flexDirection: isArabic ? 'row-reverse' : 'row',
+                                fontFamily: isArabic ? arabicFont : 'inherit',
+                              }}>
+                                <BookOpenCheck size={18} />
+                                {isArabic ? 'الحل المفصل والتصحيح' : 'Démonstration rédigée & Corrigé'}
+                              </h4>
+                              {sec.solution && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleGenerateAiSolutionForSection(sec.id, sec)}
+                                  disabled={solvingSecId === sec.id}
+                                  className="no-print"
+                                  style={{
+                                    background: 'rgba(16, 185, 129, 0.1)',
+                                    color: '#059669',
+                                    border: '1px solid rgba(16, 185, 129, 0.25)',
+                                    borderRadius: '6px',
+                                    padding: '0.2rem 0.6rem',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700,
+                                    cursor: solvingSecId === sec.id ? 'not-allowed' : 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.35rem'
+                                  }}
+                                  title={isArabic ? 'إعادة توليد الحل بالذكاء الاصطناعي' : 'Régénérer le corrigé avec l\'IA'}
+                                >
+                                  {solvingSecId === sec.id ? <Loader2 className="animate-spin" size={12} /> : <Sparkles size={12} />}
+                                  <span>{solvingSecId === sec.id ? (isArabic ? 'جاري الحل...' : 'Génération...') : (isArabic ? 'إعادة التوليد بالذكاء' : 'Régénérer par IA')}</span>
+                                </button>
+                              )}
+                            </div>
                             <div style={{
                               display: 'flex', flexDirection: 'column', gap: '1rem',
                               fontSize: '0.92rem', lineHeight: 1.85,
@@ -3882,7 +3959,46 @@ export default function LessonViewerPage() {
                               fontFamily: isArabic ? arabicFont : 'inherit',
                               direction: isArabic ? 'rtl' : 'ltr',
                             }}>
-                              {renderWithMath(sec.solution)}
+                              {sec.solution ? (
+                                renderWithMath(sec.solution)
+                              ) : (
+                                <div className="no-print" style={{ textAlign: 'center', padding: '1.25rem 0.5rem' }}>
+                                  <p style={{ color: 'var(--text-muted)', marginBottom: '0.75rem', fontSize: '0.88rem' }}>
+                                    {isArabic ? 'لا يوجد حل مسجل لهذا التمرين حتى الآن.' : 'Aucun corrigé n’est encore enregistré pour cet exercice.'}
+                                  </p>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleGenerateAiSolutionForSection(sec.id, sec)}
+                                    disabled={solvingSecId === sec.id}
+                                    style={{
+                                      background: 'linear-gradient(135deg, #059669, #10b981)',
+                                      color: '#fff',
+                                      border: 'none',
+                                      borderRadius: '8px',
+                                      padding: '0.5rem 1.25rem',
+                                      fontWeight: 800,
+                                      fontSize: '0.85rem',
+                                      cursor: solvingSecId === sec.id ? 'not-allowed' : 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.45rem',
+                                      boxShadow: '0 2px 10px rgba(16, 185, 129, 0.25)'
+                                    }}
+                                  >
+                                    {solvingSecId === sec.id ? (
+                                      <>
+                                        <Loader2 className="animate-spin" size={15} />
+                                        <span>{isArabic ? 'جاري توليد الحل بالذكاء الاصطناعي وفق المنهاج المغربي...' : 'Génération du corrigé IA officiel...'}</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Sparkles size={15} style={{ color: '#fef08a' }} />
+                                        <span>{isArabic ? '✨ تصحيح وحل التمرين بالذكاء الاصطناعي' : '✨ Résoudre et corriger avec l\'IA'}</span>
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>

@@ -127,7 +127,7 @@
     "claudeProxyUrl": "",
     "claude_solve_solutions": true,
     "geminiApiKey": "AIzaSyBfc0ePTLkB73kovxtzTcynKYY1i66qTLs",
-    "gemini_solve_solutions": false,
+    "gemini_solve_solutions": true,
     "deepseekApiKey": "",
     "deepseekApiUrl": "https://api.deepseek.com",
     "deepseek_solve_solutions": true,

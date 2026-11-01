@@ -981,6 +981,14 @@ export const handleApiRequest = async (req, res, next) => {
       // If client provided placeholder or no key, resolve real key
       if (!effectiveKey || effectiveKey === 'MY_GEMINI_API_KEY' || effectiveKey.length < 20) {
         try {
+          const cfg = readDataFile('config.json', {});
+          const keyFromConfig = cfg?.ai_settings?.geminiApiKey;
+          if (keyFromConfig && keyFromConfig.length > 20 && keyFromConfig !== 'MY_GEMINI_API_KEY') {
+            effectiveKey = keyFromConfig.trim();
+          }
+        } catch (_) {}
+
+        try {
           const envPath = path.join(__dirname, '.env');
           if (fs.existsSync(envPath)) {
             const raw = fs.readFileSync(envPath, 'utf8');
@@ -1074,6 +1082,189 @@ export const handleApiRequest = async (req, res, next) => {
       }
 
       throw lastError || new Error(`Tous les modèles Gemini de secours ont échoué.`);
+    } catch (err) {
+      return sendJSON(res, 500, { error: err.message });
+    }
+  }
+
+  // 11. Unified Moroccan Inspector AI Solver & Correction Endpoint (/api/ai/solve)
+  if (pathname === '/api/ai/solve' && req.method === 'POST') {
+    try {
+      const payload = await getBody(req);
+      const {
+        content: exerciseContent,
+        level = '2bac_pc_svt',
+        subject = 'Mathématiques',
+        language = 'ar',
+        docTitle = '',
+        chapterTitle = '',
+        sectionTitle = '',
+        docType = 'course',
+        provider = 'auto',
+        userPrompt: customUserPrompt,
+        systemPrompt: customSystemPrompt
+      } = payload;
+
+      const cfg = readDataFile('config.json', {});
+      const aiSettings = cfg?.ai_settings || {};
+
+      let geminiKey = (
+        payload.apiKey ||
+        payload.geminiKey ||
+        aiSettings.geminiApiKey ||
+        process.env.GEMINI_API_KEY ||
+        ''
+      ).trim().replace(/^[\"']|[\"']$/g, '');
+
+      let deepseekKey = (
+        payload.deepseekKey ||
+        aiSettings.deepseekApiKey ||
+        process.env.DEEPSEEK_API_KEY ||
+        ''
+      ).trim().replace(/^[\"']|[\"']$/g, '');
+
+      let deepseekUrl = (
+        payload.deepseekUrl ||
+        aiSettings.deepseekApiUrl ||
+        'https://api.deepseek.com'
+      ).trim().replace(/\/$/, '');
+
+      let claudeKey = (
+        payload.claudeKey ||
+        aiSettings.claudeApiKey ||
+        process.env.CLAUDE_API_KEY ||
+        process.env.ANTHROPIC_API_KEY ||
+        ''
+      ).trim().replace(/^[\"']|[\"']$/g, '');
+
+      const candidates = [];
+      if (provider === 'gemini' && geminiKey) candidates.push('gemini');
+      else if (provider === 'deepseek' && deepseekKey) candidates.push('deepseek');
+      else if (provider === 'claude' && claudeKey) candidates.push('claude');
+      else {
+        if (deepseekKey && deepseekKey.length > 10) candidates.push('deepseek');
+        if (geminiKey && geminiKey.length > 15) candidates.push('gemini');
+        if (claudeKey && claudeKey.length > 15) candidates.push('claude');
+      }
+
+      if (candidates.length === 0) {
+        return sendJSON(res, 400, {
+          error: 'Aucune clé API IA valide n’est configurée sur le serveur. Veuillez renseigner une clé Google Gemini ou DeepSeek dans les Paramètres.'
+        });
+      }
+
+      const isAr = language === 'ar' || /[\u0600-\u06FF]/.test(exerciseContent || customUserPrompt || '');
+      const userText = customUserPrompt || (isAr
+        ? `نص التمرين (${subject || 'الرياضيات'} - ${docTitle || chapterTitle || 'تمرين'} ${sectionTitle ? `| ${sectionTitle}` : ''}) :\n\n${(exerciseContent || '').trim()}\n\nالمطلوب إنجازه بدقة وإلزام :\n1. أكتب أولاً الحل الرياضي المفصل والشامل خطوة بخطوة لكل الأسئلة والأسئلة الفرعية (مع كافة الحسابات والتعليلات وتأطير النتائج النهائية بـ \\boxed{...}).\n2. أضف بعد الحل "💡 إضاءة تربوية للمفتش" كملحق ختامي.\n⛔ تحذير: كتابة خطوات الحل الرياضي المفصل والشامل لجميع الأسئلة إجبارية وأساسية!`
+        : `Énoncé de l'exercice (${subject || 'Mathématiques'} - ${docTitle || chapterTitle || 'Exercice'} ${sectionTitle ? `| ${sectionTitle}` : ''}) :\n\n${(exerciseContent || '').trim()}\n\nLivrable exigé :\n1. Rédige d'abord l'intégralité du corrigé mathématique détaillé question par question (avec tous les calculs, factorisations, tableaux de signes et résultats encadrés dans \\boxed{...}).\n2. Ajoute à la suite la "💡 Remarque Pédagogique de l'Inspecteur" en fin de document.\n⛔ RAPPEL CRUCIAL : La résolution mathématique exhaustive de toutes les questions est OBLIGATOIRE et doit impérativement figurer en premier !`
+      );
+
+      const systemText = customSystemPrompt || (isAr
+        ? `أنت مفتش تربوي ممتاز لمادة الرياضيات بالتعليم الثانوي التأهيلي المغربي. مهمتك تقديم حل نموذجي مفصل وشامل وفق المنهاج والتوجيهات التربوية الرسمية للمملكة المغربية. يمنع استعمال قاعدة لوبيتال في حساب النهايات.`
+        : `Tu es un Inspecteur Pédagogique Principal de mathématiques du secondaire qualifiant marocain. Ta mission est de fournir un corrigé officiel détaillé, rigoureux et exhaustif conforme au programme et aux orientations pédagogiques officielles du Ministère de l'Éducation Nationale du Maroc.`
+      );
+
+      let lastError = null;
+
+      for (const prov of candidates) {
+        // 1. DeepSeek Engine
+        if (prov === 'deepseek') {
+          try {
+            const dsRes = await fetch(`${deepseekUrl}/v1/chat/completions`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${deepseekKey}`
+              },
+              body: JSON.stringify({
+                model: 'deepseek-chat',
+                messages: [
+                  { role: 'system', content: systemText },
+                  { role: 'user', content: userText }
+                ],
+                temperature: 0.15,
+                max_tokens: 8000
+              })
+            });
+
+            if (!dsRes.ok) {
+              const errBody = await dsRes.json().catch(() => ({}));
+              throw new Error(errBody?.error?.message || `HTTP ${dsRes.status}`);
+            }
+
+            const dsData = await dsRes.json();
+            const solutionText = dsData?.choices?.[0]?.message?.content;
+            if (solutionText && solutionText.trim()) {
+              return sendJSON(res, 200, {
+                success: true,
+                solution: solutionText.trim(),
+                provider: 'deepseek',
+                model: 'deepseek-chat'
+              });
+            }
+          } catch (dsErr) {
+            console.warn('[Server AI Solve] DeepSeek failed:', dsErr.message);
+            lastError = dsErr;
+          }
+        }
+
+        // 2. Google Gemini Engine
+        if (prov === 'gemini') {
+          const geminiModels = [
+            'gemini-2.5-flash',
+            'gemini-2.5-pro',
+            'gemini-2.5-flash-lite',
+            'gemini-flash-latest',
+            'gemini-pro-latest'
+          ];
+
+          for (const gModel of geminiModels) {
+            try {
+              const gEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${gModel}:generateContent?key=${geminiKey}`;
+              const gRes = await fetch(gEndpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: [{ parts: [{ text: userText }] }],
+                  systemInstruction: { parts: [{ text: systemText }] },
+                  generationConfig: {
+                    temperature: 0.15,
+                    maxOutputTokens: 8192
+                  }
+                })
+              });
+
+              if (!gRes.ok) {
+                const gErr = await gRes.json().catch(() => ({}));
+                const gMsg = gErr?.error?.message || `HTTP ${gRes.status}`;
+                if (gMsg.includes('leaked') || gRes.status === 403) {
+                  throw new Error(`مفتاح Google Gemini الحالي تم حظره من طرف جوجل بسبب تسريبه (${gMsg}). يرجى إنشاء مفتاح جديد من aistudio.google.com وإدخاله في صفحة الإعدادات.`);
+                }
+                throw new Error(`Gemini [${gModel}]: ${gMsg}`);
+              }
+
+              const gData = await gRes.json();
+              const candidate = gData?.candidates?.[0];
+              const parts = (candidate?.content?.parts || []).filter(p => !p.thought);
+              const solutionText = parts.map(p => p.text || '').join('').trim();
+              if (solutionText) {
+                return sendJSON(res, 200, {
+                  success: true,
+                  solution: solutionText,
+                  provider: 'gemini',
+                  model: gModel
+                });
+              }
+            } catch (gErr) {
+              console.warn(`[Server AI Solve] Gemini ${gModel} failed:`, gErr.message);
+              lastError = gErr;
+              if (gErr.message.includes('leaked')) break;
+            }
+          }
+        }
+      }
+
+      throw lastError || new Error('Impossible de résoudre l’exercice avec les moteurs IA disponibles.');
     } catch (err) {
       return sendJSON(res, 500, { error: err.message });
     }
