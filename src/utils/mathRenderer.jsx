@@ -515,6 +515,17 @@ export const autoRepairMathText = (text) => {
   // 6. Wrap standalone bare \boxed{...} with $ if not already in math (supports nested braces)
   res = res.replace(/(?<![$a-zA-Z0-9_\\])(\\boxed\{((?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})+)\})(?![$a-zA-Z0-9_\\])/g, '$$$1$$');
 
+  // 7. Split premise/quantifier clauses from formulas for optimal line wrap and column containment
+  res = res.replace(/(\${1,2})\s*(\(?\\(?:forall|exists)\b.*?\)\s*[:;])\s*([^$\n]+?)\s*(\${1,2})/g, (match, op1, quant, eq, op2) => {
+    return `$${quant.trim()}$\n\n$$${eq.trim()}$$`;
+  });
+  res = res.replace(/(^|\n|:\s*|[a-zA-ZÀ-ÿ\u0600-\u06FF]+\s*:\s*)(\(?\\(?:forall|exists)\b.*?\)\s*[:;])\s*([a-zA-Z0-9_'\(\)\\]+\s*[=<>≤≥].*)$/gm, (match, lead, quant, eq) => {
+    return `${lead}\n$${quant.trim()}$\n\n$$${eq.trim()}$$`;
+  });
+  res = res.replace(/(\${1,2})\s*(\\forall\s+[a-zA-Z0-9,\s]+\s*\\in\s*[^:;,$\n]+?\s*[:;,])\s*([^$\n]+?)\s*(\${1,2})/g, (match, op1, quant, eq, op2) => {
+    return `$${quant.trim()}$\n\n$$${eq.trim()}$$`;
+  });
+
   return res;
 };
 

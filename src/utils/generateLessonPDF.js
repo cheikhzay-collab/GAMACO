@@ -341,6 +341,18 @@ const repairCorruptedLatex = (text) => {
     return `\n\n$$${cleanBody}$$\n\n`;
   });
 
+  // 4. Split premise/quantifier clauses from formulas for optimal column wrap and containment
+  // e.g. (\forall x \in I) : f'(x) = ... -> (\forall x \in I) : on line 1, f'(x) = ... as display equation
+  s = s.replace(/(\2)\s*(\(?\\(?:forall|exists)\b.*?\)\s*[:;])\s*([^$\n]+?)\s*(\2)/g, (match, op1, quant, eq, op2) => {
+    return `$${quant.trim()}$\n\n$$${eq.trim()}$$`;
+  });
+  s = s.replace(/(^|\n|:\s*|[a-zA-ZÀ-ÿ\u0600-\u06FF]+\s*:\s*)(\(?\\(?:forall|exists)\b.*?\)\s*[:;])\s*([a-zA-Z0-9_'\(\)\\]+\s*[=<>≤≥].*)$/gm, (match, lead, quant, eq) => {
+    return `${lead}\n$${quant.trim()}$\n\n$$${eq.trim()}$$`;
+  });
+  s = s.replace(/(\2)\s*(\\forall\s+[a-zA-Z0-9,\s]+\s*\\in\s*[^:;,$\n]+?\s*[:;,])\s*([^$\n]+?)\s*(\2)/g, (match, op1, quant, eq, op2) => {
+    return `$${quant.trim()}$\n\n$$${eq.trim()}$$`;
+  });
+
   return s;
 };
 
@@ -2564,18 +2576,44 @@ b .katex * {
 }
 
 /* Prevent math formulas from overflowing two-column layouts in compiled PDF */
-.exercises-two-columns .katex-display {
+.exercises-two-columns .katex-display,
+.exercises-three-columns .katex-display,
+.homework-table .katex-display {
+  display: block !important;
   max-width: 100% !important;
-  overflow-x: visible !important;
-  overflow-y: visible !important;
+  margin: 0.35em auto !important;
+  text-align: center !important;
+  box-sizing: border-box !important;
   font-size: 0.95em !important;
 }
-.exercises-two-columns .katex {
+.exercises-two-columns .katex-display > .katex,
+.exercises-three-columns .katex-display > .katex,
+.homework-table .katex-display > .katex {
+  display: inline-block !important;
+  max-width: 100% !important;
+  text-align: center !important;
+}
+.exercises-two-columns .katex-inline,
+.exercises-three-columns .katex-inline,
+.exercises-two-columns .inline-math-container,
+.exercises-three-columns .inline-math-container {
+  display: inline !important;
+  white-space: normal !important;
+  max-width: 100% !important;
+}
+.exercises-two-columns .katex,
+.exercises-three-columns .katex,
+.exercises-two-columns .katex-html,
+.exercises-three-columns .katex-html {
+  white-space: normal !important;
+  max-width: 100% !important;
   font-size: 1em !important;
 }
-.exercises-two-columns .katex .base {
+.exercises-two-columns .katex .base,
+.exercises-three-columns .katex .base {
   white-space: nowrap !important;
   display: inline-block !important;
+  max-width: 100% !important;
   margin-top: 1px;
   margin-bottom: 1px;
 }
@@ -2655,19 +2693,24 @@ b .katex * {
 }
 
 .exercises-three-columns .katex-display {
+  display: block !important;
   max-width: 100% !important;
-  overflow-x: visible !important;
-  overflow-y: visible !important;
+  margin: 0.3em auto !important;
+  text-align: center !important;
+  box-sizing: border-box !important;
   font-size: 0.88em !important;
 }
 
 .exercises-three-columns .katex {
   font-size: 0.92em !important;
+  white-space: normal !important;
+  max-width: 100% !important;
 }
 
 .exercises-three-columns .katex .base {
   white-space: nowrap !important;
   display: inline-block !important;
+  max-width: 100% !important;
   margin-top: 1px;
   margin-bottom: 1px;
 }
@@ -3728,10 +3771,18 @@ function _applyPrintStyles() {
     '.exercises-one-column { column-count: 1 !important; display: block !important; width: 100% !important; }',
     '.exercises-two-columns { column-count: 2 !important; display: block !important; width: 100% !important; }',
     '.exercises-three-columns { column-count: 3 !important; display: block !important; width: 100% !important; }',
+    '.exercises-two-columns .katex-display, .exercises-three-columns .katex-display { display: block !important; max-width: 100% !important; margin: 0.35em auto !important; text-align: center !important; }',
+    '.exercises-two-columns .katex-inline, .exercises-three-columns .katex-inline, .exercises-two-columns .inline-math-container, .exercises-three-columns .inline-math-container { display: inline !important; white-space: normal !important; max-width: 100% !important; }',
+    '.exercises-two-columns .katex, .exercises-three-columns .katex, .exercises-two-columns .katex-html, .exercises-three-columns .katex-html { white-space: normal !important; max-width: 100% !important; }',
+    '.exercises-two-columns .katex .base, .exercises-three-columns .katex .base { max-width: 100% !important; }',
     '@media print {',
     '  .exercises-one-column { column-count: 1 !important; display: block !important; width: 100% !important; }',
     '  .exercises-two-columns { column-count: 2 !important; display: block !important; width: 100% !important; }',
     '  .exercises-three-columns { column-count: 3 !important; display: block !important; width: 100% !important; }',
+    '  .exercises-two-columns .katex-display, .exercises-three-columns .katex-display { display: block !important; max-width: 100% !important; margin: 0.35em auto !important; text-align: center !important; }',
+    '  .exercises-two-columns .katex-inline, .exercises-three-columns .katex-inline, .exercises-two-columns .inline-math-container, .exercises-three-columns .inline-math-container { display: inline !important; white-space: normal !important; max-width: 100% !important; }',
+    '  .exercises-two-columns .katex, .exercises-three-columns .katex, .exercises-two-columns .katex-html, .exercises-three-columns .katex-html { white-space: normal !important; max-width: 100% !important; }',
+    '  .exercises-two-columns .katex .base, .exercises-three-columns .katex .base { max-width: 100% !important; }',
     '}'
   ];
 
@@ -3772,11 +3823,35 @@ function adjustLineHeight(delta) {
   } catch (err) { console.error(err); }
 }
 
+// ── Dynamic Math & Element Auto-Fit Scaler ────────────────────────────────────
+// Scans for any formulas or text that exceed column width and scales font-size smoothly to fit 100%
+function _fitFormulasToColumns() {
+  try {
+    var targets = document.querySelectorAll('.katex-display, .katex-inline, .inline-math-container, .exercise-item-row, .exercise-text-line');
+    targets.forEach(function(el) {
+      var container = el.closest('.exercise-body, .modern-exercise-body, .homework-content-cell, .sections-container > div, .bullet-item');
+      if (container) {
+        var inner = el.querySelector('.katex-html') || el.querySelector('.katex') || el;
+        var avail = (container.clientWidth || container.offsetWidth) - 10;
+        if (avail > 40 && inner.scrollWidth > avail) {
+          var ratio = Math.max(0.68, Math.min(1, avail / inner.scrollWidth));
+          if (ratio < 0.98) {
+            el.style.fontSize = (ratio * 100).toFixed(1) + '%';
+            el.style.lineHeight = '1.25';
+          }
+        }
+      }
+    });
+  } catch(e) {}
+}
+
 // ── Print ─────────────────────────────────────────────────────────────────────
 async function printNow() {
   _applyPrintStyles();
+  _fitFormulasToColumns();
   await document.fonts.ready;
   await new Promise(r => setTimeout(r, 600));
+  _fitFormulasToColumns();
   var hint = document.getElementById('printHint');
   if (hint) hint.style.display = 'none';
   window.print();
@@ -3785,6 +3860,10 @@ async function printNow() {
 
 window.addEventListener('beforeprint', function() {
   _applyPrintStyles();
+  _fitFormulasToColumns();
+});
+window.addEventListener('resize', function() {
+  _fitFormulasToColumns();
 });
 
 // ── Init: restore saved state on page load ──────────────────────────────────

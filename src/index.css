@@ -2341,6 +2341,65 @@ b .katex * {
   font-weight: normal !important;
 }
 
+/* Block math container: centered, responsive, no overflow */
+.block-math-container {
+  display: block !important;
+  margin: 0.35em auto !important;
+  text-align: center !important;
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  direction: ltr !important;
+  -webkit-overflow-scrolling: touch;
+}
+.block-math-container .katex-display {
+  display: block !important;
+  margin: 0 !important;
+  text-align: center !important;
+  max-width: 100% !important;
+}
+
+/* Multi-column layout math containment (prevents formulas from bleeding across columns) */
+.exercises-two-columns .katex-display,
+.exercises-three-columns .katex-display,
+.exercises-two-columns-layout .katex-display,
+.exercises-three-columns-layout .katex-display {
+  display: block !important;
+  max-width: 100% !important;
+  margin: 0.35em auto !important;
+  text-align: center !important;
+  box-sizing: border-box !important;
+}
+.exercises-two-columns .katex-display > .katex,
+.exercises-three-columns .katex-display > .katex,
+.exercises-two-columns-layout .katex-display > .katex,
+.exercises-three-columns-layout .katex-display > .katex {
+  display: inline-block !important;
+  max-width: 100% !important;
+  text-align: center !important;
+}
+.exercises-two-columns .katex-inline,
+.exercises-three-columns .katex-inline,
+.exercises-two-columns-layout .katex-inline,
+.exercises-three-columns-layout .katex-inline {
+  display: inline !important;
+  white-space: normal !important;
+  max-width: 100% !important;
+}
+.exercises-two-columns .katex,
+.exercises-three-columns .katex,
+.exercises-two-columns-layout .katex,
+.exercises-three-columns-layout .katex {
+  white-space: normal !important;
+  max-width: 100% !important;
+}
+.exercises-two-columns .katex .base,
+.exercises-three-columns .katex .base,
+.exercises-two-columns-layout .katex .base,
+.exercises-three-columns-layout .katex .base {
+  max-width: 100% !important;
+}
+
 /* Ensure KaTeX radicals and bounding boxes never overflow or distort */
 .katex .hide-tail {
   width: 100% !important;

@@ -2103,19 +2103,28 @@ export default function LessonViewerPage() {
           
           /* Prevent math formulas from overflowing two-column layouts in print */
           .exercises-two-columns-layout .katex-display {
+            display: block !important;
             max-width: 100% !important;
-            overflow-x: visible !important;
-            overflow-y: visible !important;
+            margin: 0.35em auto !important;
+            text-align: center !important;
+            box-sizing: border-box !important;
             font-size: 0.95em !important;
+          }
+          .exercises-two-columns-layout .katex-display > .katex {
+            display: inline-block !important;
+            max-width: 100% !important;
+            text-align: center !important;
           }
           .exercises-two-columns-layout .katex,
           .exercises-two-columns-layout .katex-html {
             white-space: normal !important;
             display: inline !important;
+            max-width: 100% !important;
           }
           .exercises-two-columns-layout .katex .base {
             white-space: nowrap !important;
             display: inline-block !important;
+            max-width: 100% !important;
             margin-top: 2px;
             margin-bottom: 2px;
           }
