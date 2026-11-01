@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { Eye, EyeOff, AlertCircle, CheckCircle2, ArrowRight, ShieldCheck, Sparkles, BookOpen, UserCheck } from 'lucide-react';
+import { Eye, EyeOff, Zap, AlertCircle, Check, Clock, UserCheck, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import LconqLogo from '../components/LconqLogo';
 
@@ -33,7 +33,7 @@ export default function Login() {
         if (!name.trim()) throw new Error('Veuillez saisir votre nom complet.');
         const newUser = await register(name.trim(), email, password);
         if (newUser && newUser.needsConfirmation) {
-          setSuccessMsg("Compte créé avec succès ! Veuillez vérifier votre boîte e-mail.");
+          setSuccessMsg("Compte créé avec succès ! Un e-mail de confirmation vous a été envoyé. Veuillez cliquer sur le lien dans l'e-mail pour activer votre compte.");
           setIsLoading(false);
           return;
         }
@@ -58,6 +58,19 @@ export default function Login() {
     }
   };
 
+  const handleGoogleLogin = async () => {
+    setIsLoading(true);
+    setErrorMsg('');
+    try {
+      await loginWithGoogle();
+    } catch (err) {
+      console.error('[Auth] Google Error:', err);
+      let msg = err.message || 'Une erreur est survenue lors de la connexion Google.';
+      setErrorMsg(msg);
+      setIsLoading(false);
+    }
+  };
+
   const handleQuickLogin = (demoEmail, demoPass) => {
     setEmail(demoEmail);
     setPassword(demoPass);
@@ -74,220 +87,355 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-zinc-950 text-zinc-100 flex flex-col lg:flex-row antialiased selection:bg-indigo-500/30 selection:text-white">
-      {/* ── Left Editorial Showcase (Visible on Desktop) ── */}
-      <section className="hidden lg:flex lg:w-5/12 xl:w-1/2 flex-col justify-between p-12 xl:p-16 relative border-r border-zinc-800/80 bg-gradient-to-b from-zinc-900 via-zinc-950 to-zinc-950 overflow-hidden">
-        {/* Subtle architectural grid pattern */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#27272a0f_1px,transparent_1px),linear-gradient(to_bottom,#27272a0f_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] pointer-events-none" />
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      background: 'var(--bg-base)',
+      color: 'var(--text-main)',
+      fontFamily: 'Inter, system-ui, sans-serif'
+    }}>
+      {/* ── Left — decorative panel (hidden on mobile via CSS) ── */}
+      <div style={{
+        flex: '0 0 42%',
+        background: 'linear-gradient(145deg, var(--violet) 0%, #312e81 100%)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '3rem',
+        position: 'relative',
+        overflow: 'hidden'
+      }} className="login-left-panel">
+        {/* Ambient blobs */}
+        <div style={{ position: 'absolute', top: '-60px', right: '-60px', width: 240, height: 240, borderRadius: '50%', background: 'rgba(255,255,255,0.07)', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', bottom: '-40px', left: '-40px', width: 180, height: 180, borderRadius: '50%', background: 'rgba(255,255,255,0.06)', pointerEvents: 'none' }} />
 
-        <div className="relative z-10 space-y-6">
-          <Link to="/" className="inline-block hover:opacity-90 transition">
-            <LconqLogo size={42} textSize="1.65rem" />
+        <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', color: '#fff', maxWidth: 360 }}>
+          <LconqLogo 
+            size={64} 
+            textSize="2.2rem" 
+            variant="light"
+            style={{ 
+              flexDirection: 'column', 
+              gap: '1rem', 
+              marginBottom: '1.5rem',
+              justifyContent: 'center' 
+            }} 
+          />
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: '0 0 0.5rem 0', color: '#fff' }}>
+            L'excellence pédagogique
+          </h2>
+          <p style={{ opacity: 0.85, fontSize: '0.95rem', lineHeight: 1.6, margin: '0 0 2rem 0' }}>
+            La plateforme de préparation aux concours propulsée par l'IA — Médecine, ENSA, ENSAM.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', textAlign: 'left', background: 'rgba(0,0,0,0.15)', padding: '1.25rem 1.5rem', borderRadius: 'var(--radius-lg)' }}>
+            {[
+              'Algorithme SRS Anki-Grade (Répétition espacée)',
+              'Banque nationale officielle 2010–2026',
+              'Barème strict des concours et classement direct',
+            ].map(f => (
+              <div key={f} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.88rem', opacity: 0.95 }}>
+                <Zap size={16} color="#34d399" style={{ flexShrink: 0 }} />
+                <span>{f}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Right — auth form ── */}
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'clamp(1.5rem, 5vw, 3rem) clamp(1rem, 4vw, 2rem)' }}>
+        <div style={{ width: '100%', maxWidth: 440 }}>
+          {/* Mobile-only Logo */}
+          <div className="login-mobile-logo" style={{ display: 'none', marginBottom: '1.75rem', justifyContent: 'center' }}>
+            <LconqLogo size={42} textSize="1.5rem" />
+          </div>
+
+          {/* Back link */}
+          <Link to="/" style={{ color: 'var(--text-muted)', fontSize: '0.875rem', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', marginBottom: '1.5rem', transition: 'color 0.2s' }}
+            onMouseEnter={e => e.currentTarget.style.color = 'var(--text-main)'}
+            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+          >
+            ← Retour à l'accueil
           </Link>
-          
-          <div className="space-y-3 pt-8">
-            <span className="text-xs uppercase tracking-widest text-indigo-400 font-bold">
-              Concours Médecine & Baccalauréat Maroc
-            </span>
-            <h2 className="text-3xl xl:text-4xl font-extrabold tracking-tight text-zinc-100 text-balance leading-snug">
-              L'excellence pédagogique propulsée par la répétition espacée.
-            </h2>
-            <p className="text-sm xl:text-base text-zinc-400 leading-relaxed max-w-md">
-              Révisez avec la banque officielle nationale 2010–2026, simulez les concours chronométrés et identifiez instantanément vos axes de remédiation.
-            </p>
-          </div>
-        </div>
 
-        {/* Feature Highlights Grid */}
-        <div className="relative z-10 grid grid-cols-1 gap-4 pt-10">
-          <div className="flex items-start gap-3.5 p-4 rounded-2xl bg-zinc-900/40 border border-zinc-800/80 backdrop-blur-md">
-            <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 flex-shrink-0 mt-0.5">
-              <Sparkles className="w-4 h-4" />
-            </div>
-            <div>
-              <h4 className="text-xs font-bold text-zinc-200">Algorithme SRS Anki-Grade</h4>
-              <p className="text-xs text-zinc-400 mt-0.5">Consolidation mnésique à long terme basée sur la courbe d'oubli d'Ebbinghaus.</p>
-            </div>
-          </div>
+          <h1 style={{ fontSize: 'clamp(1.6rem, 4vw, 2rem)', fontWeight: 800, marginBottom: '0.4rem', letterSpacing: '-0.02em', color: 'var(--text-main)' }}>
+            {isRegistering ? 'Rejoindre L\'CONQ' : 'Connexion à votre espace'}
+          </h1>
+          <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', fontSize: '0.92rem' }}>
+            {isRegistering ? 'Préparez vos concours avec le programme officiel marocain.' : 'Entrez vos identifiants pour continuer vos révisions.'}
+          </p>
 
-          <div className="flex items-start gap-3.5 p-4 rounded-2xl bg-zinc-900/40 border border-zinc-800/80 backdrop-blur-md">
-            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 flex-shrink-0 mt-0.5">
-              <ShieldCheck className="w-4 h-4" />
-            </div>
-            <div>
-              <h4 className="text-xs font-bold text-zinc-200">Barème Officiel des Concours</h4>
-              <p className="text-xs text-zinc-400 mt-0.5">Calcul strict des notes avec pénalités (-0.25 pt par erreur) et classements en temps réel.</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Quiet Footer Note */}
-        <div className="relative z-10 pt-8 border-t border-zinc-800/60 text-xs text-zinc-500 flex justify-between items-center">
-          <span>Plateforme nationale L'CONQ Maroc</span>
-          <span className="font-mono text-[11px] text-zinc-600">v2.4.0 • 2026-2027</span>
-        </div>
-      </section>
-
-      {/* ── Right Authentication Area ── */}
-      <main className="flex-1 flex items-center justify-center p-6 sm:p-10 lg:p-16">
-        <div className="w-full max-w-md space-y-8">
-          {/* Mobile Header Logo */}
-          <div className="lg:hidden flex justify-center pb-2">
-            <LconqLogo size={36} textSize="1.45rem" />
-          </div>
-
-          {/* Form Header */}
-          <div className="space-y-2">
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-zinc-100">
-              {isRegistering ? 'Rejoindre L\'CONQ' : 'Connexion à votre espace'}
-            </h1>
-            <p className="text-sm text-zinc-400">
-              {isRegistering 
-                ? 'Préparez vos concours avec le programme officiel marocain.' 
-                : 'Entrez vos identifiants pour continuer vos révisions.'}
-            </p>
-          </div>
-
-          {/* Segmented Auth Mode Switch */}
-          <div className="flex items-center p-1 rounded-xl bg-zinc-900 border border-zinc-800">
+          {/* Clean Tab Selector */}
+          <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: '1.5rem' }}>
             <button
               type="button"
               onClick={() => { navigate('/login'); setErrorMsg(''); }}
-              className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
-                !isRegistering 
-                  ? 'bg-zinc-800 text-zinc-100 shadow-sm border border-zinc-700/60' 
-                  : 'text-zinc-400 hover:text-zinc-200'
-              }`}
+              style={{
+                flex: 1,
+                padding: '0.75rem 0',
+                background: 'none',
+                border: 'none',
+                borderBottom: !isRegistering ? '2px solid var(--violet)' : '2px solid transparent',
+                color: !isRegistering ? 'var(--text-main)' : 'var(--text-muted)',
+                fontWeight: 700,
+                fontSize: '0.92rem',
+                cursor: 'pointer',
+                transition: 'all 0.15s'
+              }}
             >
               Connexion
             </button>
             <button
               type="button"
               onClick={() => { navigate('/register'); setErrorMsg(''); }}
-              className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
-                isRegistering 
-                  ? 'bg-zinc-800 text-zinc-100 shadow-sm border border-zinc-700/60' 
-                  : 'text-zinc-400 hover:text-zinc-200'
-              }`}
+              style={{
+                flex: 1,
+                padding: '0.75rem 0',
+                background: 'none',
+                border: 'none',
+                borderBottom: isRegistering ? '2px solid var(--violet)' : '2px solid transparent',
+                color: isRegistering ? 'var(--text-main)' : 'var(--text-muted)',
+                fontWeight: 700,
+                fontSize: '0.92rem',
+                cursor: 'pointer',
+                transition: 'all 0.15s'
+              }}
             >
               Inscription
             </button>
           </div>
 
-          {/* Alert Messages */}
+          {/* Session Expiry or Inactivity Alert */}
+          {(isExpired || isInactive) && !errorMsg && !successMsg && (
+            <div style={{
+              background: 'rgba(245, 158, 11, 0.08)',
+              border: '1px solid rgba(245, 158, 11, 0.25)',
+              padding: '0.875rem 1rem',
+              borderRadius: '12px',
+              color: '#d97706',
+              fontSize: '0.88rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.625rem',
+              marginBottom: '1.25rem'
+            }}>
+              <Clock size={18} style={{ flexShrink: 0 }} />
+              <span style={{ fontWeight: 600 }}>
+                {isExpired 
+                  ? "Votre session a expiré. Veuillez vous reconnecter."
+                  : "Déconnexion automatique après 30 minutes d'inactivité."}
+              </span>
+            </div>
+          )}
+
+          {/* Error Alert Display */}
           {errorMsg && (
-            <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-start gap-3">
-              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-              <span>{errorMsg}</span>
+            <div style={{
+              background: 'rgba(239, 68, 68, 0.08)',
+              border: '1px solid rgba(239, 68, 68, 0.25)',
+              padding: '0.875rem 1rem',
+              borderRadius: '12px',
+              color: 'var(--danger)',
+              fontSize: '0.88rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              marginBottom: '1.25rem'
+            }}>
+              <AlertCircle size={18} style={{ flexShrink: 0 }} />
+              <span style={{ fontWeight: 500 }}>{errorMsg}</span>
             </div>
           )}
 
+          {/* Success Alert Display */}
           {successMsg && (
-            <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-start gap-3">
-              <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" />
-              <span>{successMsg}</span>
+            <div style={{
+              background: 'rgba(16, 185, 129, 0.08)',
+              border: '1px solid rgba(16, 185, 129, 0.25)',
+              padding: '0.875rem 1rem',
+              borderRadius: '12px',
+              color: 'var(--emerald)',
+              fontSize: '0.88rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              marginBottom: '1.25rem'
+            }}>
+              <Check size={18} style={{ flexShrink: 0 }} />
+              <span style={{ fontWeight: 500 }}>{successMsg}</span>
             </div>
           )}
 
-          {/* Primary Auth Form */}
-          <form onSubmit={handleAuthSubmit} className="space-y-4">
+          <form onSubmit={handleAuthSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             {isRegistering && (
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-zinc-300">Nom Complet</label>
+              <div className="input-group">
+                <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.35rem', display: 'block' }}>Nom complet</label>
                 <input
                   type="text"
-                  required
+                  className="input-control"
                   placeholder="Ex: Youssef Alaoui"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl bg-zinc-900/80 border border-zinc-800 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition"
+                  onChange={e => setName(e.target.value)}
+                  disabled={isLoading}
+                  required
+                  style={{ width: '100%', boxSizing: 'border-box' }}
                 />
               </div>
             )}
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-zinc-300">Adresse E-mail</label>
+            <div className="input-group">
+              <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.35rem', display: 'block' }}>Adresse email</label>
               <input
                 type="email"
-                required
-                placeholder="votre.email@domaine.ma"
+                className="input-control"
+                placeholder="votre@email.ma"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-zinc-900/80 border border-zinc-800 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition"
+                onChange={e => setEmail(e.target.value)}
+                disabled={isLoading}
+                required
+                style={{ width: '100%', boxSizing: 'border-box' }}
               />
             </div>
 
-            <div className="space-y-1.5">
-              <div className="flex justify-between items-center">
-                <label className="text-xs font-semibold text-zinc-300">Mot de passe</label>
+            <div className="input-group">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-muted)' }}>Mot de passe</label>
                 {!isRegistering && (
-                  <span className="text-[11px] text-zinc-500 hover:text-indigo-400 cursor-pointer">
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', cursor: 'pointer' }}>
                     Mot de passe oublié ?
                   </span>
                 )}
               </div>
-              <div className="relative">
+              <div style={{ position: 'relative' }}>
                 <input
                   type={showPwd ? 'text' : 'password'}
-                  required
+                  className="input-control"
                   placeholder="••••••••"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3 pr-11 rounded-xl bg-zinc-900/80 border border-zinc-800 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition"
+                  onChange={e => setPassword(e.target.value)}
+                  disabled={isLoading}
+                  required
+                  style={{ paddingRight: '3rem', width: '100%', boxSizing: 'border-box' }}
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPwd(!showPwd)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+                  onClick={() => setShowPwd(p => !p)}
+                  disabled={isLoading}
+                  style={{ position: 'absolute', right: '0.875rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-subtle)', cursor: 'pointer' }}
                 >
-                  {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPwd ? <EyeOff size={17} /> : <Eye size={17} />}
                 </button>
               </div>
             </div>
 
             <button
               type="submit"
+              className="btn btn-primary"
               disabled={isLoading}
-              className="w-full mt-2 py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm transition shadow-lg shadow-indigo-600/25 flex items-center justify-center gap-2 disabled:opacity-50"
+              style={{
+                width: '100%',
+                justifyContent: 'center',
+                padding: '0.875rem',
+                fontSize: '0.95rem',
+                fontWeight: 700,
+                borderRadius: 'var(--radius-md)',
+                marginTop: '0.5rem',
+                cursor: 'pointer'
+              }}
             >
-              {isLoading ? (
-                <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-              ) : (
-                <>
-                  <span>{isRegistering ? 'Créer mon compte' : 'Accéder à mes cours'}</span>
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
+              {isLoading ? 'Opération en cours...' : isRegistering ? "S'inscrire" : 'Se connecter'}
             </button>
           </form>
 
-          {/* Quick Demo Login Bar for Testing */}
-          <div className="pt-6 border-t border-zinc-800/80 space-y-3">
-            <div className="text-[11px] uppercase tracking-wider text-zinc-500 font-bold text-center">
+          {/* Quick Demo Login Bar */}
+          <div style={{ marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border)' }}>
+            <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-subtle)', fontWeight: 700, marginBottom: '0.75rem', textAlign: 'center' }}>
               Accès Démo Rapide (1-Clic)
             </div>
-            <div className="grid grid-cols-2 gap-2.5">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
               <button
                 type="button"
                 onClick={() => handleQuickLogin('youssef@massar.ma', 'student123')}
-                className="flex items-center justify-center gap-2 p-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-semibold text-zinc-300 transition"
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                  padding: '0.625rem 0.75rem', borderRadius: 'var(--radius-md)',
+                  background: 'var(--bg-glass)', border: '1px solid var(--border)',
+                  color: 'var(--text-main)', fontSize: '0.82rem', fontWeight: 600,
+                  cursor: 'pointer', transition: 'all 0.2s'
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--emerald)'; e.currentTarget.style.background = 'var(--bg-hover)'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--bg-glass)'; }}
               >
-                <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
+                <UserCheck size={15} color="var(--emerald)" />
                 <span>Compte Élève</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => handleQuickLogin('admin@lconq.ma', 'admin123')}
-                className="flex items-center justify-center gap-2 p-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-semibold text-zinc-300 transition"
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                  padding: '0.625rem 0.75rem', borderRadius: 'var(--radius-md)',
+                  background: 'var(--bg-glass)', border: '1px solid var(--border)',
+                  color: 'var(--text-main)', fontSize: '0.82rem', fontWeight: 600,
+                  cursor: 'pointer', transition: 'all 0.2s'
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--violet)'; e.currentTarget.style.background = 'var(--bg-hover)'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--bg-glass)'; }}
               >
-                <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" />
+                <ShieldCheck size={15} color="var(--violet)" />
                 <span>Compte Directeur</span>
               </button>
             </div>
           </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', margin: '1.25rem 0', gap: '0.875rem' }}>
+            <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-subtle)', fontWeight: 600 }}>OU</span>
+            <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+          </div>
+
+          <button
+            type="button"
+            onClick={handleGoogleLogin}
+            disabled={isLoading}
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.75rem',
+              padding: '0.75rem',
+              fontSize: '0.9rem',
+              fontWeight: 600,
+              background: 'var(--bg-glass)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              color: 'var(--text-main)',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.borderColor = 'var(--border-hover)';
+              e.currentTarget.style.background = 'var(--bg-hover)';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.borderColor = 'var(--border)';
+              e.currentTarget.style.background = 'var(--bg-glass)';
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05" />
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.53 6-4.53z" fill="#EA4335" />
+            </svg>
+            Continuer avec Google
+          </button>
+
         </div>
-      </main>
+      </div>
     </div>
   );
 }
