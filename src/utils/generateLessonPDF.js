@@ -889,8 +889,8 @@ const renderMathInternal = (text) => {
 
 
 /* ── Parse exercise title helper ── */
-const parseExerciseTitle = (title, fallbackIdx, isArabicMode = false) => {
-  if (!title) return { number: String(fallbackIdx + 1), label: '' };
+const parseExerciseTitle = (title, fallbackIdx, isArabicMode = false, sectionNumber = '') => {
+  if (!title) return { number: sectionNumber || String(fallbackIdx + 1), label: '' };
   let clean = title.trim();
 
   // Strip markdown bold markers
@@ -899,21 +899,23 @@ const parseExerciseTitle = (title, fallbackIdx, isArabicMode = false) => {
   // Handle Arabic titles: "تمرين 1" or "تمرين: 1"
   const arabicMatch = clean.match(/^تمرين[:\s]*([\d١-٩]+)?\s*[:\-–—\s]*(.*)$/);
   if (arabicMatch && (isArabicMode || arabicMatch[1])) {
-    return { number: arabicMatch[1] || String(fallbackIdx + 1), label: (arabicMatch[2] || '').trim() };
+    return { number: arabicMatch[1] || sectionNumber || String(fallbackIdx + 1), label: (arabicMatch[2] || '').trim() };
   }
 
-  // Original French parsing
-  const prefixMatch = clean.match(/^Exercice\s*(?:N?°|N)?\s*([0-9a-zA-Z]+)?\s*[:\-–—\s]*(.*)$/i);
+  // Original French parsing (e.g. "Exercice 1", "Exercice (1)", "Exercice N°2 : Trigonométrie")
+  const prefixMatch = clean.match(/^Exercice\s*(?:N?°|N)?\s*\(?([0-9a-zA-Z]+)\)?\s*[:\-–—\s]*(.*)$/i);
   if (prefixMatch) {
-    return { number: prefixMatch[1] || String(fallbackIdx + 1), label: (prefixMatch[2] || '').trim() };
+    return { number: prefixMatch[1] || sectionNumber || String(fallbackIdx + 1), label: (prefixMatch[2] || '').trim() };
   }
 
-  const match = clean.match(/^([0-9a-zA-Z]+)\s*[:.\-–—\s]+(.*)$/);
+  // Number with parentheses or standalone, e.g. "(1) : ...", "1 : ...", "1. ..."
+  const match = clean.match(/^\(?([0-9]+|[a-zA-Z])\)?\s*[:.\-–—\s]+(.*)$/);
   if (match) {
     return { number: match[1].trim(), label: match[2].trim() };
   }
 
-  return { number: clean || String(fallbackIdx + 1), label: '' };
+  // If clean does not have leading number, treat the whole clean text as label with sectionNumber fallback
+  return { number: sectionNumber || String(fallbackIdx + 1), label: clean };
 };
 
 /* ── Render Devoir Surveillé homework body with barème ── */
@@ -1052,10 +1054,8 @@ const renderHomeworkBody = (text, isArabicMode) => {
 };
 
 /* ── Calculate total points for Devoir Surveillé homework ── */
-const calculateTotalPoints = (text, isArabicMode) => {
-  if (!text) return isArabicMode ? '0 ن' : '0 pts';
-
-  let rawText = String(text);
+const calculateTotalPoints = (text, isArabicMode, fallbackHeader = '') => {
+  let rawText = text ? String(text) : '';
   
   // Split by math blocks to safely replace literal \n outside math without corrupting LaTeX commands like \neq
   const parts = rawText.split(/(\$\$[\s\S]*?\$\$|\$[\s\S]*?\$)/g);
@@ -1092,6 +1092,15 @@ const calculateTotalPoints = (text, isArabicMode) => {
     }
   });
 
+  // If no points found in questions body, check if section header or title contains the total points, e.g. "Exercice (1) (4 Pts)"
+  if (total === 0 && fallbackHeader) {
+    const headerMatch = String(fallbackHeader).match(pointsRegex);
+    if (headerMatch) {
+      const val = parseFloat(headerMatch[1].replace(',', '.'));
+      if (!isNaN(val)) total = val;
+    }
+  }
+
   const totalStr = String(total).replace('.', ',');
   const ptsWord = isArabicMode ? 'ن' : (total > 1 ? 'pts' : 'pt');
   return `${totalStr} ${ptsWord}`;
@@ -1121,14 +1130,28 @@ export const generateLessonHTML = (lesson, settings = {}) => {
     : (savedPdfSolutions !== null ? savedPdfSolutions === 'true' : true);
   const seriesStyle = settings.seriesStyle || (typeof window !== 'undefined' && window.localStorage ? localStorage.getItem('pdf_series_style') : null) || 'modern_pro_2026';
   const isModernPro = seriesStyle === 'modern_pro_2026';
-  const savedPdfCols = typeof window !== 'undefined' && window.localStorage ? localStorage.getItem('pdf_series_columns') : null;
-  const columnsCount = settings.columnsCount !== undefined 
-    ? Number(settings.columnsCount) 
-    : (savedPdfCols ? Number(savedPdfCols) : (Number(lesson?.content?.columns_count || lesson?.columns_count || 2)));
   const content = lesson?.content || lesson || {};
   const header = content?.header || {};
   const sections = Array.isArray(content?.sections) ? content.sections : (Array.isArray(lesson?.sections) ? lesson.sections : (Array.isArray(content) ? content : []));
-  const isHomework = lesson.docType === 'homework' || content?.doc_type === 'homework';
+  
+  // Homework (Devoir Surveillé) detection
+  const isHomework = Boolean(
+    lesson?.docType === 'homework' || 
+    content?.doc_type === 'homework' ||
+    lesson?.type === 'homework' ||
+    content?.type === 'homework' ||
+    header?.doc_type === 'homework' ||
+    lesson?.isHomework ||
+    /devoir|فرض|contr[ôo]le/i.test(lesson?.title || header?.fiche_title || header?.prep_title || '')
+  );
+
+  const savedPdfCols = typeof window !== 'undefined' && window.localStorage ? localStorage.getItem('pdf_series_columns') : null;
+  // Homework (Devoir Surveillé) is STRICTLY 1 column (Full Width). It must NEVER be multi-column.
+  const columnsCount = isHomework 
+    ? 1 
+    : (settings.columnsCount !== undefined 
+        ? Number(settings.columnsCount) 
+        : (savedPdfCols ? Number(savedPdfCols) : (Number(lesson?.content?.columns_count || lesson?.columns_count || 2))));
 
   const title = header?.fiche_title || lesson?.title || 'Fiche de Cours';
   const subject = header?.subject || '';
@@ -1138,12 +1161,22 @@ export const generateLessonHTML = (lesson, settings = {}) => {
   const phone = header?.phone || globalProfPhone || '';
   const prepTitle = header?.prep_title || '';
   const schools = header?.schools || [];
-  const isExercises = lesson.docType === 'exercises' || content?.doc_type === 'exercises';
-  const columnsClass = isExercises
-    ? (columnsCount === 3 ? 'exercises-three-columns' : (columnsCount === 1 ? 'exercises-one-column' : 'exercises-two-columns'))
-    : '';
-  const isTwoColumns = isExercises && columnsCount === 2;
-  const isThreeColumns = isExercises && columnsCount === 3;
+  
+  const isExercises = !isHomework && Boolean(
+    lesson.docType === 'exercises' || 
+    content?.doc_type === 'exercises' ||
+    lesson?.type === 'exercises' ||
+    content?.type === 'exercises' ||
+    /s[ée]rie|تمر[يی]ن/i.test(lesson?.title || header?.fiche_title || '')
+  );
+  
+  const columnsClass = isHomework
+    ? 'exercises-one-column homework-sections-container'
+    : (isExercises
+        ? (columnsCount === 3 ? 'exercises-three-columns' : (columnsCount === 1 ? 'exercises-one-column' : 'exercises-two-columns'))
+        : '');
+  const isTwoColumns = !isHomework && isExercises && columnsCount === 2;
+  const isThreeColumns = !isHomework && isExercises && columnsCount === 3;
   const isConcours = lesson.docType === 'concours' || content?.doc_type === 'concours';
   const checkArabicText = () => {
     // 1. Explicit settings or metadata language (Highest priority)
@@ -1557,8 +1590,8 @@ export const generateLessonHTML = (lesson, settings = {}) => {
 
     } else {
       // Exercise section
-      const { number: exeNumber, label: exeLabel } = parseExerciseTitle(sec.title, idx, isArabic);
-      const isHomework = lesson.docType === 'homework' || content?.doc_type === 'homework';
+      const { number: exeNumber, label: exeLabel } = parseExerciseTitle(sec.title, idx, isArabic, sec.section_number);
+      const isHomeworkSec = isHomework;
 
       // Render any attached images or tables in exercise items
       let exerciseBeforeHtml = '';
@@ -1575,11 +1608,11 @@ export const generateLessonHTML = (lesson, settings = {}) => {
         });
       }
 
-      if (isHomework) {
+      if (isHomeworkSec) {
         sectionsHtml += `
           <div class="homework-table" ${isArabic ? `style="font-family:${arabicFontFamily}"` : ''}>
             <div class="homework-header-row">
-              <div class="homework-bareme-header">${calculateTotalPoints(sec.content, isArabic)}</div>
+              <div class="homework-bareme-header">${calculateTotalPoints(sec.content, isArabic, sec.section_header || sec.title)}</div>
               <div class="homework-content-header">
                 ${isArabic ? 'تمرين' : 'Exercice'} ${esc(exeNumber)} ${exeLabel ? ` : ${esc(exeLabel)}` : ''}
               </div>
@@ -3145,8 +3178,19 @@ html[dir="rtl"] .section-header-row {
 /* ═══════════════════════════════════════
    HOMEWORK EXAM LAYOUT (Devoir Surveillé)
    ═══════════════════════════════════════ */
+.homework-sections-container,
+.sections-container.homework-sections-container,
+.sections-container:has(.homework-table),
+.sections-list-container:has(.homework-table) {
+  column-count: 1 !important;
+  display: block !important;
+  width: 100% !important;
+  column-rule: none !important;
+}
+
 .homework-table {
-  width: 100%;
+  width: 100% !important;
+  max-width: 100% !important;
   border-collapse: collapse;
   border: 1.5px solid #005086;
   border-radius: 4px;
@@ -3232,9 +3276,19 @@ html[dir="rtl"] .section-header-row {
   .sections-container, .sections-list-container {
     overflow: visible !important;
   }
+  .homework-sections-container,
+  .sections-container.homework-sections-container,
+  .sections-container:has(.homework-table),
+  .sections-list-container:has(.homework-table) {
+    column-count: 1 !important;
+    display: block !important;
+    width: 100% !important;
+    column-rule: none !important;
+  }
   .homework-table {
     display: table !important;
     width: 100% !important;
+    max-width: 100% !important;
     border-collapse: collapse !important;
     border: 1.5px solid #005086 !important;
     overflow: visible !important;
@@ -3639,9 +3693,10 @@ html[dir="rtl"] .homework-content-cell {
 
 <script>
 // ── State ────────────────────────────────────────────────────────────────────
+var _isHomework = ${isHomework ? 'true' : 'false'};
 var _currentFontSize = parseFloat(localStorage.getItem('pdf_font_size_pt') || '10');
 var _currentLineHeight = parseFloat(localStorage.getItem('pdf_line_height') || '1.5');
-var _currentColumns = parseInt(localStorage.getItem('pdf_series_columns') || '${columnsCount}', 10) || ${columnsCount};
+var _currentColumns = _isHomework ? 1 : (parseInt(localStorage.getItem('pdf_series_columns') || '${columnsCount}', 10) || ${columnsCount});
 var _currentShowSolutions = localStorage.getItem('pdf_series_solutions') !== null 
   ? (localStorage.getItem('pdf_series_solutions') === 'true') 
   : ${showSolutions ? 'true' : 'false'};
@@ -3658,14 +3713,23 @@ function _setActiveBtn(activeId, groupIds) {
 // ── Colonnes ─────────────────────────────────────────────────────────────────
 function setSeriesColumns(cols) {
   try {
-    localStorage.setItem('pdf_series_columns', cols);
+    if (_isHomework) {
+      cols = 1;
+    } else {
+      localStorage.setItem('pdf_series_columns', cols);
+    }
     _currentColumns = cols;
     var container = document.querySelector('.sections-container');
     if (container) {
       container.classList.remove('exercises-one-column', 'exercises-two-columns', 'exercises-three-columns');
-      if (cols === 1) container.classList.add('exercises-one-column');
-      else if (cols === 3) container.classList.add('exercises-three-columns');
-      else container.classList.add('exercises-two-columns');
+      if (cols === 1 || _isHomework) {
+        container.classList.add('exercises-one-column');
+        if (_isHomework) container.classList.add('homework-sections-container');
+      } else if (cols === 3) {
+        container.classList.add('exercises-three-columns');
+      } else {
+        container.classList.add('exercises-two-columns');
+      }
     }
     _setActiveBtn('colBtn' + cols, ['colBtn1','colBtn2','colBtn3']);
     _applyPrintStyles();
@@ -3768,17 +3832,24 @@ function _applyPrintStyles() {
     '    font-size: 1.0em !important;',
     '  }',
     '}',
-    '.exercises-one-column { column-count: 1 !important; display: block !important; width: 100% !important; }',
-    '.exercises-two-columns { column-count: 2 !important; display: block !important; width: 100% !important; }',
-    '.exercises-three-columns { column-count: 3 !important; display: block !important; width: 100% !important; }',
+    '.exercises-one-column { column-count: 1 !important; display: block !important; width: 100% !important; column-rule: none !important; }',
+    '.homework-sections-container, .sections-container.homework-sections-container, .sections-container:has(.homework-table), .sections-list-container:has(.homework-table) { column-count: 1 !important; display: block !important; width: 100% !important; column-rule: none !important; }',
+    '.homework-table { width: 100% !important; max-width: 100% !important; }',
+    (_isHomework ? '' : '.exercises-two-columns { column-count: 2 !important; display: block !important; width: 100% !important; }'),
+    (_isHomework ? '' : '.exercises-three-columns { column-count: 3 !important; display: block !important; width: 100% !important; }'),
     '.exercises-two-columns .katex-display, .exercises-three-columns .katex-display { display: block !important; max-width: 100% !important; margin: 0.35em auto !important; text-align: center !important; }',
     '.exercises-two-columns .katex-inline, .exercises-three-columns .katex-inline, .exercises-two-columns .inline-math-container, .exercises-three-columns .inline-math-container { display: inline !important; white-space: normal !important; max-width: 100% !important; }',
     '.exercises-two-columns .katex, .exercises-three-columns .katex, .exercises-two-columns .katex-html, .exercises-three-columns .katex-html { white-space: normal !important; max-width: 100% !important; }',
     '.exercises-two-columns .katex .base, .exercises-three-columns .katex .base { max-width: 100% !important; }',
     '@media print {',
-    '  .exercises-one-column { column-count: 1 !important; display: block !important; width: 100% !important; }',
-    '  .exercises-two-columns { column-count: 2 !important; display: block !important; width: 100% !important; }',
-    '  .exercises-three-columns { column-count: 3 !important; display: block !important; width: 100% !important; }',
+    '  .exercises-one-column { column-count: 1 !important; display: block !important; width: 100% !important; column-rule: none !important; }',
+    '  .homework-sections-container, .sections-container.homework-sections-container, .sections-container:has(.homework-table), .sections-list-container:has(.homework-table) { column-count: 1 !important; display: block !important; width: 100% !important; column-rule: none !important; }',
+    '  .homework-table { display: table !important; width: 100% !important; max-width: 100% !important; border-collapse: collapse !important; break-inside: auto !important; page-break-inside: auto !important; }',
+    '  .homework-row { display: table-row !important; width: 100% !important; break-inside: avoid !important; page-break-inside: avoid !important; }',
+    '  .homework-bareme-cell, .homework-bareme-header { display: table-cell !important; width: 75px !important; min-width: 75px !important; max-width: 75px !important; }',
+    '  .homework-content-cell, .homework-content-header { display: table-cell !important; width: auto !important; }',
+    '  ' + (_isHomework ? '' : '.exercises-two-columns { column-count: 2 !important; display: block !important; width: 100% !important; }'),
+    '  ' + (_isHomework ? '' : '.exercises-three-columns { column-count: 3 !important; display: block !important; width: 100% !important; }'),
     '  .exercises-two-columns .katex-display, .exercises-three-columns .katex-display { display: block !important; max-width: 100% !important; margin: 0.35em auto !important; text-align: center !important; }',
     '  .exercises-two-columns .katex-inline, .exercises-three-columns .katex-inline, .exercises-two-columns .inline-math-container, .exercises-three-columns .inline-math-container { display: inline !important; white-space: normal !important; max-width: 100% !important; }',
     '  .exercises-two-columns .katex, .exercises-three-columns .katex, .exercises-two-columns .katex-html, .exercises-three-columns .katex-html { white-space: normal !important; max-width: 100% !important; }',
@@ -3868,7 +3939,11 @@ window.addEventListener('resize', function() {
 
 // ── Init: restore saved state on page load ──────────────────────────────────
 (function init() {
-  if (_currentColumns) setSeriesColumns(_currentColumns);
+  if (_isHomework) {
+    setSeriesColumns(1);
+  } else if (_currentColumns) {
+    setSeriesColumns(_currentColumns);
+  }
   setSeriesSolutions(_currentShowSolutions);
   if (_currentStyle) setSeriesStyle(_currentStyle);
   _applyPrintStyles();
@@ -3889,7 +3964,20 @@ printNow();
 
 /* ── Open the lesson HTML in a new window ── */
 export const openLessonPrintWindow = (lesson, settings = {}) => {
-  const isSeriesOrHomework = lesson?.docType === 'exercises' || lesson?.docType === 'homework' || lesson?.content?.doc_type === 'exercises' || lesson?.content?.doc_type === 'homework' || /سلسلة|s[ée]rie|devoir|فرض/i.test(lesson?.title || '');
+  const isHomework = Boolean(
+    lesson?.docType === 'homework' ||
+    lesson?.type === 'homework' ||
+    lesson?.content?.doc_type === 'homework' ||
+    lesson?.content?.type === 'homework' ||
+    lesson?.content?.header?.doc_type === 'homework' ||
+    lesson?.isHomework ||
+    /devoir|فرض|contr[ôo]le/i.test(lesson?.title || lesson?.content?.header?.fiche_title || lesson?.content?.header?.prep_title || '')
+  );
+  if (isHomework) {
+    settings = { ...settings, columnsCount: 1 };
+  }
+
+  const isSeriesOrHomework = isHomework || lesson?.docType === 'exercises' || lesson?.content?.doc_type === 'exercises' || /سلسلة|s[ée]rie/i.test(lesson?.title || '');
   const isNat = !isSeriesOrHomework && Boolean(lesson?.docType === 'national' || lesson?.content?.doc_type === 'national' || lesson?.content?.header?.is_national_exam || lesson?.is_national_exam);
   if (isNat) {
     return openNationalExamPrintWindow(lesson?.content || lesson, settings);

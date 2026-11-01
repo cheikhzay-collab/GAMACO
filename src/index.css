@@ -7771,3 +7771,31 @@ html, body {
   }
 }
 
+
+
+/* Devoir Surveillé (Homework): STRICTLY 1 column (Full Width), never split into multi-columns */
+.homework-sections-container,
+.sections-container.homework-sections-container,
+.sections-list-container.homework-sections-container,
+.sections-container:has(.homework-table),
+.sections-list-container:has(.homework-table),
+.homework-layout .sections-container,
+.homework-layout .sections-list-container {
+  column-count: 1 !important;
+  display: block !important;
+  width: 100% !important;
+  column-rule: none !important;
+}
+
+.homework-table {
+  width: 100% !important;
+  max-width: 100% !important;
+  border-collapse: collapse !important;
+  break-inside: auto !important;
+  page-break-inside: auto !important;
+}
+
+.homework-row {
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+}

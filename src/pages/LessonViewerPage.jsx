@@ -219,8 +219,8 @@ function SignTableViewer({ altText }) {
 }
 
 
-const parseExerciseTitle = (title, fallbackIdx, isArabicMode = false) => {
-  if (!title) return { number: String(fallbackIdx + 1), label: '' };
+const parseExerciseTitle = (title, fallbackIdx, isArabicMode = false, sectionNumber = '') => {
+  if (!title) return { number: sectionNumber || String(fallbackIdx + 1), label: '' };
   
   let clean = title.trim();
 
@@ -231,7 +231,7 @@ const parseExerciseTitle = (title, fallbackIdx, isArabicMode = false) => {
       return { number: arabicMatch[1], label: arabicMatch[2].trim() };
     }
     const numMatch = clean.match(/([\d]+)/);
-    return { number: numMatch ? numMatch[1] : String(fallbackIdx + 1), label: '' };
+    return { number: numMatch ? numMatch[1] : (sectionNumber || String(fallbackIdx + 1)), label: '' };
   }
 
   // Strip markdown bold markers
@@ -267,24 +267,20 @@ const parseExerciseTitle = (title, fallbackIdx, isArabicMode = false) => {
     clean = clean.substring(prefixMatch[0].length).trim();
   }
   
-  // Match number (digits, circled, alphanumeric) and the rest
-  const match = clean.match(/^([0-9a-zA-Z①-⑩\s]+)(.*?)(\*\*)?$/);
-  if (match) {
-    const number = match[1].trim();
-    let label = match[2].trim();
-    
-    // Clean leading separators from the label (colons, dashes, etc.)
-    label = label.replace(/^[:\-–—\s]+/, '').replace(/\*\*$/, '').trim();
-    
+  // Match number with optional parentheses or standalone (e.g. "(1)", "1", "2.a")
+  const parenMatch = clean.match(/^\(?([0-9]+|[a-zA-Z])\)?\s*[:.\-–—\s]*(.*)$/);
+  if (parenMatch) {
+    const number = parenMatch[1].trim();
+    let label = parenMatch[2].replace(/^[:\-–—\s]+/, '').replace(/\*\*$/, '').trim();
     return {
-      number: number || String(fallbackIdx + 1),
+      number: number || sectionNumber || String(fallbackIdx + 1),
       label: label
     };
   }
   
-  // If nothing matched, return the whole clean string as label (strip **) with fallback number
+  // If clean does not have leading number, return clean as label with sectionNumber fallback
   return {
-    number: String(fallbackIdx + 1),
+    number: sectionNumber || String(fallbackIdx + 1),
     label: clean.replace(/\*\*/g, '').trim()
   };
 };
@@ -509,10 +505,8 @@ const renderHomeworkBody = (text, isArabicMode, arabicFont, renderWithMath, secI
 };
 
 /* ── Calculate total points for Devoir Surveillé homework ── */
-const calculateTotalPoints = (text, isArabicMode) => {
-  if (!text) return isArabicMode ? '0 ن' : '0 pts';
-
-  let rawText = String(text);
+const calculateTotalPoints = (text, isArabicMode, fallbackHeader = '') => {
+  let rawText = text ? String(text) : '';
   
   // Split by math blocks to safely replace literal \n outside math without corrupting LaTeX commands like \neq
   const parts = rawText.split(/(\$\$[\s\S]*?\$\$|\$[\s\S]*?\$)/g);
@@ -552,6 +546,15 @@ const calculateTotalPoints = (text, isArabicMode) => {
       }
     }
   });
+
+  // If no points found in questions body, check if section header or title contains the total points, e.g. "Exercice (1) (4 Pts)"
+  if (total === 0 && fallbackHeader) {
+    const headerMatch = String(fallbackHeader).match(pointsRegex);
+    if (headerMatch) {
+      const val = parseFloat(headerMatch[1].replace(',', '.'));
+      if (!isNaN(val)) total = val;
+    }
+  }
 
   const totalStr = String(total).replace('.', ',');
   const ptsWord = isArabicMode ? 'ن' : (total > 1 ? 'pts' : 'pt');
@@ -1100,7 +1103,16 @@ export default function LessonViewerPage() {
       if (typeof trackDownload === 'function') {
         trackDownload({ type: 'lesson', id: lesson.id, title: lesson.content?.header?.fiche_title || lesson.title || 'Fiche de Cours' });
       }
-      const isSeriesOrHomework = lesson?.docType === 'exercises' || lesson?.docType === 'homework' || lesson?.content?.doc_type === 'exercises' || lesson?.content?.doc_type === 'homework' || /سلسلة|s[ée]rie|devoir|فرض/i.test(lesson?.title || '');
+      const isHomeworkPdf = Boolean(
+        lesson?.docType === 'homework' ||
+        lesson?.type === 'homework' ||
+        lesson?.content?.doc_type === 'homework' ||
+        lesson?.content?.type === 'homework' ||
+        lesson?.content?.header?.doc_type === 'homework' ||
+        lesson?.isHomework ||
+        /devoir|فرض|contr[ôo]le/i.test(lesson?.title || lesson?.content?.header?.fiche_title || lesson?.content?.header?.prep_title || '')
+      );
+      const isSeriesOrHomework = isHomeworkPdf || lesson?.docType === 'exercises' || lesson?.content?.doc_type === 'exercises' || /سلسلة|s[ée]rie/i.test(lesson?.title || '');
       const isNat = !isSeriesOrHomework && Boolean(lesson?.docType === 'national' || lesson?.content?.doc_type === 'national' || lesson?.content?.header?.is_national_exam || lesson?.is_national_exam);
       const isSummary = !isSeriesOrHomework && Boolean(
         lesson?.docType === 'summary' ||
@@ -1116,8 +1128,9 @@ export default function LessonViewerPage() {
         // Mode 3 Colonnes actif -> Impression au format Résumé (3 Colonnes)
         openCourseSummaryPrintWindow(lesson.content || lesson);
       } else {
-        // Mode Standard actif -> Impression au format Standard avec le nombre de colonnes choisi
-        openLessonPrintWindow(lesson, { showSolutions: includeSolutionsInPdf, layoutMode: 'standard', forceStandard: true, columnsCount: seriesColumns });
+        // Mode Standard actif -> Impression au format Standard (Strictement 1 colonne pour les devoirs)
+        const effectiveCols = isHomeworkPdf ? 1 : seriesColumns;
+        openLessonPrintWindow(lesson, { showSolutions: includeSolutionsInPdf, layoutMode: 'standard', forceStandard: true, columnsCount: effectiveCols });
       }
     } catch (err) {
       console.error('[PDF Export] Error:', err);
@@ -1202,6 +1215,17 @@ export default function LessonViewerPage() {
   const isArabic = checkArabicText();
   const lessonDir = isArabic ? 'rtl' : 'ltr';
   const arabicFont = isArabic ? "'UKIJ Merdane', 'UKIJMerdane', 'UKIJMerdaneRegular', 'Cairo', 'Amiri', 'Noto Naskh Arabic', Arial, sans-serif" : 'inherit';
+  
+  // Devoir Surveillé detection
+  const isHomework = Boolean(
+    lesson?.docType === 'homework' ||
+    lesson?.type === 'homework' ||
+    content?.doc_type === 'homework' ||
+    content?.type === 'homework' ||
+    header?.doc_type === 'homework' ||
+    lesson?.isHomework ||
+    /devoir|فرض|contr[ôo]le/i.test(lesson?.title || header?.fiche_title || header?.prep_title || '')
+  );
 
   return (
     <div className={`lesson-viewer-container ${uiStyle === 'classic' ? 'classic-view-active' : ''}`} style={{
@@ -1371,6 +1395,20 @@ export default function LessonViewerPage() {
         /* ═══════════════════════════════════════
            HOMEWORK EXAM LAYOUT (Devoir Surveillé)
            ═══════════════════════════════════════ */
+        .homework-sections-container,
+        .sections-list-container.homework-sections-container,
+        .sections-list-container:has(.homework-table) {
+          column-count: 1 !important;
+          display: block !important;
+          width: 100% !important;
+          column-rule: none !important;
+        }
+        .homework-sections-container .homework-table,
+        .sections-list-container:has(.homework-table) .homework-table {
+          width: 100% !important;
+          max-width: 100% !important;
+        }
+
         .homework-table {
           width: 100%;
           border-collapse: collapse;
@@ -2431,8 +2469,8 @@ export default function LessonViewerPage() {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
 
-          {/* Column Count Selector for Exercise Series */}
-          {Boolean(lesson?.docType === 'exercises' || lesson?.content?.doc_type === 'exercises' || /s[ée]rie|exercice/i.test(lesson?.title || '')) && (
+          {/* Column Count Selector for Exercise Series only (never for homework) */}
+          {!isHomework && Boolean(lesson?.docType === 'exercises' || lesson?.content?.doc_type === 'exercises' || /s[ée]rie/i.test(lesson?.title || '')) && (
             <div style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -2866,14 +2904,14 @@ export default function LessonViewerPage() {
           )}
 
           <div className={`sections-list-container ${
-            (lesson?.docType === 'exercises' || lesson?.content?.doc_type === 'exercises')
+            !isHomework && (lesson?.docType === 'exercises' || lesson?.content?.doc_type === 'exercises')
               ? (seriesColumns === 3 ? 'exercises-three-columns-layout' : (seriesColumns === 2 ? 'exercises-two-columns-layout' : ''))
-              : ''
+              : (isHomework ? 'homework-sections-container exercises-one-column' : '')
           }`}>
             {sections?.map((sec, idx) => {
               const isTheory = sec.type !== 'exercise';
               const { number: exeNumber, label: exeLabel, prefix: exePrefix } = !isTheory 
-                ? parseExerciseTitle(sec.title, idx, isArabic)
+                ? parseExerciseTitle(sec.title, idx, isArabic, sec.section_number)
                 : { number: '', label: '', prefix: '' };
               
               // Decide whether to show section header row
@@ -3393,12 +3431,11 @@ export default function LessonViewerPage() {
                   );
                 })() : (
                     (() => {
-                      const isHomework = lesson.docType === 'homework' || lesson.content?.doc_type === 'homework';
                       if (isHomework) {
                         return (
                           <div className="homework-table" style={isArabic ? { fontFamily: arabicFont } : {}}>
                             <div className="homework-header-row">
-                              <div className="homework-bareme-header">{calculateTotalPoints(sec.content, isArabic)}</div>
+                              <div className="homework-bareme-header">{calculateTotalPoints(sec.content, isArabic, sec.section_header || sec.title)}</div>
                               <div className="homework-content-header">
                                 {isArabic ? 'تمرين' : 'Exercice'} {exeNumber} {exeLabel ? ` : ${exeLabel}` : ''}
                               </div>
