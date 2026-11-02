@@ -310,10 +310,19 @@ const renderHomeworkBody = (text, isArabicMode, arabicFont, renderWithMath, secI
     .replace(/\r\n/g, '\n')
     .replace(/\r/g, '\n');
 
+  const CONTINUATION_START = /^\s*(?:[\u2209\u2208\u2282\u2286\u2229\u222A=≠≤≥<>]|\\(?:notin|in|subset|subseteq|cap|cup|neq|leq|geq|times|cdot|implies|iff)\b|[\/+\-*^]|\\mathbb\{[A-Z]\}|\$\.|\$[;,:]|\$[a-zA-Z0-9_\^\{\}\[\]+\-*\/\s]*\$\.?)/i;
   const lines = rawText.split('\n');
   const mergedLines = [];
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
+    if (!line) {
+      mergedLines.push(lines[i]);
+      continue;
+    }
+    if (mergedLines.length > 0 && CONTINUATION_START.test(line)) {
+      mergedLines[mergedLines.length - 1] = mergedLines[mergedLines.length - 1].trimEnd() + ' ' + line;
+      continue;
+    }
     if (/^(\*\*)?([a-zA-Z]|\d+)[.)](\*\*)?$/.test(line) && i + 1 < lines.length) {
       let nextNonEmptyIdx = i + 1;
       while (nextNonEmptyIdx < lines.length && lines[nextNonEmptyIdx].trim() === '') {
@@ -331,6 +340,7 @@ const renderHomeworkBody = (text, isArabicMode, arabicFont, renderWithMath, secI
   const pointsRegex = /\(\s*([\d.,]+)\s*(?:pts?|points?|\u0646|\u0646\u0642\u0637\u0629?|\u0646\u0642\u0637)\s*\)/i;
   const parenthesizedNumRegex = /^(\s*(?:\d+|[a-zA-Z])[.)]\s*)\(([\d.,]+)\)/;
   const isSubQRegex = /^(\s*(?:\d+|[a-zA-Z])[.)]\s*)/;
+  const isRomanNumeralRegex = /^\s*(?:[IVXLCDM]+|[ivxlcdm]+)[.)]\s*/;
 
   const parsedItems = [];
   mergedLines.forEach((line, idx) => {
@@ -360,7 +370,7 @@ const renderHomeworkBody = (text, isArabicMode, arabicFont, renderWithMath, secI
       displayPoints = displayPoints.slice(1, -1);
     }
 
-    const isSubQ = isSubQRegex.test(cleanLine);
+    const isSubQ = isSubQRegex.test(cleanLine) && !isRomanNumeralRegex.test(cleanLine);
     parsedItems.push({
       idx,
       cleanLine,
@@ -396,6 +406,8 @@ const renderHomeworkBody = (text, isArabicMode, arabicFont, renderWithMath, secI
     }
   }
 
+  const hasAnyPoints = blocks.some(b => b.headerItem?.pointsStr || b.subItems.some(si => si.pointsStr));
+
   const rows = blocks.map((b, bIdx) => {
     const ptsStr = b.headerItem ? b.headerItem.pointsStr : '';
     const displayPts = b.headerItem ? b.headerItem.displayPoints : '';
@@ -430,11 +442,11 @@ const renderHomeworkBody = (text, isArabicMode, arabicFont, renderWithMath, secI
     ) : null;
 
     let subquestionsContent = null;
-    if (b.subItems.length >= 2) {
+    if (b.subItems.length > 0) {
       subquestionsContent = (
-        <div className="homework-subquestions-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem 1.2rem', marginTop: '0.4rem' }}>
+        <div className="homework-subquestions-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.4rem', width: '100%' }}>
           {b.subItems.map((si) => (
-            <div key={si.idx} className="homework-subq-item" style={{ padding: '0.15rem 0' }}>
+            <div key={si.idx} className="homework-subq-item" style={{ padding: '0.12rem 0', width: '100%' }}>
               {isDirectEdit ? (
                 <textarea
                   className="homework-content-textarea"
@@ -453,49 +465,31 @@ const renderHomeworkBody = (text, isArabicMode, arabicFont, renderWithMath, secI
           ))}
         </div>
       );
-    } else if (b.subItems.length === 1) {
-      const si = b.subItems[0];
-      subquestionsContent = (
-        <div style={{ marginTop: '0.25rem' }}>
-          {isDirectEdit ? (
-            <textarea
-              className="homework-content-textarea"
-              value={si.cleanLine}
-              onChange={(e) => onContentChange(secId, si.idx, e.target.value)}
-              style={{
-                width: '100%', border: '1px solid rgba(0, 80, 134, 0.2)', borderRadius: '4px',
-                background: '#fff', padding: '0.4rem', fontSize: '0.95rem', color: '#1a202c',
-                fontFamily: isArabicMode ? arabicFont : 'inherit', resize: 'vertical', minHeight: '2.5rem'
-              }}
-            />
-          ) : (
-            renderWithMath(si.cleanLine)
-          )}
-        </div>
-      );
     }
 
     return (
       <div key={bIdx} className="homework-row">
-        <div className="homework-bareme-cell" style={{ position: 'relative' }}>
-          {b.headerItem && (
-            <>
-              <input
-                type="text"
-                className="homework-bareme-input no-print"
-                value={displayPts}
-                onChange={(e) => onPointsChange(secId, hIdx, e.target.value)}
-                placeholder="..."
-                style={{
-                  width: '100%', border: 'none', background: 'transparent', textAlign: 'center',
-                  fontWeight: 700, fontSize: '0.9rem', color: '#005086', outline: 'none', padding: '0.15rem'
-                }}
-              />
-              <span className="print-only" style={{ fontWeight: 700, fontSize: '0.9rem' }}>{ptsStr}</span>
-            </>
-          )}
-        </div>
-        <div className="homework-content-cell" style={isArabicMode ? { textAlign: 'right', direction: 'rtl', fontFamily: arabicFont } : {}}>
+        {hasAnyPoints && (
+          <div className="homework-bareme-cell" style={{ position: 'relative' }}>
+            {b.headerItem && (
+              <>
+                <input
+                  type="text"
+                  className="homework-bareme-input no-print"
+                  value={displayPts}
+                  onChange={(e) => onPointsChange(secId, hIdx, e.target.value)}
+                  placeholder="..."
+                  style={{
+                    width: '100%', border: 'none', background: 'transparent', textAlign: 'center',
+                    fontWeight: 700, fontSize: '0.9rem', color: '#005086', outline: 'none', padding: '0.15rem'
+                  }}
+                />
+                <span className="print-only" style={{ fontWeight: 700, fontSize: '0.9rem' }}>{ptsStr}</span>
+              </>
+            )}
+          </div>
+        )}
+        <div className="homework-content-cell" style={{ ...(isArabicMode ? { textAlign: 'right', direction: 'rtl', fontFamily: arabicFont } : {}), ...(!hasAnyPoints ? { borderLeft: 'none', borderRight: 'none', width: '100%' } : {}) }}>
           {headerContent}
           {subquestionsContent}
         </div>
@@ -558,6 +552,7 @@ const calculateTotalPoints = (text, isArabicMode, fallbackHeader = '') => {
     }
   }
 
+  if (total === 0) return '';
   const totalStr = String(total).replace('.', ',');
   const ptsWord = isArabicMode ? 'ن' : (total > 1 ? 'pts' : 'pt');
   return `${totalStr} ${ptsWord}`;
@@ -1152,7 +1147,10 @@ export default function LessonViewerPage() {
       if (typeof trackDownload === 'function') {
         trackDownload({ type: 'lesson', id: lesson.id, title: lesson.content?.header?.fiche_title || lesson.title || 'Fiche de Cours' });
       }
-      const isHomeworkPdf = Boolean(
+      const isExplicitSeries = /s[ée]rie|سلسلة|fiche d['’]exercices/i.test(
+        lesson?.title || lesson?.content?.header?.fiche_title || lesson?.content?.header?.prep_title || ''
+      );
+      const isHomeworkPdf = !isExplicitSeries && Boolean(
         lesson?.docType === 'homework' ||
         lesson?.type === 'homework' ||
         lesson?.content?.doc_type === 'homework' ||
@@ -1265,8 +1263,13 @@ export default function LessonViewerPage() {
   const lessonDir = isArabic ? 'rtl' : 'ltr';
   const arabicFont = isArabic ? "'UKIJ Merdane', 'UKIJMerdane', 'UKIJMerdaneRegular', 'Cairo', 'Amiri', 'Noto Naskh Arabic', Arial, sans-serif" : 'inherit';
   
+  // Explicit Series detection
+  const isExplicitSeries = /s[ée]rie|سلسلة|fiche d['’]exercices/i.test(
+    lesson?.title || header?.fiche_title || header?.prep_title || ''
+  );
+
   // Devoir Surveillé detection
-  const isHomework = Boolean(
+  const isHomework = !isExplicitSeries && Boolean(
     lesson?.docType === 'homework' ||
     lesson?.type === 'homework' ||
     content?.doc_type === 'homework' ||
@@ -3466,11 +3469,13 @@ export default function LessonViewerPage() {
                 })() : (
                     (() => {
                       if (isHomework) {
+                        const totalPts = calculateTotalPoints(sec.content, isArabic, sec.section_header || sec.title);
+                        const showBareme = Boolean(totalPts && !/^0\s*(?:pt|pts|ن)/i.test(totalPts.trim()));
                         return (
                           <div className="homework-table" style={isArabic ? { fontFamily: arabicFont } : {}}>
                             <div className="homework-header-row">
-                              <div className="homework-bareme-header">{calculateTotalPoints(sec.content, isArabic, sec.section_header || sec.title)}</div>
-                              <div className="homework-content-header">
+                              {showBareme && <div className="homework-bareme-header">{totalPts}</div>}
+                              <div className="homework-content-header" style={!showBareme ? { width: '100%', borderRadius: '4px 4px 0 0' } : {}}>
                                 {isArabic ? 'تمرين' : 'Exercice'} {exeNumber} {exeLabel ? ` : ${exeLabel}` : ''}
                               </div>
                             </div>

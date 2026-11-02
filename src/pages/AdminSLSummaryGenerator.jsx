@@ -434,10 +434,10 @@ RÈGLES DE RÉDACTION :
 
       const storedModel = (localStorage.getItem('geminiModel') || '').trim();
       let preferred = storedModel;
-      if (!preferred || ['gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-flash-latest', '3.7', '3.5'].includes(preferred)) {
-        preferred = 'gemini-2.5-flash';
+      if (!preferred || ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro', 'gemini-1.5-flash'].includes(preferred)) {
+        preferred = 'gemini-3.5-flash-lite';
       }
-      const models = Array.from(new Set([preferred, 'gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro', 'gemini-1.5-flash']));
+      const models = Array.from(new Set([preferred, 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3-flash-preview', 'gemini-3.5-flash', 'gemini-3.8-flash']));
 
       let rawText = null, lastErr = null;
       for (const model of models) {

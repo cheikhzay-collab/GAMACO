@@ -474,6 +474,20 @@ export const autoRepairMathText = (text) => {
   if (!text || typeof text !== 'string') return text;
   let res = text;
 
+  // 0. Normalize Unicode mathematical symbols to clean LaTeX commands
+  res = res
+    .replace(/[\u2209]/g, '\\notin ')
+    .replace(/[\u2208]/g, '\\in ')
+    .replace(/[\u2282]/g, '\\subset ')
+    .replace(/[\u2286]/g, '\\subseteq ')
+    .replace(/[\u2229]/g, '\\cap ')
+    .replace(/[\u222A]/g, '\\cup ')
+    .replace(/[\u2260]/g, '\\neq ')
+    .replace(/[\u2264]/g, '\\leq ')
+    .replace(/[\u2265]/g, '\\geq ')
+    .replace(/[\u21D2]/g, '\\implies ')
+    .replace(/[\u21D4]/g, '\\iff ');
+
   // 1. Repair broken \neq (e.g. \n eq, newline + eq, or plain eq 0 in conditions)
   res = res
     .replace(/\\n\s*eq\b/g, '\\neq')
@@ -508,6 +522,18 @@ export const autoRepairMathText = (text) => {
     .replace(/\\forall([a-zA-Z0-9])/g, (_, l) => `\\forall ${l}`)
     .replace(/\\in([A-Z])(?![a-zA-Z])/g, (_, l) => `\\in ${l}`)
     .replace(/\\notin([A-Z])(?![a-zA-Z])/g, (_, l) => `\\notin ${l}`);
+
+  // 4b. Auto-repair unbalanced single trailing $ (e.g., "Montrer que \sqrt{10} \notin \mathbb{Q}$.")
+  const dollarCount = (res.match(/(?<!\\)\$/g) || []).length;
+  if (dollarCount % 2 === 1) {
+    res = res.replace(/(?:(?<=\b(?:que|soit|pour|tout|si|où|donc|alors|car|avec|et|ou|dans)\s+)|(?<=:\s*))([\\(a-zA-Z0-9_\^\{\}\[\]+\-*/\s]*\\(?:sqrt|frac|dfrac|notin|in|mathbb|mathbf|mathcal|sum|int|lim)[^$]*)\$(\.|\;|\:|\s*)$/i, (m, mathPart, punct) => {
+      return `${mathPart.trim()}${punct}`;
+    });
+  }
+
+  // 4c. Standalone \notin \mathbb{...}$ repair
+  res = res.replace(/(?<![\$a-zA-Z0-9_\\])(\\notin\s+\\mathbb\{[A-Z]\})\$(\.|\;|\:|\s*)$/i, '$$1$$2');
+  res = res.replace(/(?<![\$a-zA-Z0-9_\\])(\\notin\s+\\mathbb\{[A-Z]\})(?![\$a-zA-Z0-9_\\])/g, '$$1$');
 
   // 5. Unwrap invalid \text{...} inside \boxed{} that wraps math formulas
   res = res.replace(/\\boxed\{\\text\{((?:[^{}]|\{[^{}]*\})*\\(?:exists|forall|in|notin|subset|supset|implies|iff|land|lor|neg|ne|neq|le|leq|ge|geq|to|cdot|times|frac|dfrac|sqrt|int|sum|prod|lim|alpha|beta|gamma|delta|pi|theta|infty|mathbb|mathbf|mathcal)\b(?:[^{}]|\{[^{}]*\})*)\}\}/g, '\\boxed{$1}');
@@ -709,10 +735,19 @@ export function renderWithMath(text) {
   // Collapse colon followed by newline and math formula into a single line
   rawText = rawText.replace(/(:\s*)\n+\s*(\$\$|\$)/g, ' : $2');
 
+  const CONTINUATION_START = /^\s*(?:[\u2209\u2208\u2282\u2286\u2229\u222A=≠≤≥<>]|\\(?:notin|in|subset|subseteq|cap|cup|neq|leq|geq|times|cdot|implies|iff)\b|[\/+\-*^]|\\mathbb\{[A-Z]\}|\$\.|\$[;,:]|\$[a-zA-Z0-9_\^\{\}\[\]+\-*\/\s]*\$\.?)/i;
   const lines = rawText.split('\n');
   const mergedLines = [];
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
+    if (!line) {
+      mergedLines.push(lines[i]);
+      continue;
+    }
+    if (mergedLines.length > 0 && CONTINUATION_START.test(line)) {
+      mergedLines[mergedLines.length - 1] = mergedLines[mergedLines.length - 1].trimEnd() + ' ' + line;
+      continue;
+    }
     // Match prefix like "1.", "a)", "B.", "**1.**", "**a)**" on its own line
     if (/^(\*\*)?([a-zA-Z]|\d+)[.)](\*\*)?$/.test(line) && i + 1 < lines.length) {
       let nextNonEmptyIdx = i + 1;
