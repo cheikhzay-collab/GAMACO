@@ -1014,22 +1014,21 @@ export const handleApiRequest = async (req, res, next) => {
         return sendJSON(res, 500, { error: 'Aucune clé API Gemini valide configurée sur le serveur ou fournie par le client.' });
       }
 
-      let requestedModel = (payload?.model || 'gemini-2.5-flash').trim().replace(/^models\//, '');
-      if (!requestedModel || ['gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-flash-latest', '3.7', '3.5'].includes(requestedModel)) {
-        requestedModel = 'gemini-2.5-flash';
+      let requestedModel = (payload?.model || 'gemini-3.5-flash-lite').trim().replace(/^models\//, '');
+      if (!requestedModel || ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro', 'gemini-1.5-flash', '2.5', '2.0', '1.5'].includes(requestedModel)) {
+        requestedModel = 'gemini-3.5-flash-lite';
       }
 
       const cascade = Array.from(new Set([
         requestedModel,
-        'gemini-2.5-flash',
-        'gemini-2.5-flash-lite',
-        'gemini-2.5-pro',
+        'gemini-3.5-flash-lite',
+        'gemini-3.1-flash-lite',
+        'gemini-flash-lite-latest',
+        'gemini-3-flash-preview',
+        'gemini-3.5-flash',
+        'gemini-3.8-flash',
         'gemini-flash-latest',
-        'gemini-pro-latest',
-        'gemini-2.0-flash',
-        'gemini-2.0-flash-lite',
-        'gemini-1.5-pro',
-        'gemini-1.5-flash'
+        'gemini-pro-latest'
       ].filter(Boolean)));
 
       let lastError = null;
@@ -1217,9 +1216,12 @@ export const handleApiRequest = async (req, res, next) => {
         // 2. Google Gemini Engine
         if (prov === 'gemini') {
           const geminiModels = [
-            'gemini-2.5-flash',
-            'gemini-2.5-pro',
-            'gemini-2.5-flash-lite',
+            'gemini-3.5-flash-lite',
+            'gemini-3.1-flash-lite',
+            'gemini-flash-lite-latest',
+            'gemini-3-flash-preview',
+            'gemini-3.5-flash',
+            'gemini-3.8-flash',
             'gemini-flash-latest',
             'gemini-pro-latest'
           ];

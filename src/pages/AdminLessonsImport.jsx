@@ -804,9 +804,9 @@ export default function AdminLessonsImport({ onBack }) {
   const [geminiKey, setGeminiKey] = useState(() => localStorage.getItem('geminiApiKey') || '');
   const [geminiModel, setGeminiModel] = useState(() => {
     const m = (localStorage.getItem('geminiModel') || '').trim();
-    if (!m || ['gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-flash-latest', '3.7', '3.5'].includes(m)) {
-      localStorage.setItem('geminiModel', 'gemini-2.5-flash');
-      return 'gemini-2.5-flash';
+    if (!m || ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro', 'gemini-1.5-flash', '2.5', '2.0', '1.5'].includes(m)) {
+      localStorage.setItem('geminiModel', 'gemini-3.5-flash-lite');
+      return 'gemini-3.5-flash-lite';
     }
     return m;
   });
@@ -1025,8 +1025,8 @@ export default function AdminLessonsImport({ onBack }) {
       setProvider(localStorage.getItem('aiImportProvider') || 'gemini');
       setGeminiKey(localStorage.getItem('geminiApiKey') || '');
       let rawGemini = (localStorage.getItem('geminiModel') || '').trim();
-      if (!rawGemini || ['gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-flash-latest', '3.7', '3.5'].includes(rawGemini)) {
-        rawGemini = 'gemini-2.0-flash';
+      if (!rawGemini || ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro', 'gemini-1.5-flash', '2.5', '2.0', '1.5'].includes(rawGemini)) {
+        rawGemini = 'gemini-3.5-flash-lite';
         localStorage.setItem('geminiModel', rawGemini);
       }
       setGeminiModel(rawGemini);
@@ -1175,17 +1175,18 @@ Pour chaque exercice, activité ou application résolue dans le champ "solution"
 
     // Dynamic model cascade for Gemini with active production models & backend fallback
     let userPref = (geminiModel || '').trim().replace(/^models\//, '');
-    if (!userPref || ['gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-flash-latest', '3.7', '3.5'].includes(userPref)) {
-      userPref = 'gemini-2.5-flash';
+    if (!userPref || ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro', 'gemini-1.5-flash', '2.5', '2.0', '1.5'].includes(userPref)) {
+      userPref = 'gemini-3.5-flash-lite';
     }
     const defaultCascade = [
-      'gemini-2.5-flash',
-      'gemini-2.5-flash-lite',
-      'gemini-2.5-pro',
-      'gemini-2.0-flash',
-      'gemini-2.0-flash-lite',
-      'gemini-1.5-pro',
-      'gemini-1.5-flash'
+      'gemini-3.5-flash-lite',
+      'gemini-3.1-flash-lite',
+      'gemini-flash-lite-latest',
+      'gemini-3-flash-preview',
+      'gemini-3.5-flash',
+      'gemini-3.8-flash',
+      'gemini-flash-latest',
+      'gemini-pro-latest'
     ];
     const cascade = Array.from(new Set([userPref, ...defaultCascade].filter(Boolean)));
 
@@ -2216,7 +2217,7 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
           preExtractedPdfText,
           provider,
           apiKey: provider === 'gemini' ? (geminiKey || localStorage.getItem('geminiApiKey') || '') : (provider === 'claude' ? (claudeKey || localStorage.getItem('claudeApiKey') || '') : (deepseekKey || localStorage.getItem('deepseekApiKey') || '')),
-          model: provider === 'gemini' ? (geminiModel || 'gemini-2.5-flash') : (provider === 'claude' ? claudeModel : deepseekModel),
+          model: provider === 'gemini' ? (geminiModel || 'gemini-3.5-flash-lite') : (provider === 'claude' ? claudeModel : deepseekModel),
           proxyUrl,
           deepseekUrl,
           customPrompt: typeof getEffectiveLessonPrompt === 'function' ? getEffectiveLessonPrompt() : (localStorage.getItem('lesson_extraction_prompt') || ''),
@@ -3019,26 +3020,25 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
                       <select
                         className="input-control"
-                        value={['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.5-flash-lite', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro', 'gemini-1.5-flash'].includes(geminiModel) ? geminiModel : 'gemini-2.5-flash'}
+                        value={geminiModel || 'gemini-3.5-flash-lite'}
                         onChange={e => { setGeminiModel(e.target.value); localStorage.setItem('geminiModel', e.target.value); }}
                       >
-                        <option value="gemini-2.5-flash">Gemini 2.5 Flash (الأحدث من جوجل - فائق السرعة والدقة)</option>
-                        <option value="gemini-2.5-pro">Gemini 2.5 Pro (الأقوى استدلالاً وتفصيلاً للرياضيات المعقدة)</option>
-                        <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite (خفيف وسريع جداً)</option>
-                        <option value="gemini-2.0-flash">Gemini 2.0 Flash (مستقر وموثوق)</option>
-                        <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash-Lite (اقتصادي وسريع)</option>
-                        <option value="gemini-1.5-pro">Gemini 1.5 Pro (رياضيات واستدلال عميق)</option>
-                        <option value="gemini-1.5-flash">Gemini 1.5 Flash (إصدار قياسي سابق)</option>
+                        <option value="gemini-3.5-flash-lite">⚡ Gemini 3.5 Flash-Lite (الأسرع والأعلى كفاءة - موصى به)</option>
+                        <option value="gemini-3.1-flash-lite">🚀 Gemini 3.1 Flash-Lite (سريع ودقيق جداً)</option>
+                        <option value="gemini-flash-lite-latest">✨ Gemini Flash-Lite Latest (النسخة الأحدث التلقائية)</option>
+                        <option value="gemini-3-flash-preview">⭐ Gemini 3.0 Flash Preview (استقرار وجودة عالية)</option>
+                        <option value="gemini-3.5-flash">💡 Gemini 3.5 Flash (ذكاء موسع)</option>
+                        <option value="gemini-3.8-flash">🧠 Gemini 3.8 Flash (الأقوى استدلالاً وتفصيلاً للرياضيات)</option>
                       </select>
                       <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
                         {[
-                          { id: 'gemini-2.5-flash', label: '⚡ 2.5 Flash (الأحدث)' },
-                          { id: 'gemini-2.5-pro', label: '🧠 2.5 Pro (الأقوى)' },
-                          { id: 'gemini-2.5-flash-lite', label: '🚀 2.5 Lite' },
-                          { id: 'gemini-2.0-flash', label: '⭐ 2.0 Flash' },
-                          { id: 'gemini-1.5-pro', label: '🔬 1.5 Pro' }
+                          { id: 'gemini-3.5-flash-lite', label: '⚡ 3.5 Lite (الأسرع)' },
+                          { id: 'gemini-3.1-flash-lite', label: '🚀 3.1 Lite' },
+                          { id: 'gemini-flash-lite-latest', label: '✨ Latest Lite' },
+                          { id: 'gemini-3-flash-preview', label: '⭐ 3.0 Preview' },
+                          { id: 'gemini-3.8-flash', label: '🧠 3.8 Flash' }
                         ].map(m => {
-                          const isSel = (geminiModel === m.id) || (!['gemini-2.5-pro', 'gemini-2.5-flash-lite', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro', 'gemini-1.5-flash'].includes(geminiModel) && m.id === 'gemini-2.5-flash');
+                          const isSel = (geminiModel === m.id) || (!['gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3-flash-preview', 'gemini-3.5-flash', 'gemini-3.8-flash'].includes(geminiModel) && m.id === 'gemini-3.5-flash-lite');
                           return (
                             <button
                               key={m.id}

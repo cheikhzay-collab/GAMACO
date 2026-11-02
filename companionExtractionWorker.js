@@ -692,15 +692,14 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 // Verified high-performing models per provider
 const FALLBACK_MODELS = {
   gemini: [
-    'gemini-2.5-flash',
-    'gemini-2.5-flash-lite',
-    'gemini-2.5-pro',
+    'gemini-3.5-flash-lite',
+    'gemini-3.1-flash-lite',
+    'gemini-flash-lite-latest',
+    'gemini-3-flash-preview',
+    'gemini-3.5-flash',
+    'gemini-3.8-flash',
     'gemini-flash-latest',
-    'gemini-pro-latest',
-    'gemini-2.0-flash',
-    'gemini-2.0-flash-lite',
-    'gemini-1.5-pro',
-    'gemini-1.5-flash'
+    'gemini-pro-latest'
   ],
   claude: [
     'claude-3-7-sonnet-20250219',
@@ -720,8 +719,8 @@ const resolveModelCascade = (provider, userPreferredModel) => {
 
   // Normalize aliases and deprecated models
   if (provider === 'gemini') {
-    if (!cleanUser || ['gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-flash-latest', '3.7', '3.5'].includes(cleanUser)) {
-      cleanUser = 'gemini-2.5-flash';
+    if (!cleanUser || ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro', 'gemini-1.5-flash', '2.5', '2.0', '1.5'].includes(cleanUser)) {
+      cleanUser = 'gemini-3.5-flash-lite';
     }
   }
 

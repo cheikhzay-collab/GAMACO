@@ -701,8 +701,8 @@ export default function AdminAIImport({ onBack }) {
   const [geminiKey, setGeminiKey] = useState(() => localStorage.getItem('geminiApiKey') || '');
   const [geminiModel, setGeminiModel] = useState(() => {
     let m = (draft?.geminiModel || localStorage.getItem('geminiModel') || '').trim();
-    if (!m || ['gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-flash-latest', '3.7', '3.5'].includes(m)) {
-      m = 'gemini-2.5-flash';
+    if (!m || ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro', 'gemini-1.5-flash', '2.5', '2.0', '1.5'].includes(m)) {
+      m = 'gemini-3.5-flash-lite';
       localStorage.setItem('geminiModel', m);
     }
     return m;
@@ -897,20 +897,21 @@ Pour le champ 'astuce', extrais/résume l'explication officielle fournie dans le
       userPromptText = `${pageNote}Extrais TOUTES les questions QCM de ce document de la première à la toute dernière sans exception, sans aucune omission ni troncature, et retourne le JSON demandé.`;
     }
 
-    let rawModel = (geminiModel || 'gemini-2.5-flash').trim().replace(/^models\//, '');
-    if (!rawModel || ['gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-flash-latest', '3.7', '3.5'].includes(rawModel)) {
-      rawModel = 'gemini-2.5-flash';
+    let rawModel = (geminiModel || 'gemini-3.5-flash-lite').trim().replace(/^models\//, '');
+    if (!rawModel || ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro', 'gemini-1.5-flash', '2.5', '2.0', '1.5'].includes(rawModel)) {
+      rawModel = 'gemini-3.5-flash-lite';
     }
 
     const cascade = Array.from(new Set([
       rawModel,
-      'gemini-2.5-flash',
-      'gemini-2.5-flash-lite',
-      'gemini-2.5-pro',
-      'gemini-2.0-flash',
-      'gemini-2.0-flash-lite',
-      'gemini-1.5-pro',
-      'gemini-1.5-flash'
+      'gemini-3.5-flash-lite',
+      'gemini-3.1-flash-lite',
+      'gemini-flash-lite-latest',
+      'gemini-3-flash-preview',
+      'gemini-3.5-flash',
+      'gemini-3.8-flash',
+      'gemini-flash-latest',
+      'gemini-pro-latest'
     ]));
 
     // Create fresh AbortController for this request
@@ -1927,11 +1928,11 @@ ${pdfText}
               <label>Modèle Gemini <span style={{fontWeight:400, color:'var(--text-muted)'}}>— ID exact de l'API</span></label>
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
                 {[
-                  { id: 'gemini-2.5-flash', label: '⚡ Gemini 2.5 Flash (الأحدث - موصى به)' },
-                  { id: 'gemini-2.5-pro', label: '🧠 Gemini 2.5 Pro (الأقوى استدلالاً)' },
-                  { id: 'gemini-2.5-flash-lite', label: '🚀 Gemini 2.5 Flash-Lite' },
-                  { id: 'gemini-2.0-flash', label: '⭐ Gemini 2.0 Flash' },
-                  { id: 'gemini-1.5-pro', label: '🔬 Gemini 1.5 Pro' }
+                  { id: 'gemini-3.5-flash-lite', label: '⚡ Gemini 3.5 Flash-Lite (الأسرع والأعلى كفاءة - موصى به)' },
+                  { id: 'gemini-3.1-flash-lite', label: '🚀 Gemini 3.1 Flash-Lite (سريع ودقيق)' },
+                  { id: 'gemini-flash-lite-latest', label: '✨ Flash-Lite Latest (الأحدث)' },
+                  { id: 'gemini-3-flash-preview', label: '⭐ Gemini 3.0 Preview' },
+                  { id: 'gemini-3.8-flash', label: '🧠 Gemini 3.8 Flash (الأقوى استدلالاً)' }
                 ].map(item => (
                   <button key={item.id} type="button"
                     onClick={() => { setGeminiModel(item.id); localStorage.setItem('geminiModel', item.id); }}
@@ -1947,11 +1948,11 @@ ${pdfText}
                 className="input-control"
                 value={geminiModel}
                 onChange={e => { setGeminiModel(e.target.value); localStorage.setItem('geminiModel', e.target.value); }}
-                placeholder="ex: gemini-2.5-flash"
+                placeholder="ex: gemini-3.5-flash-lite"
                 style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}
               />
               <p style={{ marginTop: '0.4rem', fontSize: '0.73rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                💡 Recommandé : <strong>gemini-2.5-flash</strong> (الأحدث والأسرع من جوجل بتقنية 2025/2026)، <strong>gemini-2.5-pro</strong> أو <strong>gemini-2.0-flash</strong>.
+                💡 Recommandé : <strong>gemini-3.5-flash-lite</strong> (الأحدث والأسرع من جوجل)، <strong>gemini-3.1-flash-lite</strong> أو <strong>gemini-3.8-flash</strong>.
               </p>
             </div>
           )}
