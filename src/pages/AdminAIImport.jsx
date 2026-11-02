@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { UploadCloud, Sparkles, Loader2, CheckCircle2, Trash2, Plus, Send, AlertCircle, FileText, StopCircle, ArrowLeft, Wand2, RefreshCw, Zap, TrendingUp, Sliders, Check } from 'lucide-react';
+import { UploadCloud, Sparkles, Loader2, CheckCircle2, Trash2, Plus, Send, AlertCircle, FileText, StopCircle, ArrowLeft, Wand2, RefreshCw, Zap, TrendingUp, Sliders, Check, Key } from 'lucide-react';
 import { getLevelDisplayName } from '../utils/levelHelpers';
 import * as pdfjsLib from 'pdfjs-dist';
 import { generateSubjectHTML, generateCorrectionHTML, openPrintWindow } from '../utils/generateExamPDF';

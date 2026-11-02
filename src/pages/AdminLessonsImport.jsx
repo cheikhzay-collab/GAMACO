@@ -7,7 +7,7 @@ import {
   Crop, Eye, Columns, Maximize2, ZoomIn, ZoomOut,
   ChevronLeft, ChevronRight, Image as ImageIcon,
   CheckCircle, AlertTriangle, FileText, BookOpen, Layers, Award, Target,
-  Clock, RefreshCw, Check, Play, ListFilter, Inbox, ArrowRight
+  Clock, RefreshCw, Check, Play, ListFilter, Inbox, ArrowRight, Key
 } from 'lucide-react';
 import { addLesson } from '../services/lessonService';
 import {
