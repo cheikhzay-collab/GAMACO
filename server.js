@@ -1061,6 +1061,12 @@ export const handleApiRequest = async (req, res, next) => {
               const errData = await apiRes.json().catch(() => ({}));
               const msg = errData?.error?.message || `HTTP ${apiRes.status}`;
               console.warn(`[Server Gemini Proxy] Model ${cleanModel} (${apiVer}) failed (${apiRes.status}): ${msg}`);
+              if (apiRes.status === 403 || /leaked|permission_denied|api key not valid|api_key_invalid/i.test(msg)) {
+                return sendJSON(res, 403, {
+                  error: `Clé API Gemini révoquée ou invalide par Google (${msg}). Veuillez fournir une nouvelle clé API valide.`,
+                  code: 'API_KEY_INVALID'
+                });
+              }
               if (apiRes.status === 404 && apiVer === 'v1beta') {
                 continue; // Try v1 before skipping model
               }

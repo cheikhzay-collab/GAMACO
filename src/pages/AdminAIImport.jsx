@@ -978,9 +978,16 @@ Pour le champ 'astuce', extrais/résume l'explication officielle fournie dans le
             const err = await res.json().catch(() => ({}));
             const msg = err?.error?.message || `Erreur HTTP ${res.status}`;
             console.warn(`[Gemini Direct] Model ${modelToUse} failed:`, msg);
+            if (res.status === 403 || /leaked|permission_denied|api key not valid|api_key_invalid/i.test(msg)) {
+              throw new Error(`مفتاح Google Gemini ملغى أو غير صالح من Google (${msg}). يرجى إدخال مفتاح جديد أدناه.`);
+            }
+            lastError = new Error(`Gemini [${modelToUse}] (${res.status}): ${msg}`);
           }
         } catch (err) {
           if (err.name === 'AbortError') throw err;
+          if (/leaked|permission_denied|api key not valid|api_key_invalid|ملغى أو غير صالح/i.test(err.message)) {
+            throw err;
+          }
           console.warn(`[Gemini Direct] ${modelToUse} fetch failed:`, err.message);
           lastError = err;
         }
@@ -1014,9 +1021,19 @@ Pour le champ 'astuce', extrais/résume l'explication officielle fournie dans le
               return parseAiJson(rawText);
             }
           }
+        } else {
+          const proxyErrData = await proxyRes.json().catch(() => ({}));
+          const pMsg = proxyErrData?.error || `Erreur serveur ${proxyRes.status}`;
+          lastError = new Error(pMsg);
+          if (proxyRes.status === 403 || /leaked|permission_denied|api key not valid|api_key_invalid/i.test(pMsg)) {
+            throw lastError;
+          }
         }
       } catch (proxyErr) {
         if (proxyErr.name === 'AbortError') throw proxyErr;
+        if (/leaked|permission_denied|api key not valid|api_key_invalid/i.test(proxyErr.message)) {
+          throw proxyErr;
+        }
         console.warn(`[Gemini Proxy Fallback] Failed for ${modelToUse}:`, proxyErr.message);
         lastError = proxyErr;
       }
@@ -1609,23 +1626,100 @@ ${pdfText}
             </div>
           )}
 
-          {provider === 'gemini' && !geminiKey && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem 1.25rem', borderRadius: 12, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', marginBottom: '1.5rem' }}>
-              <AlertCircle size={20} color="var(--danger)" />
-              <div>
-                <p style={{ margin: 0, fontWeight: 700, color: 'var(--danger)', fontSize: '0.9rem' }}>Clé API Gemini manquante</p>
-                <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>Allez dans <strong>Paramètres</strong> pour configurer votre clé Google Gemini.</p>
+          {/* Direct API Key Configurator - Always visible & synchronizing */}
+          {provider === 'gemini' && (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.5rem',
+              padding: '1rem 1.25rem',
+              borderRadius: 12,
+              background: geminiKey ? 'rgba(66, 133, 244, 0.05)' : 'rgba(239, 68, 68, 0.06)',
+              border: geminiKey ? '1px solid rgba(66, 133, 244, 0.25)' : '1px solid rgba(239, 68, 68, 0.3)',
+              marginBottom: '1.5rem',
+              fontSize: '0.85rem'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700, color: geminiKey ? '#4285F4' : '#ef4444' }}>
+                  <Key size={15} />
+                  <span>Clé API Google Gemini {geminiKey ? '(Active)' : '(Requise)'}</span>
+                </div>
+                <a
+                  href="https://aistudio.google.com/app/apikey"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: '#4285F4', fontSize: '0.78rem', fontWeight: 700, textDecoration: 'none' }}
+                >
+                  Créer une clé gratuite (10s) ↗
+                </a>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <input
+                  type="password"
+                  placeholder="Collez votre clé API Google Gemini (AIzaSy...)"
+                  className="input-control"
+                  value={geminiKey}
+                  onChange={e => {
+                    const val = e.target.value.trim();
+                    setGeminiKey(val);
+                    localStorage.setItem('geminiApiKey', val);
+                    fetch('/api/config', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ ai_settings: { geminiApiKey: val } })
+                    }).catch(() => {});
+                  }}
+                  style={{ padding: '0.45rem 0.75rem', fontSize: '0.85rem', flex: 1 }}
+                />
+                {geminiKey ? (
+                  <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                    ✓ Prête
+                  </span>
+                ) : (
+                  <span style={{ fontSize: '0.75rem', color: '#ef4444', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                    ⚠️ Manquante
+                  </span>
+                )}
               </div>
             </div>
           )}
 
-          {provider === 'deepseek' && !deepseekKey && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem 1.25rem', borderRadius: 12, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', marginBottom: '1.5rem' }}>
-              <AlertCircle size={20} color="var(--danger)" />
-              <div>
-                <p style={{ margin: 0, fontWeight: 700, color: 'var(--danger)', fontSize: '0.9rem' }}>Clé API DeepSeek manquante</p>
-                <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>Allez dans <strong>Paramètres</strong> pour configurer votre clé API DeepSeek.</p>
+          {provider === 'deepseek' && (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.5rem',
+              padding: '1rem 1.25rem',
+              borderRadius: 12,
+              background: deepseekKey ? 'rgba(0, 186, 124, 0.05)' : 'rgba(239, 68, 68, 0.06)',
+              border: deepseekKey ? '1px solid rgba(0, 186, 124, 0.25)' : '1px solid rgba(239, 68, 68, 0.3)',
+              marginBottom: '1.5rem',
+              fontSize: '0.85rem'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700, color: deepseekKey ? '#00BA7C' : '#ef4444' }}>
+                  <Key size={15} />
+                  <span>Clé API DeepSeek {deepseekKey ? '(Active)' : '(Requise)'}</span>
+                </div>
+                {deepseekKey && <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 700 }}>✓ Prête</span>}
               </div>
+              <input
+                type="password"
+                placeholder="Collez votre clé API DeepSeek (sk-...)"
+                className="input-control"
+                value={deepseekKey}
+                onChange={e => {
+                  const val = e.target.value.trim();
+                  setDeepseekKey(val);
+                  localStorage.setItem('deepseekApiKey', val);
+                  fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ai_settings: { deepseekApiKey: val } })
+                  }).catch(() => {});
+                }}
+                style={{ padding: '0.45rem 0.75rem', fontSize: '0.85rem' }}
+              />
             </div>
           )}
 
@@ -1873,6 +1967,71 @@ ${pdfText}
                 <AlertCircle size={16} style={{ flexShrink: 0 }} />
                 <span style={{ fontWeight: 600 }}>{error}</span>
               </div>
+
+              {/* Quick API Key recovery box when key fails or is leaked */}
+              {/leaked|403|api[ _]key|permission_denied|secours ont échoué|manquante|ملغى أو غير صالح/i.test(error) && (
+                <div style={{
+                  marginTop: '0.5rem',
+                  padding: '1rem',
+                  borderRadius: 10,
+                  background: 'rgba(239,68,68,0.06)',
+                  border: '1px dashed rgba(239,68,68,0.3)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.6rem'
+                }}>
+                  <div style={{ fontWeight: 800, color: 'var(--danger)', fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <span>🔑</span>
+                    <span>تحديث مفتاح Google Gemini / Actualiser la clé API</span>
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-main)', lineHeight: 1.5 }}>
+                    تم إيقاف أو انتهاء صلاحية المفتاح الحالي من طرف Google (Leaked key أو 403). الصق مفتاحاً جديداً واضغط &quot;حفظ وتجربة ثانية&quot;:
+                  </p>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <input
+                      type="text"
+                      placeholder="Collez votre nouvelle clé Gemini (AIzaSy...)"
+                      className="input-control"
+                      defaultValue={geminiKey}
+                      id="inlineAiGeminiKeyInput"
+                      style={{ flex: 1, minWidth: '240px', padding: '0.45rem 0.65rem', fontSize: '0.82rem' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const el = document.getElementById('inlineAiGeminiKeyInput');
+                        const val = (el?.value || '').trim();
+                        if (!val) return;
+                        setGeminiKey(val);
+                        localStorage.setItem('geminiApiKey', val);
+                        try {
+                          await fetch('/api/config', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ ai_settings: { geminiApiKey: val } })
+                          });
+                        } catch (_) {}
+                        setError('');
+                        setTimeout(() => {
+                          handleExtract();
+                        }, 300);
+                      }}
+                      className="btn-primary"
+                      style={{ padding: '0.45rem 1rem', fontSize: '0.82rem', fontWeight: 700 }}
+                    >
+                      ⚡ Enregistrer &amp; Réessayer
+                    </button>
+                  </div>
+                  <a
+                    href="https://aistudio.google.com/app/apikey"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: '#4285F4', textDecoration: 'underline', fontSize: '0.78rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.3rem', width: 'fit-content' }}
+                  >
+                    🔗 اضغط هنا لإنشاء مفتاح Google AI Studio جديد ومجاني في 10 ثوانٍ ↗
+                  </a>
+                </div>
+              )}
               
               {detectedModels.length > 0 && (
                 <div style={{ marginTop: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(239,68,68,0.15)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
