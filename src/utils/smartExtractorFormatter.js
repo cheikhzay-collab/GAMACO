@@ -203,8 +203,8 @@ export function smartNumberQuestions(questions) {
 /**
  * Helper API call to Gemini for Copilot actions
  */
-async function callGeminiAi(prompt, systemPrompt, apiKey, model = 'gemini-3.5-flash-lite') {
-  const modelToUse = (!model || ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro', 'gemini-1.5-flash'].includes(model)) ? 'gemini-3.5-flash-lite' : model.replace(/^models\//, '');
+async function callGeminiAi(prompt, systemPrompt, apiKey, model = 'gemini-2.5-flash') {
+  const modelToUse = (model || 'gemini-2.5-flash').replace(/^models\//, '');
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${apiKey}`;
 
   const payload = {

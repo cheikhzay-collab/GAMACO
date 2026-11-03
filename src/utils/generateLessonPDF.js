@@ -303,20 +303,6 @@ const repairCorruptedLatex = (text) => {
   if (!text) return text;
   let s = text;
 
-  // 0. Normalize Unicode mathematical symbols to clean LaTeX commands
-  s = s
-    .replace(/[\u2209]/g, '\\notin ')
-    .replace(/[\u2208]/g, '\\in ')
-    .replace(/[\u2282]/g, '\\subset ')
-    .replace(/[\u2286]/g, '\\subseteq ')
-    .replace(/[\u2229]/g, '\\cap ')
-    .replace(/[\u222A]/g, '\\cup ')
-    .replace(/[\u2260]/g, '\\neq ')
-    .replace(/[\u2264]/g, '\\leq ')
-    .replace(/[\u2265]/g, '\\geq ')
-    .replace(/[\u21D2]/g, '\\implies ')
-    .replace(/[\u21D4]/g, '\\iff ');
-
   // 1. Repair broken \neq (e.g. \n eq, newline + eq, or plain eq 0 in conditions)
   s = s
     .replace(/\\n\s*eq\b/g, '\\neq')
@@ -338,19 +324,7 @@ const repairCorruptedLatex = (text) => {
     .replace(/\\in([A-Z])(?![a-zA-Z])/g, (_, l) => `\\in ${l}`)
     .replace(/\\notin([A-Z])(?![a-zA-Z])/g, (_, l) => `\\notin ${l}`);
 
-  // 2b. Auto-repair unbalanced single trailing $ (e.g., "Montrer que \sqrt{10} \notin \mathbb{Q}$.")
-  const dollarCount = (s.match(/(?<!\\)\$/g) || []).length;
-  if (dollarCount % 2 === 1) {
-    s = s.replace(/(?:(?<=\b(?:que|soit|pour|tout|si|où|donc|alors|car|avec|et|ou|dans)\s+)|(?<=:\s*))([\\(a-zA-Z0-9_\^\{\}\[\]+\-*/\s]*\\(?:sqrt|frac|dfrac|notin|in|mathbb|mathbf|mathcal|sum|int|lim)[^$]*)\$(\.|\;|\:|\s*)$/i, (m, mathPart, punct) => {
-      return `${mathPart.trim()}${punct}`;
-    });
-  }
-
-  // 2c. Standalone \notin \mathbb{...}$ repair
-  s = s.replace(/(?<![\$a-zA-Z0-9_\\])(\\notin\s+\\mathbb\{[A-Z]\})\$(\.|\;|\:|\s*)$/i, '$$1$$2');
-  s = s.replace(/(?<![\$a-zA-Z0-9_\\])(\\notin\s+\\mathbb\{[A-Z]\})(?![\$a-zA-Z0-9_\\])/g, '$$1$');
-
-  // 2d. Unwrap invalid \text{...} inside \boxed{}
+  // 2b. Unwrap invalid \text{...} inside \boxed{}
   s = s.replace(/\\boxed\{\\text\{((?:[^{}]|\{[^{}]*\})*\\(?:exists|forall|in|notin|subset|supset|implies|iff|land|lor|neg|ne|neq|le|leq|ge|geq|to|cdot|times|frac|dfrac|sqrt|int|sum|prod|lim|alpha|beta|gamma|delta|pi|theta|infty|mathbb|mathbf|mathcal)\b(?:[^{}]|\{[^{}]*\})*)\}\}/g, '\\boxed{$1}');
 
   // 2c. Wrap standalone bare \boxed{...} with $ if not already in math
@@ -653,19 +627,10 @@ const renderMath = (text) => {
     .replace(/\r\n/g, '\n')
     .replace(/\r/g, '\n');
 
-  const CONTINUATION_START = /^\s*(?:[\u2209\u2208\u2282\u2286\u2229\u222A=≠≤≥<>]|\\(?:notin|in|subset|subseteq|cap|cup|neq|leq|geq|times|cdot|implies|iff)\b|[\/+\-*^]|\\mathbb\{[A-Z]\}|\$\.|\$[;,:]|\$[a-zA-Z0-9_\^\{\}\[\]+\-*\/\s]*\$\.?)/i;
   const lines = rawText.split('\n');
   const mergedLines = [];
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
-    if (!line) {
-      mergedLines.push(lines[i]);
-      continue;
-    }
-    if (mergedLines.length > 0 && CONTINUATION_START.test(line)) {
-      mergedLines[mergedLines.length - 1] = mergedLines[mergedLines.length - 1].trimEnd() + ' ' + line;
-      continue;
-    }
     // Match prefix like "1.", "a)", "B.", "**1.**", "**a)**" on its own line
     if (/^(\*\*)?([a-zA-Z]|\d+)[.)](\*\*)?$/.test(line) && i + 1 < lines.length) {
       let nextNonEmptyIdx = i + 1;
@@ -974,19 +939,10 @@ const renderHomeworkBody = (text, isArabicMode) => {
   // Collapse colon followed by newline and math formula into a single line
   rawText = rawText.replace(/(:\s*)\n+\s*(\$\$|\$)/g, ' : $2');
 
-  const CONTINUATION_START = /^\s*(?:[\u2209\u2208\u2282\u2286\u2229\u222A=≠≤≥<>]|\\(?:notin|in|subset|subseteq|cap|cup|neq|leq|geq|times|cdot|implies|iff)\b|[\/+\-*^]|\\mathbb\{[A-Z]\}|\$\.|\$[;,:]|\$[a-zA-Z0-9_\^\{\}\[\]+\-*\/\s]*\$\.?)/i;
   const lines = rawText.split('\n');
   const mergedLines = [];
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
-    if (!line) {
-      mergedLines.push(lines[i]);
-      continue;
-    }
-    if (mergedLines.length > 0 && CONTINUATION_START.test(line)) {
-      mergedLines[mergedLines.length - 1] = mergedLines[mergedLines.length - 1].trimEnd() + ' ' + line;
-      continue;
-    }
     if (/^(\*\*)?([a-zA-Z]|\d+)[.)](\*\*)?$/.test(line) && i + 1 < lines.length) {
       let nextNonEmptyIdx = i + 1;
       while (nextNonEmptyIdx < lines.length && lines[nextNonEmptyIdx].trim() === '') {
@@ -1004,7 +960,6 @@ const renderHomeworkBody = (text, isArabicMode) => {
   const pointsRegex = /\(\s*([\d.,]+)\s*(?:pts?|points?|\u0646|\u0646\u0642\u0637\u0629?|\u0646\u0642\u0637)\s*\)/i;
   const parenthesizedNumRegex = /^(\s*(?:\d+|[a-zA-Z])[.)]\s*)\(([\d.,]+)\)/;
   const isSubQRegex = /^(\s*(?:\d+|[a-zA-Z])[.)]\s*)/;
-  const isRomanNumeralRegex = /^\s*(?:[IVXLCDM]+|[ivxlcdm]+)[.)]\s*/;
 
   const parsedItems = [];
   mergedLines.forEach(line => {
@@ -1033,7 +988,7 @@ const renderHomeworkBody = (text, isArabicMode) => {
 
     if (!cleanLine) return;
 
-    const isSubQ = isSubQRegex.test(cleanLine) && !isRomanNumeralRegex.test(cleanLine);
+    const isSubQ = isSubQRegex.test(cleanLine);
     parsedItems.push({
       cleanLine,
       pointsStr,
@@ -1067,27 +1022,31 @@ const renderHomeworkBody = (text, isArabicMode) => {
     }
   }
 
-  const hasAnyPoints = blocks.some(b => b.headerItem?.pointsStr || b.subItems.some(si => si.pointsStr));
-
   const rows = blocks.map(b => {
     const ptsStr = b.headerItem ? b.headerItem.pointsStr : '';
     const headerHtml = b.headerItem ? `<div>${renderMath(b.headerItem.cleanLine)}</div>` : '';
 
     let subHtml = '';
-    if (b.subItems.length > 0) {
+    if (b.subItems.length >= 2) {
+      const allShort = b.subItems.every(si => si.cleanLine.length < 50);
+      const cols = allShort && b.subItems.length >= 3 ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)';
       subHtml = `
-        <div class="homework-subquestions-list" style="display: flex; flex-direction: column; gap: 0.35rem; margin-top: 0.35rem; width: 100%;">
-          ${b.subItems.map(si => {
+        <div class="homework-subquestions-grid" style="display: grid; grid-template-columns: ${cols}; gap: 0.35rem 1.0rem; margin-top: 0.35rem;">
+          ${b.subItems.map((si, idx) => {
             const cleanText = si.cleanLine.trim();
-            return `<div class="homework-subq-item" style="padding: 0.12rem 0; width: 100%;">${renderMath(cleanText)}</div>`;
+            const needsSemi = allShort && idx < b.subItems.length - 1 && !cleanText.endsWith(';') && !cleanText.endsWith(':');
+            const displayText = needsSemi ? `${cleanText} ;` : cleanText;
+            return `<div class="homework-subq-item" style="padding: 0.1rem 0;">${renderMath(displayText)}</div>`;
           }).join('')}
         </div>`;
+    } else if (b.subItems.length === 1) {
+      subHtml = `<div style="margin-top: 0.25rem;">${renderMath(b.subItems[0].cleanLine)}</div>`;
     }
 
     return `
       <div class="homework-row">
-        ${hasAnyPoints ? `<div class="homework-bareme-cell">${esc(ptsStr)}</div>` : ''}
-        <div class="homework-content-cell" ${!hasAnyPoints ? 'style="border-left:none;width:100%;"' : ''}>${headerHtml}${subHtml}</div>
+        <div class="homework-bareme-cell">${esc(ptsStr)}</div>
+        <div class="homework-content-cell">${headerHtml}${subHtml}</div>
       </div>`;
   }).join('');
 
@@ -1142,7 +1101,6 @@ const calculateTotalPoints = (text, isArabicMode, fallbackHeader = '') => {
     }
   }
 
-  if (total === 0) return '';
   const totalStr = String(total).replace('.', ',');
   const ptsWord = isArabicMode ? 'ن' : (total > 1 ? 'pts' : 'pt');
   return `${totalStr} ${ptsWord}`;
@@ -1176,13 +1134,8 @@ export const generateLessonHTML = (lesson, settings = {}) => {
   const header = content?.header || {};
   const sections = Array.isArray(content?.sections) ? content.sections : (Array.isArray(lesson?.sections) ? lesson.sections : (Array.isArray(content) ? content : []));
   
-  // Explicit Series detection
-  const isExplicitSeries = /s[ée]rie|سلسلة|fiche d['’]exercices/i.test(
-    lesson?.title || header?.fiche_title || header?.prep_title || ''
-  );
-
   // Homework (Devoir Surveillé) detection
-  const isHomework = !isExplicitSeries && Boolean(
+  const isHomework = Boolean(
     lesson?.docType === 'homework' || 
     content?.doc_type === 'homework' ||
     lesson?.type === 'homework' ||
@@ -1656,13 +1609,11 @@ export const generateLessonHTML = (lesson, settings = {}) => {
       }
 
       if (isHomeworkSec) {
-        const totalPts = calculateTotalPoints(sec.content, isArabic, sec.section_header || sec.title);
-        const showBareme = Boolean(totalPts && !/^0\s*(?:pt|pts|ن)/i.test(totalPts.trim()));
         sectionsHtml += `
           <div class="homework-table" ${isArabic ? `style="font-family:${arabicFontFamily}"` : ''}>
             <div class="homework-header-row">
-              ${showBareme ? `<div class="homework-bareme-header">${totalPts}</div>` : ''}
-              <div class="homework-content-header" ${!showBareme ? 'style="width: 100%; border-radius: 4px 4px 0 0;"' : ''}>
+              <div class="homework-bareme-header">${calculateTotalPoints(sec.content, isArabic, sec.section_header || sec.title)}</div>
+              <div class="homework-content-header">
                 ${isArabic ? 'تمرين' : 'Exercice'} ${esc(exeNumber)} ${exeLabel ? ` : ${esc(exeLabel)}` : ''}
               </div>
             </div>
@@ -1671,8 +1622,8 @@ export const generateLessonHTML = (lesson, settings = {}) => {
             ${exerciseAfterHtml ? `<div class="homework-row" style="padding: 0.5rem 1rem;">${exerciseAfterHtml}</div>` : ''}
             ${sec.solution ? `
             <div class="homework-row homework-solution-row" style="background: rgba(16,185,129,0.01);">
-              ${showBareme ? `<div class="homework-bareme-cell" style="background: rgba(16,185,129,0.03); color: #059669; border-top: 1px solid rgba(16,185,129,0.15)">📖</div>` : ''}
-              <div class="homework-content-cell" style="border-top: 1px solid rgba(16,185,129,0.15); ${!showBareme ? 'border-left:none;width:100%;' : ''}">
+              <div class="homework-bareme-cell" style="background: rgba(16,185,129,0.03); color: #059669; border-top: 1px solid rgba(16,185,129,0.15)">📖</div>
+              <div class="homework-content-cell" style="border-top: 1px solid rgba(16,185,129,0.15)">
                 <div class="solution-block" style="margin-top: 0; padding: 0.5rem 0;">
                   <h4 class="solution-title" ${isArabic ? `style="flex-direction:row;font-family:${arabicFontFamily}"` : ''}>📖 ${isArabic ? 'الحل المفصل' : 'Démonstration rédigée'}</h4>
                   <div class="solution-content" ${isArabic ? `style="text-align:right;direction:rtl;font-family:${arabicFontFamily}"` : ''}>${renderMath(sec.solution)}</div>
