@@ -36589,14 +36589,11 @@
     "phone": "",
     "schools": [],
     "level": "2bac_pc_svt",
-    "doc_type": "exercises",
+    "doc_type": "ebook",
     "content": {
       "level": "2bac_pc_svt",
-      "doc_type": "exercises",
-      "is_national_exam": false,
-      "national_exam_meta": null,
-      "is_summary": false,
-      "summary_meta": null,
+      "doc_type": "ebook",
+      "columns_count": 2,
       "metadata": {
         "language": "fr"
       },
@@ -36622,26 +36619,26 @@
               "type": "text"
             },
             {
-              "text": "1) \n\n\n\n\n\n\n\n$$\\begin{cases} f(x) = \\dfrac{1-x^2}{x-1} ; x > 1 \\\\ f(x) = x^2 - 4x + 1 ; x \\le 1 \\end{cases}$$\n\n\n\n\n\n\n\n ; en $x_0 = 1$",
+              "text": "1) \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n$$\\begin{cases} f(x) = \\dfrac{1-x^2}{x-1} ; x > 1 \\\\ f(x) = x^2 - 4x + 1 ; x \\le 1 \\end{cases}$$\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n ; en $x_0 = 1$",
               "type": "bullet"
             },
             {
-              "text": "2) \n\n\n\n\n\n\n\n$$\\begin{cases} f(x) = -\\dfrac{\\sqrt{3}\\sin(x)}{12x} ; x > 0 \\\\ f(x) = \\dfrac{\\sqrt{2+\\cos x}-\\sqrt{3}}{x^2} ; x < 0 \\\\ f(0) = -\\dfrac{\\sqrt{3}}{12} \\end{cases}$$\n\n\n\n\n\n\n\n ; en $x_0 = 0$",
+              "text": "2) \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n$$\\begin{cases} f(x) = -\\dfrac{\\sqrt{3}\\sin(x)}{12x} ; x > 0 \\\\ f(x) = \\dfrac{\\sqrt{2+\\cos x}-\\sqrt{3}}{x^2} ; x < 0 \\\\ f(0) = -\\dfrac{\\sqrt{3}}{12} \\end{cases}$$\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n ; en $x_0 = 0$",
               "type": "bullet"
             },
             {
-              "text": "3) \n\n\n\n\n\n\n\n$$\\begin{cases} f(x) = \\sin(x)\\sin\\left(\\dfrac{1}{x}\\right) ; x \\neq 0 \\\\ f(0) = 0 \\end{cases}$$\n\n\n\n\n\n\n\n ; en $x_0 = 0$",
+              "text": "3) \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n$$\\begin{cases} f(x) = \\sin(x)\\sin\\left(\\dfrac{1}{x}\\right) ; x \\neq 0 \\\\ f(0) = 0 \\end{cases}$$\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n ; en $x_0 = 0$",
               "type": "bullet"
             },
             {
-              "text": "4) \n\n\n\n\n\n\n\n$$\\begin{cases} f(x) = \\dfrac{x^2-1}{|x-1|} ; x \\neq 1 \\\\ f(1) = 2 \\end{cases}$$\n\n\n\n\n\n\n\n ; en $x_0 = 1$",
+              "text": "4) \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n$$\\begin{cases} f(x) = \\dfrac{x^2-1}{|x-1|} ; x \\neq 1 \\\\ f(1) = 2 \\end{cases}$$\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n ; en $x_0 = 1$",
               "type": "bullet"
             }
           ],
           "title": "**Exercice 01 :**",
           "points": 0,
           "bgColor": "transparent",
-          "content": "Etudier la continuité en $x_0$ des fonctions suivantes :\n1) \n\n\n\n\n\n\n\n$$\\begin{cases} f(x) = \\dfrac{1-x^2}{x-1} ; x > 1 \\\\ f(x) = x^2 - 4x + 1 ; x \\le 1 \\end{cases}$$\n\n\n\n\n\n\n\n ; en $x_0 = 1$\n2) \n\n\n\n\n\n\n\n$$\\begin{cases} f(x) = -\\dfrac{\\sqrt{3}\\sin(x)}{12x} ; x > 0 \\\\ f(x) = \\dfrac{\\sqrt{2+\\cos x}-\\sqrt{3}}{x^2} ; x < 0 \\\\ f(0) = -\\dfrac{\\sqrt{3}}{12} \\end{cases}$$\n\n\n\n\n\n\n\n ; en $x_0 = 0$\n3) \n\n\n\n\n\n\n\n$$\\begin{cases} f(x) = \\sin(x)\\sin\\left(\\dfrac{1}{x}\\right) ; x \\neq 0 \\\\ f(0) = 0 \\end{cases}$$\n\n\n\n\n\n\n\n ; en $x_0 = 0$\n4) \n\n\n\n\n\n\n\n$$\\begin{cases} f(x) = \\dfrac{x^2-1}{|x-1|} ; x \\neq 1 \\\\ f(1) = 2 \\end{cases}$$\n\n\n\n\n\n\n\n ; en $x_0 = 1$",
+          "content": "Etudier la continuité en $x_0$ des fonctions suivantes :\n1) \n\n$$\\begin{cases} f(x) = \\dfrac{1-x^2}{x-1} ; x > 1 \\\\ f(x) = x^2 - 4x + 1 ; x \\le 1 \\end{cases}$$\n\n ; en $x_0 = 1$\n2) \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n$$\\begin{cases} f(x) = -\\dfrac{\\sqrt{3}\\sin(x)}{12x} ; x > 0 \\\\ f(x) = \\dfrac{\\sqrt{2+\\cos x}-\\sqrt{3}}{x^2} ; x < 0 \\\\ f(0) = -\\dfrac{\\sqrt{3}}{12} \\end{cases}$$\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n ; en $x_0 = 0$\n3) \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n$$\\begin{cases} f(x) = \\sin(x)\\sin\\left(\\dfrac{1}{x}\\right) ; x \\neq 0 \\\\ f(0) = 0 \\end{cases}$$\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n ; en $x_0 = 0$\n4) \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n$$\\begin{cases} f(x) = \\dfrac{x^2-1}{|x-1|} ; x \\neq 1 \\\\ f(1) = 2 \\end{cases}$$\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n ; en $x_0 = 1$",
           "bg_color": "transparent",
           "fontSize": "",
           "language": "fr",
@@ -36658,18 +36655,18 @@
           "type": "exercise",
           "items": [
             {
-              "text": "1) $f$ une fonction définie sur $\\mathbb{R}$ par : \n\n\n\n\n\n\n\n$$\\begin{cases} f(x) = \\dfrac{\\sin(\\pi x)}{x-1} ; x \\neq 1 \\\\ f(1) = a \\end{cases}$$\n\n\n\n\n\n\n\n\\nDéterminer la valeur du réel $a$ pour que $f$ soit continue en $1$",
+              "text": "1) $f$ une fonction définie sur $\\mathbb{R}$ par : \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n$$\\begin{cases} f(x) = \\dfrac{\\sin(\\pi x)}{x-1} ; x \\neq 1 \\\\ f(1) = a \\end{cases}$$\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\\nDéterminer la valeur du réel $a$ pour que $f$ soit continue en $1$",
               "type": "bullet"
             },
             {
-              "text": "2) $f$ une fonction définie sur $\\mathbb{R}$ par : \n\n\n\n\n\n\n\n$$\\begin{cases} f(x) = ax + b ; x > 2 \\\\ f(x) = x^2 - b - 3a ; x < 2 \\\\ f(2) = 0 \\end{cases}$$\n\n\n\n\n\n\n\n\\nDéterminer les réels $a$ et $b$ pour que $f$ soit continue en $2$",
+              "text": "2) $f$ une fonction définie sur $\\mathbb{R}$ par : \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n$$\\begin{cases} f(x) = ax + b ; x > 2 \\\\ f(x) = x^2 - b - 3a ; x < 2 \\\\ f(2) = 0 \\end{cases}$$\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\\nDéterminer les réels $a$ et $b$ pour que $f$ soit continue en $2$",
               "type": "bullet"
             }
           ],
           "title": "**Exercice 02 :**",
           "points": 0,
           "bgColor": "transparent",
-          "content": "1) $f$ une fonction définie sur $\\mathbb{R}$ par : \n\n\n\n\n\n\n\n$$\\begin{cases} f(x) = \\dfrac{\\sin(\\pi x)}{x-1} ; x \\neq 1 \\\\ f(1) = a \\end{cases}$$\n\n\n\n\n\n\n\n\\nDéterminer la valeur du réel $a$ pour que $f$ soit continue en $1$\n2) $f$ une fonction définie sur $\\mathbb{R}$ par : \n\n\n\n\n\n\n\n$$\\begin{cases} f(x) = ax + b ; x > 2 \\\\ f(x) = x^2 - b - 3a ; x < 2 \\\\ f(2) = 0 \\end{cases}$$\n\n\n\n\n\n\n\n\\nDéterminer les réels $a$ et $b$ pour que $f$ soit continue en $2$",
+          "content": "1) $f$ une fonction définie sur $\\mathbb{R}$ par : \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n$$\\begin{cases} f(x) = \\dfrac{\\sin(\\pi x)}{x-1} ; x \\neq 1 \\\\ f(1) = a \\end{cases}$$\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\\nDéterminer la valeur du réel $a$ pour que $f$ soit continue en $1$\n2) $f$ une fonction définie sur $\\mathbb{R}$ par : \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n$$\\begin{cases} f(x) = ax + b ; x > 2 \\\\ f(x) = x^2 - b - 3a ; x < 2 \\\\ f(2) = 0 \\end{cases}$$\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\\nDéterminer les réels $a$ et $b$ pour que $f$ soit continue en $2$",
           "bg_color": "transparent",
           "fontSize": "",
           "language": "fr",
@@ -36750,7 +36747,7 @@
           "type": "exercise",
           "items": [
             {
-              "text": "$f$ une fonction définie sur $[-2; +\\infty[$ par :\n\n\n\n\n\n\n\n\n$$\\begin{cases} f(x) = \\dfrac{3x^2-4x-4}{x^2-x-2} ; x > 2 \\\\ f(x) = \\dfrac{\\sqrt{x^2+5}-3}{\\sqrt{x+2}-2} ; -2 < x < 2 \\\\ f(2) = \\dfrac{8}{3} \\end{cases}$$\n\n\n\n\n\n\n\n",
+              "text": "$f$ une fonction définie sur $[-2; +\\infty[$ par :\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n$$\\begin{cases} f(x) = \\dfrac{3x^2-4x-4}{x^2-x-2} ; x > 2 \\\\ f(x) = \\dfrac{\\sqrt{x^2+5}-3}{\\sqrt{x+2}-2} ; -2 < x < 2 \\\\ f(2) = \\dfrac{8}{3} \\end{cases}$$\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n",
               "type": "text"
             },
             {
@@ -36765,7 +36762,7 @@
           "title": "**Exercice 05 :**",
           "points": 0,
           "bgColor": "transparent",
-          "content": "$f$ une fonction définie sur $[-2; +\\infty[$ par :\n\n\n\n\n\n\n\n\n$$\\begin{cases} f(x) = \\dfrac{3x^2-4x-4}{x^2-x-2} ; x > 2 \\\\ f(x) = \\dfrac{\\sqrt{x^2+5}-3}{\\sqrt{x+2}-2} ; -2 < x < 2 \\\\ f(2) = \\dfrac{8}{3} \\end{cases}$$\n\n\n\n\n\n\n\n\n1) Montrer que $f$ est continue en $2$.\n2) Etudier la continuité de $f$ sur $[-2; +\\infty[$",
+          "content": "$f$ une fonction définie sur $[-2; +\\infty[$ par :\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n$$\\begin{cases} f(x) = \\dfrac{3x^2-4x-4}{x^2-x-2} ; x > 2 \\\\ f(x) = \\dfrac{\\sqrt{x^2+5}-3}{\\sqrt{x+2}-2} ; -2 < x < 2 \\\\ f(2) = \\dfrac{8}{3} \\end{cases}$$\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n1) Montrer que $f$ est continue en $2$.\n2) Etudier la continuité de $f$ sur $[-2; +\\infty[$",
           "bg_color": "transparent",
           "fontSize": "",
           "language": "fr",
@@ -37226,14 +37223,13 @@
           "section_header": "Exercice 17",
           "section_number": "17"
         }
-      ],
-      "columns_count": 2
+      ]
     },
     "is_active": true,
-    "updated_at": "2026-09-26T18:20:35.656Z",
+    "updated_at": "2026-11-10T09:25:30.555Z",
     "created_at": "2026-09-26T17:35:56.210Z",
     "createdAt": "2026-09-26T17:35:57.046Z",
-    "updatedAt": "2026-09-26T18:20:36.091Z"
+    "updatedAt": "2026-11-10T09:25:30.677Z"
   },
   {
     "id": "MOCK-L-Q61PUC4LX",

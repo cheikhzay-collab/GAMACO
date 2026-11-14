@@ -2249,11 +2249,11 @@ export default function AdminClassDetail() {
                               {/* Type Badge */}
                               <span style={{
                                 fontSize: '0.68rem', fontWeight: 800,
-                                background: item.type === 'homework' ? 'rgba(239, 68, 68, 0.08)' : item.type === 'exercises' ? 'rgba(245, 158, 11, 0.08)' : item.type === 'course' ? 'rgba(99, 102, 241, 0.08)' : item.type === 'concours' ? 'rgba(16, 185, 129, 0.08)' : 'rgba(255, 255, 255, 0.05)',
-                                color: item.type === 'homework' ? 'var(--danger)' : item.type === 'exercises' ? 'var(--warning)' : item.type === 'course' ? 'var(--violet)' : item.type === 'concours' ? 'var(--emerald)' : 'var(--text-muted)',
+                                background: item.type === 'homework' ? 'rgba(239, 68, 68, 0.08)' : item.type === 'exercises' ? 'rgba(245, 158, 11, 0.08)' : item.type === 'course' ? 'rgba(99, 102, 241, 0.08)' : item.type === 'concours' ? 'rgba(16, 185, 129, 0.08)' : item.type === 'ebook' ? 'rgba(2, 132, 199, 0.12)' : 'rgba(255, 255, 255, 0.05)',
+                                color: item.type === 'homework' ? 'var(--danger)' : item.type === 'exercises' ? 'var(--warning)' : item.type === 'course' ? 'var(--violet)' : item.type === 'concours' ? 'var(--emerald)' : item.type === 'ebook' ? '#0284c7' : 'var(--text-muted)',
                                 padding: '0.15rem 0.45rem', borderRadius: '4px', textTransform: 'uppercase'
                               }}>
-                                {item.type === 'homework' ? 'devoir' : item.type === 'exercises' ? 'série' : item.type === 'course' ? 'cours' : item.type === 'concours' ? 'concours' : 'perso'}
+                                {item.type === 'homework' ? 'devoir' : item.type === 'exercises' ? 'série' : item.type === 'course' ? 'cours' : item.type === 'concours' ? 'concours' : item.type === 'ebook' ? 'e-book' : 'perso'}
                               </span>
                               
                               {/* Status Badge */}
@@ -2346,6 +2346,7 @@ export default function AdminClassDetail() {
                       });
 
                       const courses = levelMatchedDocs.filter(l => l.docType === 'course' || (!l.docType && !l.isExam));
+                      const ebooks = levelMatchedDocs.filter(l => l.docType === 'ebook');
                       const series = levelMatchedDocs.filter(l => l.docType === 'exercises' || l.docType === 'series');
                       const homeworks = levelMatchedDocs.filter(l => l.docType === 'homework' || l.docType === 'exam' || l.docType === 'control' || l.isExam);
 
@@ -2355,6 +2356,13 @@ export default function AdminClassDetail() {
                             <optgroup label="📖 Cours & Chapitres du programme">
                               {courses.map(l => (
                                 <option key={l.id} value={l.id}>📖 {l.title} {l.subject ? `(${l.subject})` : ''}</option>
+                              ))}
+                            </optgroup>
+                          )}
+                          {ebooks.length > 0 && (
+                            <optgroup label="📚 E-Books">
+                              {ebooks.map(l => (
+                                <option key={l.id} value={l.id}>📚 {l.title} {l.subject ? `(${l.subject})` : ''}</option>
                               ))}
                             </optgroup>
                           )}

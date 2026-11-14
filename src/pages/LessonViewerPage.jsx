@@ -15,8 +15,10 @@ import SmartTableRenderer from '../components/SmartTableRenderer';
 import { openLessonPrintWindow } from '../utils/generateLessonPDF';
 import NationalExamTemplate from '../components/NationalExamTemplate';
 import CourseSummaryTemplate from '../components/CourseSummaryTemplate';
+import EbookTemplate from '../components/EbookTemplate';
 import { openNationalExamPrintWindow } from '../utils/generateNationalExamPDF';
 import { openCourseSummaryPrintWindow } from '../utils/generateCourseSummaryPDF';
+import { openEbookTemplatePrintWindow } from '../utils/generateEbookTemplatePDF';
 
 /**
  * Convert **bold** markdown to <strong> inline spans, keeping the rest as plain text.
@@ -642,6 +644,8 @@ export default function LessonViewerPage() {
   const [originalLessonBackup, setOriginalLessonBackup] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [viewSummaryMode, setViewSummaryMode] = useState(false);
+  const [viewEbookMode, setViewEbookMode] = useState(false);
+  const [ebookColumns, setEbookColumns] = useState(3);
   const [solvingSecId, setSolvingSecId] = useState(null);
 
   const handleGenerateAiSolutionForSection = async (secId, sec) => {
@@ -717,16 +721,31 @@ export default function LessonViewerPage() {
           setError("Ce cours n'existe pas ou a été supprimé.");
         } else {
           setLesson(data);
-          const isSum = Boolean(
-            data.docType === 'summary' ||
-            data.content?.doc_type === 'summary' ||
-            data.is_summary ||
-            data.content?.header?.is_summary ||
-            data.content?.header?.summary_meta ||
-            /ملخص|r[ée]sum[ée]|synth[èe]se/i.test(data.title || data.content?.header?.fiche_title || '')
+          const isEb = Boolean(
+            data.docType === 'ebook' ||
+            data.type === 'ebook' ||
+            data.content?.doc_type === 'ebook' ||
+            data.content?.type === 'ebook' ||
+            data.content?.header?.doc_type === 'ebook'
           );
-          if (isSum) {
-            setViewSummaryMode(true);
+          if (isEb) {
+            setViewEbookMode(true);
+            setViewSummaryMode(false);
+            const prefCols = Number(data.content?.columns_count || data.columns_count || 3);
+            setEbookColumns([1, 2, 3].includes(prefCols) ? prefCols : 3);
+          } else {
+            setViewEbookMode(false);
+            const isSum = Boolean(
+              data.docType === 'summary' ||
+              data.content?.doc_type === 'summary' ||
+              data.is_summary ||
+              data.content?.header?.is_summary ||
+              data.content?.header?.summary_meta ||
+              /ملخص|r[ée]sum[ée]|synth[èe]se/i.test(data.title || data.content?.header?.fiche_title || '')
+            );
+            if (isSum) {
+              setViewSummaryMode(true);
+            }
           }
           // Initialise solutions visibility
           const initialSols = {};
@@ -1152,6 +1171,17 @@ export default function LessonViewerPage() {
       if (typeof trackDownload === 'function') {
         trackDownload({ type: 'lesson', id: lesson.id, title: lesson.content?.header?.fiche_title || lesson.title || 'Fiche de Cours' });
       }
+      const isEbookPdf = Boolean(
+        lesson?.docType === 'ebook' ||
+        lesson?.type === 'ebook' ||
+        lesson?.content?.doc_type === 'ebook' ||
+        lesson?.content?.type === 'ebook' ||
+        lesson?.content?.header?.doc_type === 'ebook'
+      );
+      if (isEbookPdf && viewEbookMode) {
+        openEbookTemplatePrintWindow(lesson, { showSolutions: includeSolutionsInPdf, columnsCount: ebookColumns });
+        return;
+      }
       const isHomeworkPdf = Boolean(
         lesson?.docType === 'homework' ||
         lesson?.type === 'homework' ||
@@ -1265,8 +1295,17 @@ export default function LessonViewerPage() {
   const lessonDir = isArabic ? 'rtl' : 'ltr';
   const arabicFont = isArabic ? "'UKIJ Merdane', 'UKIJMerdane', 'UKIJMerdaneRegular', 'Cairo', 'Amiri', 'Noto Naskh Arabic', Arial, sans-serif" : 'inherit';
   
+  // E-Book detection
+  const isEbook = Boolean(
+    lesson?.docType === 'ebook' ||
+    lesson?.type === 'ebook' ||
+    content?.doc_type === 'ebook' ||
+    content?.type === 'ebook' ||
+    header?.doc_type === 'ebook'
+  );
+
   // Devoir Surveillé detection
-  const isHomework = Boolean(
+  const isHomework = !isEbook && Boolean(
     lesson?.docType === 'homework' ||
     lesson?.type === 'homework' ||
     content?.doc_type === 'homework' ||
@@ -2503,8 +2542,46 @@ export default function LessonViewerPage() {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
 
-          {/* Column Count Selector for Exercise Series only (never for homework) */}
-          {!isHomework && Boolean(lesson?.docType === 'exercises' || lesson?.content?.doc_type === 'exercises' || /s[ée]rie/i.test(lesson?.title || '')) && (
+          {/* Column Count Selector for E-Book (defaults to 3 Cols) */}
+          {isEbook && viewEbookMode && (
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              background: 'var(--bg-card, rgba(255, 255, 255, 0.08))',
+              border: '1px solid var(--border)',
+              borderRadius: '99px',
+              padding: '2px',
+              gap: '2px'
+            }}>
+              {[
+                { val: 1, label: '1 Col' },
+                { val: 2, label: '2 Cols' },
+                { val: 3, label: '3 Cols' }
+              ].map(opt => (
+                <button
+                  key={opt.val}
+                  type="button"
+                  onClick={() => setEbookColumns(opt.val)}
+                  style={{
+                    background: ebookColumns === opt.val ? 'linear-gradient(135deg, #003865, #005086)' : 'transparent',
+                    color: ebookColumns === opt.val ? '#ffffff' : 'var(--text-main)',
+                    border: 'none',
+                    borderRadius: '99px',
+                    padding: '0.35rem 0.65rem',
+                    fontSize: '0.74rem',
+                    fontWeight: ebookColumns === opt.val ? 800 : 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Column Count Selector for Exercise Series only (never for homework or ebook) */}
+          {!isEbook && !isHomework && Boolean(lesson?.docType === 'exercises' || lesson?.content?.doc_type === 'exercises' || /s[ée]rie/i.test(lesson?.title || '')) && (
             <div style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -2541,32 +2618,60 @@ export default function LessonViewerPage() {
             </div>
           )}
 
-          {/* Modèle Résumé (3 Colonnes) - Toujours visible */}
-          <button 
-            onClick={() => setViewSummaryMode(!viewSummaryMode)}
-            className="btn-outline"
-            style={{
-              padding: '0.45rem 0.9rem',
-              borderRadius: '99px',
-              fontSize: '0.78rem',
-              fontWeight: 700,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.4rem',
-              background: viewSummaryMode ? 'linear-gradient(135deg, #0284c7, #0070ba)' : 'transparent',
-              color: viewSummaryMode ? '#ffffff' : 'var(--text-main)',
-              borderColor: viewSummaryMode ? '#0284c7' : 'var(--border)',
-              transition: 'all 0.2s ease',
-              cursor: 'pointer'
-            }}
-            title={viewSummaryMode ? 'Revenir à la vue standard' : 'Afficher en Modèle Résumé (3 Colonnes)'}
-          >
-            {viewSummaryMode ? (
-              <><FileText size={14} /> Vue Standard</>
-            ) : (
-              <><Eye size={14} /> Modèle Résumé</>
-            )}
-          </button>
+          {/* Modèle E-Book vs Modèle Résumé (keeps old documents completely untouched) */}
+          {isEbook ? (
+            <button
+              onClick={() => setViewEbookMode(!viewEbookMode)}
+              className="btn-outline"
+              style={{
+                padding: '0.45rem 0.9rem',
+                borderRadius: '99px',
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                background: viewEbookMode ? 'linear-gradient(135deg, #003865, #005086)' : 'transparent',
+                color: viewEbookMode ? '#ffffff' : 'var(--text-main)',
+                borderColor: viewEbookMode ? '#005086' : 'var(--border)',
+                transition: 'all 0.2s ease',
+                cursor: 'pointer'
+              }}
+              title={viewEbookMode ? 'Revenir à la vue standard' : 'Afficher le Modèle E-Book (3 Colonnes)'}
+            >
+              {viewEbookMode ? (
+                <><FileText size={14} /> Vue Standard</>
+              ) : (
+                <><BookOpen size={14} /> Modèle E-Book</>
+              )}
+            </button>
+          ) : (
+            <button 
+              onClick={() => setViewSummaryMode(!viewSummaryMode)}
+              className="btn-outline"
+              style={{
+                padding: '0.45rem 0.9rem',
+                borderRadius: '99px',
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                background: viewSummaryMode ? 'linear-gradient(135deg, #0284c7, #0070ba)' : 'transparent',
+                color: viewSummaryMode ? '#ffffff' : 'var(--text-main)',
+                borderColor: viewSummaryMode ? '#0284c7' : 'var(--border)',
+                transition: 'all 0.2s ease',
+                cursor: 'pointer'
+              }}
+              title={viewSummaryMode ? 'Revenir à la vue standard' : 'Afficher en Modèle Résumé (3 Colonnes)'}
+            >
+              {viewSummaryMode ? (
+                <><FileText size={14} /> Vue Standard</>
+              ) : (
+                <><Eye size={14} /> Modèle Résumé</>
+              )}
+            </button>
+          )}
 
           {/* Option d'impression des solutions (Avec / Sans Solutions) */}
           <button 
@@ -2641,8 +2746,24 @@ export default function LessonViewerPage() {
         </div>
       </div>
 
-      {/* ── COURSE SUMMARY TEMPLATE VIEW MODE ── */}
-      {viewSummaryMode ? (
+      {/* ── E-BOOK TEMPLATE VIEW MODE ── */}
+      {isEbook && viewEbookMode ? (
+        <div style={{
+          background: '#ffffff',
+          borderRadius: '12px',
+          padding: '1.25rem',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+          marginBottom: '2rem',
+          overflowX: 'auto'
+        }}>
+          <EbookTemplate
+            data={lesson}
+            columnsCount={ebookColumns}
+            showSolutions={includeSolutionsInPdf}
+          />
+        </div>
+      ) : viewSummaryMode ? (
+        /* ── COURSE SUMMARY TEMPLATE VIEW MODE ── */
         <div style={{
           background: '#ffffff',
           borderRadius: '12px',

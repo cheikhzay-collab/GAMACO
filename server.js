@@ -1092,6 +1092,92 @@ export const handleApiRequest = async (req, res, next) => {
     }
   }
 
+  // 10b. OpenAI Proxy Endpoint (Secure Server-Side Execution with Multimodal & JSON support)
+  if (pathname === '/api/openai/generate' && req.method === 'POST') {
+    try {
+      const payload = await getBody(req);
+      let effectiveKey = (payload?.apiKey || '').trim();
+
+      // If client provided placeholder or no key, resolve real key from config or env
+      if (!effectiveKey || effectiveKey.length < 15) {
+        try {
+          const cfg = readDataFile('config.json', {});
+          const keyFromConfig = cfg?.ai_settings?.openaiApiKey;
+          if (keyFromConfig && keyFromConfig.length > 15) {
+            effectiveKey = keyFromConfig.trim();
+          }
+        } catch (_) {}
+
+        try {
+          const envPath = path.join(__dirname, '.env');
+          if (fs.existsSync(envPath)) {
+            const raw = fs.readFileSync(envPath, 'utf8');
+            const m = raw.match(/OPENAI_API_KEY\s*=\s*([^\r\n]+)/);
+            if (m && m[1]) {
+              const fileKey = m[1].trim().replace(/^["']|["']$/g, '');
+              if (fileKey && fileKey.length > 15) {
+                effectiveKey = fileKey;
+              }
+            }
+          }
+        } catch (_) {}
+
+        if (!effectiveKey) {
+          const envKey = (process.env.OPENAI_API_KEY || '').trim();
+          if (envKey && envKey.length > 15) {
+            effectiveKey = envKey;
+          }
+        }
+      }
+
+      if (!effectiveKey) {
+        return sendJSON(res, 400, {
+          error: 'Aucune clé API OpenAI valide configurée sur le serveur ou fournie par le client.'
+        });
+      }
+
+      const model = (payload?.model || 'gpt-4o').trim();
+      const isReasoning = model.startsWith('o1') || model.startsWith('o3');
+
+      const reqBody = {
+        model,
+        messages: payload.messages || [],
+        ...(isReasoning
+          ? { max_completion_tokens: payload.max_tokens || 25000 }
+          : {
+              max_tokens: payload.max_tokens || 16000,
+              temperature: payload.temperature !== undefined ? payload.temperature : 0.1,
+              response_format: payload.response_format || { type: 'json_object' }
+            })
+      };
+
+      const apiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${effectiveKey}`
+        },
+        body: JSON.stringify(reqBody)
+      });
+
+      if (!apiRes.ok) {
+        const errData = await apiRes.json().catch(() => ({}));
+        const msg = errData?.error?.message || `HTTP ${apiRes.status}`;
+        console.warn(`[Server OpenAI Proxy] ${model} failed (${apiRes.status}):`, msg);
+        return sendJSON(res, apiRes.status, { error: `OpenAI [${model}]: ${msg}` });
+      }
+
+      const data = await apiRes.json();
+      return sendJSON(res, 200, {
+        success: true,
+        modelUsed: model,
+        data
+      });
+    } catch (err) {
+      return sendJSON(res, 500, { error: err.message });
+    }
+  }
+
   // 11. Unified Moroccan Inspector AI Solver & Correction Endpoint (/api/ai/solve)
   if (pathname === '/api/ai/solve' && req.method === 'POST') {
     try {
@@ -1142,11 +1228,21 @@ export const handleApiRequest = async (req, res, next) => {
         ''
       ).trim().replace(/^[\"']|[\"']$/g, '');
 
+      let openaiKey = (
+        payload.openaiKey ||
+        payload.apiKey ||
+        aiSettings.openaiApiKey ||
+        process.env.OPENAI_API_KEY ||
+        ''
+      ).trim().replace(/^[\"']|[\"']$/g, '');
+
       const candidates = [];
-      if (provider === 'gemini' && geminiKey) candidates.push('gemini');
+      if (provider === 'openai' && openaiKey) candidates.push('openai');
+      else if (provider === 'gemini' && geminiKey) candidates.push('gemini');
       else if (provider === 'deepseek' && deepseekKey) candidates.push('deepseek');
       else if (provider === 'claude' && claudeKey) candidates.push('claude');
       else {
+        if (openaiKey && openaiKey.length > 15) candidates.push('openai');
         if (deepseekKey && deepseekKey.length > 10) candidates.push('deepseek');
         if (geminiKey && geminiKey.length > 15) candidates.push('gemini');
         if (claudeKey && claudeKey.length > 15) candidates.push('claude');
@@ -1267,6 +1363,49 @@ export const handleApiRequest = async (req, res, next) => {
               console.warn(`[Server AI Solve] Gemini ${gModel} failed:`, gErr.message);
               lastError = gErr;
               if (gErr.message.includes('leaked')) break;
+            }
+          }
+        }
+
+        // 3. OpenAI Engine
+        if (prov === 'openai') {
+          const openaiModels = ['gpt-4o', 'gpt-4o-mini', 'o3-mini'];
+          for (const oModel of openaiModels) {
+            try {
+              const isReasoning = oModel.startsWith('o1') || oModel.startsWith('o3');
+              const oRes = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${openaiKey}`
+                },
+                body: JSON.stringify({
+                  model: oModel,
+                  messages: [
+                    { role: 'system', content: systemText },
+                    { role: 'user', content: userText }
+                  ],
+                  ...(isReasoning
+                    ? { max_completion_tokens: 16000 }
+                    : { max_tokens: 8192, temperature: 0.15 })
+                })
+              });
+
+              if (oRes.ok) {
+                const oData = await oRes.json();
+                const solutionText = oData?.choices?.[0]?.message?.content;
+                if (solutionText && solutionText.trim()) {
+                  return sendJSON(res, 200, {
+                    success: true,
+                    solution: solutionText.trim(),
+                    provider: 'openai',
+                    model: oModel
+                  });
+                }
+              }
+            } catch (oErr) {
+              console.warn(`[Server AI Solve] OpenAI ${oModel} failed:`, oErr.message);
+              lastError = oErr;
             }
           }
         }

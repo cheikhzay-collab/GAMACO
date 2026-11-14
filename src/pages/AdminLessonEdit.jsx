@@ -53,6 +53,7 @@ const DOC_TYPES = [
   { id: 'homework', labelFr: 'Devoir surveillé (Contrôle)', labelAr: 'فرض محروس (مراقبة مستمرة)' },
   { id: 'national', labelFr: 'Examen National', labelAr: 'امتحان وطني موحد' },
   { id: 'summary', labelFr: 'Résumé de cours', labelAr: 'ملخص درس ومركز' },
+  { id: 'ebook', labelFr: 'E-Book (Édition 3 Colonnes)', labelAr: 'كتاب إلكتروني (E-Book)' },
   { id: 'concours', labelFr: 'Concours d\'accès', labelAr: 'مباراة ولوج المعاهد والمدارس' }
 ];
 
@@ -1366,6 +1367,22 @@ export default function AdminLessonEdit() {
         descFr: 'Conception des examens nationaux, épreuves de contrôle et concours'
       };
     }
+    if (docType === 'ebook') {
+      return {
+        id: 'ebook',
+        titleAr: 'وضع تعديل الكتب الإلكترونية (E-Book)',
+        titleFr: 'Mode E-Book (Édition 3 Colonnes)',
+        badgeAr: 'كتاب إلكتروني E-Book',
+        badgeFr: 'E-Book',
+        color: '#005086',
+        bgSoft: 'rgba(0, 80, 134, 0.12)',
+        borderSoft: 'rgba(0, 80, 134, 0.35)',
+        gradient: 'linear-gradient(135deg, #003865, #0284c7)',
+        icon: BookOpen,
+        descAr: 'قالب الكتاب الإلكتروني الاحترافي في 3 أعمدة مع الترويسة المعاد تصميمها',
+        descFr: 'Édition E-Book haute fidélité en 3 colonnes avec entête éditoriale repensée'
+      };
+    }
     return {
       id: 'course',
       titleAr: 'وضع تعديل الدروس والملخصات',
@@ -1816,6 +1833,14 @@ export default function AdminLessonEdit() {
               col1Placeholder: 'ENSA, ENSAM, Médecine, CNC...',
               col2Title: isArMode ? 'شروط وإرشادات' : 'CONSIGNES & DURÉE',
               col2Placeholder: 'Durée, barème négatif, calculatrice...'
+            },
+            ebook: {
+              badge: 'E-BOOK (كتاب إلكتروني)',
+              placeholder: 'TITRE DE L\'E-BOOK...',
+              col1Title: isArMode ? 'محاور الكتاب الإلكتروني' : 'AXES & OBJECTIFS',
+              col1Placeholder: 'Entrez les axes de l\'E-Book...',
+              col2Title: isArMode ? 'المحتويات والتمارين' : 'CONTENUS & SECTIONS',
+              col2Placeholder: 'Entrez les contenus de l\'E-Book...'
             }
           };
           const cfg = docTypeConfig[docType] || docTypeConfig.course;

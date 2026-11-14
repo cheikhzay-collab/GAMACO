@@ -709,6 +709,12 @@ const FALLBACK_MODELS = {
   deepseek: [
     'deepseek-reasoner',
     'deepseek-chat'
+  ],
+  openai: [
+    'gpt-4o',
+    'gpt-4o-mini',
+    'o3-mini',
+    'o1'
   ]
 };
 
@@ -1101,6 +1107,71 @@ const callDeepSeekSingleAttempt = async ({ model, preExtractedPdfText, pageCount
   return content;
 };
 
+const callOpenAISingleAttempt = async ({ model, base64Data, safeMime, preExtractedPdfText, userText, pageCount, systemContent, apiKey }) => {
+  const endpoint = 'https://api.openai.com/v1/chat/completions';
+  const isReasoning = model.startsWith('o1') || model.startsWith('o3');
+
+  const contentParts = [];
+  const isPdf = safeMime && safeMime.includes('pdf');
+
+  if (!isPdf && base64Data) {
+    contentParts.push({
+      type: 'image_url',
+      image_url: {
+        url: `data:${safeMime};base64,${base64Data}`,
+        detail: 'high'
+      }
+    });
+  }
+
+  const textMsg = (isPdf && preExtractedPdfText)
+    ? `TEXTE DU DOCUMENT EXTRAIT DU PDF :\n${preExtractedPdfText}\n\n${userText}`
+    : userText;
+
+  contentParts.push({ type: 'text', text: textMsg });
+
+  const payload = {
+    model,
+    messages: [
+      { role: 'system', content: systemContent },
+      { role: 'user', content: contentParts }
+    ],
+    ...(isReasoning
+      ? { max_completion_tokens: 25000 }
+      : {
+          max_tokens: 16000,
+          temperature: 0.1,
+          response_format: { type: 'json_object' }
+        })
+  };
+
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!res.ok) {
+    const errJson = await res.json().catch(() => ({}));
+    const status = res.status;
+    const msg = errJson?.error?.message || `Erreur HTTP ${status}`;
+    const err = new Error(`OpenAI [${model}]: ${msg}`);
+    err.status = status;
+    err.isQuotaExceeded = (status === 429 || /rate limit|quota/i.test(msg));
+    throw err;
+  }
+
+  const data = await res.json();
+  const content = data?.choices?.[0]?.message?.content;
+  if (!content || !content.trim()) {
+    throw new Error(`OpenAI [${model}] n'a retourné aucun contenu.`);
+  }
+  return content;
+};
+
 // ─── Background Task Queue Controller ─────────────────────────────────────────
 
 let isWorkerRunning = false;
@@ -1215,6 +1286,17 @@ export const processQueue = async () => {
               preExtractedPdfText: nextTask.preExtractedPdfText || '',
               pageCount: nextTask.pageCount || 1,
               systemContent, apiKey: nextTask.apiKey, deepseekUrl: nextTask.deepseekUrl
+            });
+          } else if (provider === 'openai') {
+            rawText = await callOpenAISingleAttempt({
+              model: currentModel,
+              base64Data: nextTask.base64Data,
+              safeMime,
+              preExtractedPdfText: nextTask.preExtractedPdfText || '',
+              userText,
+              pageCount: nextTask.pageCount || 1,
+              systemContent,
+              apiKey: nextTask.apiKey
             });
           } else {
             // Default: Gemini

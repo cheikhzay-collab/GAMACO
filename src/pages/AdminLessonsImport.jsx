@@ -23,9 +23,11 @@ import { SafeInlineMath } from '../utils/mathRenderer';
 import SmartTableRenderer, { parseMarkdownTable } from '../components/SmartTableRenderer';
 import NationalExamTemplate from '../components/NationalExamTemplate';
 import CourseSummaryTemplate from '../components/CourseSummaryTemplate';
+import EbookTemplate from '../components/EbookTemplate';
 import PdfFigureCropperModal from '../components/PdfFigureCropperModal';
 import { openNationalExamPrintWindow } from '../utils/generateNationalExamPDF';
 import { openCourseSummaryPrintWindow } from '../utils/generateCourseSummaryPDF';
+import { openEbookTemplatePrintWindow } from '../utils/generateEbookTemplatePDF';
 import { openLessonPrintWindow } from '../utils/generateLessonPDF';
 import { loadPdfDocument, renderPdfPageToCanvas, cropPdfRegion } from '../utils/pdfFigureExtractor';
 import { buildPageSnapshotsMap, attachImagesToSections } from '../utils/pdfImageExtractor';
@@ -827,6 +829,9 @@ export default function AdminLessonsImport({ onBack }) {
     if (m === 'deepseek-v4-flash' || m === 'deepseek-v3') return 'deepseek-chat';
     return m;
   });
+
+  const [openaiKey, setOpenaiKey] = useState(() => localStorage.getItem('openaiApiKey') || '');
+  const [openaiModel, setOpenaiModel] = useState(() => localStorage.getItem('openaiModel') || 'gpt-4o');
   
   const [uploadFile, setUploadFile] = useState(null);
   const [fileName, setFileName] = useState('');
@@ -855,6 +860,7 @@ export default function AdminLessonsImport({ onBack }) {
   const [isSummarySheet, setIsSummarySheet] = useState(false);
   const [summaryMeta, setSummaryMeta] = useState(null);
   const [viewSummaryTemplate, setViewSummaryTemplate] = useState(false);
+  const [viewEbookTemplate, setViewEbookTemplate] = useState(false);
   const [subject, setSubject] = useState('Algèbre');
   const [chapterNumber, setChapterNumber] = useState('');
   const [teacher, setTeacher] = useState('');
@@ -1043,7 +1049,38 @@ export default function AdminLessonsImport({ onBack }) {
           ? 'deepseek-chat'
           : rawDs;
       setDeepseekModel(dsModel);
+      setOpenaiKey(localStorage.getItem('openaiApiKey') || '');
+      setOpenaiModel(localStorage.getItem('openaiModel') || 'gpt-4o');
     };
+
+    sync();
+
+    // Also fetch server-side config to auto-populate keys if not in localStorage
+    fetch('/api/config')
+      .then(r => r.ok ? r.json() : null)
+      .then(cfg => {
+        const ai = cfg?.ai_settings;
+        if (ai) {
+          if (ai.openaiApiKey && !localStorage.getItem('openaiApiKey')) {
+            localStorage.setItem('openaiApiKey', ai.openaiApiKey);
+            setOpenaiKey(ai.openaiApiKey);
+          }
+          if (ai.geminiApiKey && !localStorage.getItem('geminiApiKey')) {
+            localStorage.setItem('geminiApiKey', ai.geminiApiKey);
+            setGeminiKey(ai.geminiApiKey);
+          }
+          if (ai.deepseekApiKey && !localStorage.getItem('deepseekApiKey')) {
+            localStorage.setItem('deepseekApiKey', ai.deepseekApiKey);
+            setDeepseekKey(ai.deepseekApiKey);
+          }
+          if (ai.claudeApiKey && !localStorage.getItem('claudeApiKey')) {
+            localStorage.setItem('claudeApiKey', ai.claudeApiKey);
+            setClaudeKey(ai.claudeApiKey);
+          }
+        }
+      })
+      .catch(() => {});
+
     window.addEventListener('storage', sync);
     return () => window.removeEventListener('storage', sync);
   }, []);
@@ -1514,7 +1551,158 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
     return data?.choices?.[0]?.message?.content;
   };
 
+  const fetchOpenAIWithDocument = async (activeFile, base64Data, fileType, pageCount) => {
+    const solveSolutions = localStorage.getItem('openai_solve_solutions') !== 'false';
+    const NO_SOLUTION_ADDENDUM = `
+⚠️ INSTRUCTION STRICTE — MODE EXTRACTION UNIQUEMENT (SANS RÉSOLUTION) :
+- Tu dois extraire et structurer FIDÈLEMENT tout le contenu du document (énoncés, cours, définitions, théorèmes, propriétés, remarques, activités, applications).
+- Pour le champ "solution" de chaque exercice, écris UNIQUEMENT la chaîne vide "" — ne fournis AUCUNE résolution, aucune étape de calcul, aucune réponse numérique.
+- Pour le tableau "interactive_answers", retourne un tableau vide [].
+- N'explique pas pourquoi tu ne résous pas. Mets juste "" dans le champ solution.
+- Cette consigne est ABSOLUE et PRIORITAIRE sur toutes les autres instructions du prompt système.`;
+
+    const systemContent = solveSolutions
+      ? SYSTEM_PROMPT + MOROCCAN_SOLVE_ADDENDUM
+      : SYSTEM_PROMPT + NO_SOLUTION_ADDENDUM;
+
+    const isPdf = (fileType && fileType.includes('pdf')) || activeFile?.name?.toLowerCase().endsWith('.pdf');
+    const safeMime = isPdf ? 'application/pdf' : (fileType && fileType.includes('/') ? fileType : 'image/jpeg');
+
+    let preExtractedPdfText = '';
+    let pageImages = [];
+
+    if (isPdf && activeFile) {
+      try {
+        setProgress('Extraction du texte numérique du PDF...');
+        preExtractedPdfText = await extractTextFromPdf(activeFile);
+      } catch (err) {
+        console.warn('[PDF Text Pre-extraction Failed, continuing]:', err);
+      }
+
+      try {
+        setProgress('Génération des aperçus visuels des pages pour OpenAI Vision...');
+        const snapshots = await buildPageSnapshotsMap(activeFile, 6, 1.4);
+        pageImages = Object.values(snapshots).filter(Boolean);
+      } catch (err) {
+        console.warn('[PDF Snapshot rendering for OpenAI Vision failed]:', err);
+      }
+    }
+
+    const userText = buildExtractionUserPrompt(pageCount, solveSolutions, preExtractedPdfText);
+    const contentParts = [];
+
+    if (!isPdf && base64Data) {
+      contentParts.push({
+        type: 'image_url',
+        image_url: {
+          url: `data:${safeMime};base64,${base64Data}`,
+          detail: 'high'
+        }
+      });
+    } else if (pageImages.length > 0) {
+      for (const imgUrl of pageImages) {
+        contentParts.push({
+          type: 'image_url',
+          image_url: {
+            url: imgUrl,
+            detail: 'high'
+          }
+        });
+      }
+    }
+
+    contentParts.push({
+      type: 'text',
+      text: userText
+    });
+
+    const targetModel = openaiModel || 'gpt-4o';
+    const isReasoning = targetModel.startsWith('o1') || targetModel.startsWith('o3');
+
+    const payload = {
+      model: targetModel,
+      messages: [
+        { role: 'system', content: systemContent },
+        { role: 'user', content: contentParts }
+      ],
+      ...(isReasoning
+        ? { max_completion_tokens: 25000 }
+        : {
+            max_tokens: 16000,
+            temperature: 0.1,
+            response_format: { type: 'json_object' }
+          })
+    };
+
+    let lastErr = null;
+
+    // 1. Direct fetch to OpenAI API
+    if (openaiKey && openaiKey.trim()) {
+      try {
+        setProgress(`Envoi direct à OpenAI [${targetModel}]...`);
+        const res = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${openaiKey.trim()}`
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const text = data?.choices?.[0]?.message?.content;
+          if (text && text.trim()) return text;
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          const msg = errData?.error?.message || `HTTP ${res.status}`;
+          lastErr = new Error(`OpenAI Direct (${res.status}): ${msg}`);
+        }
+      } catch (directErr) {
+        lastErr = directErr;
+      }
+    }
+
+    // 2. Fallback to server proxy (/api/openai/generate)
+    try {
+      setProgress(`Passerelle serveur OpenAI [${targetModel}]...`);
+      const proxyRes = await fetch('/api/openai/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          apiKey: openaiKey?.trim() || undefined,
+          model: targetModel,
+          messages: [
+            { role: 'system', content: systemContent },
+            { role: 'user', content: contentParts }
+          ],
+          max_tokens: isReasoning ? 25000 : 16000,
+          temperature: isReasoning ? undefined : 0.1,
+          response_format: isReasoning ? undefined : { type: 'json_object' }
+        })
+      });
+
+      if (proxyRes.ok) {
+        const proxyData = await proxyRes.json();
+        const text = proxyData?.data?.choices?.[0]?.message?.content;
+        if (text && text.trim()) return text;
+      } else {
+        const errData = await proxyRes.json().catch(() => ({}));
+        const msg = errData?.error || `HTTP ${proxyRes.status}`;
+        lastErr = new Error(`OpenAI Server Proxy: ${msg}`);
+      }
+    } catch (proxyErr) {
+      lastErr = proxyErr;
+    }
+
+    throw lastErr || new Error("Échec de l'extraction avec OpenAI.");
+  };
+
   const handleAnalyze = async () => {
+    if (provider === 'openai' && !openaiKey) {
+      setError('Clé API OpenAI manquante. Veuillez la configurer.');
+      return;
+    }
     if (provider === 'gemini' && !geminiKey) {
       setError('Clé API Gemini manquante. Veuillez la configurer.');
       return;
@@ -1586,6 +1774,10 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
         const pdfText = await extractTextFromPdf(activeFile);
         setProgress('Envoi du texte à DeepSeek...');
         rawText = await fetchDeepSeekWithText(pdfText, pageCount);
+      } else if (provider === 'openai') {
+        const base64Data = await fileToBase64(activeFile);
+        setProgress(`Envoi du document (${pageCount} page(s)) à OpenAI [${openaiModel}]...`);
+        rawText = await fetchOpenAIWithDocument(activeFile, base64Data, activeFile.type, pageCount);
       } else {
         const base64Data = await fileToBase64(activeFile);
         setProgress(`Envoi du fichier (${pageCount} page(s)) à Google Gemini...`);
@@ -2104,6 +2296,8 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
         rawText = await streamClaudeWithPdf(base64Data, file.type, pageCount);
       } else if (provider === 'deepseek') {
         rawText = await fetchDeepSeekWithText(preExtractedPdfText, pageCount);
+      } else if (provider === 'openai') {
+        rawText = await fetchOpenAIWithDocument(file, base64Data, file.type, pageCount);
       } else {
         rawText = await fetchGeminiWithPdf(base64Data, file.type, pageCount);
       }
@@ -2144,7 +2338,7 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
         detectedLevel: header.detected_level || '2bac_pc_svt',
         docType: header.doc_type || 'course',
         sectionsCount: sections.length,
-        extractedWithModel: provider === 'gemini' ? geminiModel : (provider === 'claude' ? claudeModel : deepseekModel)
+        extractedWithModel: provider === 'openai' ? openaiModel : (provider === 'gemini' ? geminiModel : (provider === 'claude' ? claudeModel : deepseekModel))
       };
 
       await updateExtractionTask(task.id, {
@@ -2174,6 +2368,10 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
       return;
     }
 
+    if (provider === 'openai' && !openaiKey) {
+      setError('Clé API OpenAI requise. Veuillez la renseigner.');
+      return;
+    }
     if (provider === 'gemini' && !geminiKey) {
       setError('Clé API Gemini requise. Veuillez la renseigner.');
       return;
@@ -2216,8 +2414,8 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
           base64Data,
           preExtractedPdfText,
           provider,
-          apiKey: provider === 'gemini' ? (geminiKey || localStorage.getItem('geminiApiKey') || '') : (provider === 'claude' ? (claudeKey || localStorage.getItem('claudeApiKey') || '') : (deepseekKey || localStorage.getItem('deepseekApiKey') || '')),
-          model: provider === 'gemini' ? (geminiModel || 'gemini-3.5-flash-lite') : (provider === 'claude' ? claudeModel : deepseekModel),
+          apiKey: provider === 'openai' ? (openaiKey || localStorage.getItem('openaiApiKey') || '') : (provider === 'gemini' ? (geminiKey || localStorage.getItem('geminiApiKey') || '') : (provider === 'claude' ? (claudeKey || localStorage.getItem('claudeApiKey') || '') : (deepseekKey || localStorage.getItem('deepseekApiKey') || ''))),
+          model: provider === 'openai' ? (openaiModel || 'gpt-4o') : (provider === 'gemini' ? (geminiModel || 'gemini-3.5-flash-lite') : (provider === 'claude' ? claudeModel : deepseekModel)),
           proxyUrl,
           deepseekUrl,
           customPrompt: typeof getEffectiveLessonPrompt === 'function' ? getEffectiveLessonPrompt() : (localStorage.getItem('lesson_extraction_prompt') || ''),
@@ -2411,8 +2609,9 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
     setError('');
 
     try {
-      const effectiveDocType = isNationalExam ? 'national' : (isSummarySheet ? 'summary' : docType);
-      const effectiveSummaryMeta = isSummarySheet ? (summaryMeta || {
+      const effectiveDocType = isNationalExam ? 'national' : (docType === 'ebook' ? 'ebook' : (isSummarySheet ? 'summary' : docType));
+      const effectiveIsSummary = isSummarySheet && effectiveDocType !== 'ebook';
+      const effectiveSummaryMeta = effectiveIsSummary ? (summaryMeta || {
         prof: teacher,
         website: phone,
         title: ficheTitle,
@@ -2430,14 +2629,14 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
         docType: effectiveDocType,
         is_national_exam: isNationalExam,
         national_exam_meta: isNationalExam ? nationalExamMeta : null,
-        is_summary: isSummarySheet,
+        is_summary: effectiveIsSummary,
         summary_meta: effectiveSummaryMeta,
         content: {
           level: selectedLevel,
           doc_type: effectiveDocType,
           is_national_exam: isNationalExam,
           national_exam_meta: isNationalExam ? nationalExamMeta : null,
-          is_summary: isSummarySheet,
+          is_summary: effectiveIsSummary,
           summary_meta: effectiveSummaryMeta,
           metadata: {
             language: docLanguage
@@ -2449,9 +2648,10 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
             fiche_title: ficheTitle,
             teacher,
             phone,
+            doc_type: effectiveDocType,
             is_national_exam: isNationalExam,
             national_exam_meta: isNationalExam ? nationalExamMeta : null,
-            is_summary: isSummarySheet,
+            is_summary: effectiveIsSummary,
             summary_meta: effectiveSummaryMeta
           },
           sections
@@ -2989,6 +3189,7 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                     }}
                   >
                     <option value="gemini">Google Gemini (Recommandé - Sécurisé & Rapide)</option>
+                    <option value="openai">OpenAI Platform (GPT-4o / GPT-4o-mini / o3-mini - دقة فائقة)</option>
                     <option value="claude">Anthropic Claude (Modèle d'Examen)</option>
                     <option value="deepseek">DeepSeek AI (Super Économique)</option>
                   </select>
@@ -2996,7 +3197,51 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
 
                 <div className="input-group" style={{ flex: 1 }}>
                   <label>Modèle de traitement IA</label>
-                  {provider === 'claude' ? (
+                  {provider === 'openai' ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                      <select
+                        className="input-control"
+                        value={openaiModel}
+                        onChange={e => { setOpenaiModel(e.target.value); localStorage.setItem('openaiModel', e.target.value); }}
+                      >
+                        <option value="gpt-4o">🌟 GPT-4o (Vision Multimodale & Haute Précision - موصى به)</option>
+                        <option value="gpt-4o-mini">⚡ GPT-4o-mini (الأسرع والأعلى كفاءة واقتصاداً)</option>
+                        <option value="o3-mini">🧠 o3-mini (استدلال رياضي متقدم فائق الدقة)</option>
+                        <option value="o1">🚀 o1 (استدلال عميق للمسائل والأولمبياد الرياضية)</option>
+                        <option value="chatgpt-4o-latest">✨ ChatGPT-4o Latest (النسخة الأحدث التلقائية)</option>
+                      </select>
+                      <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                        {[
+                          { id: 'gpt-4o', label: '🌟 GPT-4o' },
+                          { id: 'gpt-4o-mini', label: '⚡ 4o-mini' },
+                          { id: 'o3-mini', label: '🧠 o3-mini' },
+                          { id: 'o1', label: '🚀 o1' }
+                        ].map(m => {
+                          const isSel = openaiModel === m.id;
+                          return (
+                            <button
+                              key={m.id}
+                              type="button"
+                              onClick={() => { setOpenaiModel(m.id); localStorage.setItem('openaiModel', m.id); }}
+                              style={{
+                                padding: '0.2rem 0.55rem',
+                                borderRadius: 6,
+                                border: isSel ? '1.5px solid #10b981' : '1px solid var(--border)',
+                                background: isSel ? 'rgba(16, 185, 129, 0.18)' : 'var(--bg-glass)',
+                                color: isSel ? '#10b981' : 'var(--text-muted)',
+                                fontSize: '0.72rem',
+                                fontWeight: isSel ? 700 : 500,
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              {m.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : provider === 'claude' ? (
                     <select
                       className="input-control"
                       value={claudeModel}
@@ -3119,6 +3364,61 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                     }}
                     style={{ padding: '0.4rem 0.65rem', fontSize: '0.82rem' }}
                   />
+                </div>
+              )}
+              {provider === 'openai' && (
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.5rem',
+                  padding: '1rem',
+                  borderRadius: 12,
+                  background: openaiKey ? 'rgba(16, 185, 129, 0.05)' : 'rgba(239, 68, 68, 0.06)',
+                  border: openaiKey ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid rgba(239, 68, 68, 0.3)',
+                  fontSize: '0.8rem'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700, color: openaiKey ? '#10b981' : '#ef4444' }}>
+                      <Key size={14} />
+                      <span>Clé API OpenAI {openaiKey ? '(Active)' : '(Requise)'}</span>
+                    </div>
+                    <a
+                      href="https://platform.openai.com/api-keys"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: '#10b981', fontSize: '0.75rem', fontWeight: 700, textDecoration: 'none' }}
+                    >
+                      Obtenir une clé sur OpenAI Platform ↗
+                    </a>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <input
+                      type="password"
+                      placeholder="Collez votre clé API OpenAI (sk-...)"
+                      className="input-control"
+                      value={openaiKey}
+                      onChange={e => {
+                        const val = e.target.value.trim();
+                        setOpenaiKey(val);
+                        localStorage.setItem('openaiApiKey', val);
+                        fetch('/api/config', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ ai_settings: { openaiApiKey: val } })
+                        }).catch(() => {});
+                      }}
+                      style={{ padding: '0.4rem 0.65rem', fontSize: '0.82rem', flex: 1 }}
+                    />
+                    {openaiKey ? (
+                      <span style={{ fontSize: '0.72rem', color: '#10b981', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                        ✓ Prête
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: '0.72rem', color: '#ef4444', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                        ⚠️ Manquante
+                      </span>
+                    )}
+                  </div>
                 </div>
               )}
               {provider === 'gemini' && (
@@ -3542,8 +3842,9 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                                   textTransform: 'uppercase',
                                   padding: '0.15rem 0.5rem',
                                   borderRadius: 6,
-                                  background: 'rgba(255,255,255,0.06)',
-                                  color: 'var(--text-muted)'
+                                  background: task.provider === 'openai' ? 'rgba(16, 185, 129, 0.15)' : (task.provider === 'claude' ? 'rgba(124, 58, 237, 0.15)' : (task.provider === 'deepseek' ? 'rgba(0, 186, 124, 0.15)' : 'rgba(66, 133, 244, 0.15)')),
+                                  color: task.provider === 'openai' ? '#10b981' : (task.provider === 'claude' ? '#7c3aed' : (task.provider === 'deepseek' ? '#00BA7C' : '#4285F4')),
+                                  border: `1px solid ${task.provider === 'openai' ? 'rgba(16, 185, 129, 0.3)' : (task.provider === 'claude' ? 'rgba(124, 58, 237, 0.3)' : (task.provider === 'deepseek' ? 'rgba(0, 186, 124, 0.3)' : 'rgba(66, 133, 244, 0.3)'))}`
                                 }}>
                                   {task.provider || 'gemini'}
                                 </span>
@@ -3836,24 +4137,49 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                 </>
               )}
 
+              {/* E-Book Template Toggle when docType === 'ebook' */}
+              {docType === 'ebook' && (
+                <button
+                  type="button"
+                  className="btn-outline"
+                  onClick={() => {
+                    setViewEbookTemplate(!viewEbookTemplate);
+                    if (viewNationalTemplate) setViewNationalTemplate(false);
+                    if (viewSummaryTemplate) setViewSummaryTemplate(false);
+                  }}
+                  style={{
+                    background: viewEbookTemplate ? 'linear-gradient(135deg, #003865, #005086)' : 'rgba(255,255,255,0.05)',
+                    color: viewEbookTemplate ? '#fff' : 'inherit',
+                    fontWeight: 700,
+                    fontSize: '0.85rem',
+                    borderColor: '#005086'
+                  }}
+                >
+                  {viewEbookTemplate ? '✏️ Mode édition' : '📚 Aperçu Modèle E-Book (3 Colonnes)'}
+                </button>
+              )}
+
               {/* Course Summary Template Buttons */}
-              <button
-                type="button"
-                className="btn-outline"
-                onClick={() => {
-                  setViewSummaryTemplate(!viewSummaryTemplate);
-                  if (viewNationalTemplate) setViewNationalTemplate(false);
-                }}
-                style={{
-                  background: viewSummaryTemplate ? 'linear-gradient(135deg, #0284c7, #0070ba)' : 'rgba(255,255,255,0.05)',
-                  color: viewSummaryTemplate ? '#fff' : 'inherit',
-                  fontWeight: 700,
-                  fontSize: '0.85rem',
-                  borderColor: '#0284c7'
-                }}
-              >
-                {viewSummaryTemplate ? '📄 Mode Fiche Standard' : '👁️ Modèle Résumé (3 Colonnes)'}
-              </button>
+              {docType !== 'ebook' && (
+                <button
+                  type="button"
+                  className="btn-outline"
+                  onClick={() => {
+                    setViewSummaryTemplate(!viewSummaryTemplate);
+                    if (viewNationalTemplate) setViewNationalTemplate(false);
+                    if (viewEbookTemplate) setViewEbookTemplate(false);
+                  }}
+                  style={{
+                    background: viewSummaryTemplate ? 'linear-gradient(135deg, #0284c7, #0070ba)' : 'rgba(255,255,255,0.05)',
+                    color: viewSummaryTemplate ? '#fff' : 'inherit',
+                    fontWeight: 700,
+                    fontSize: '0.85rem',
+                    borderColor: '#0284c7'
+                  }}
+                >
+                  {viewSummaryTemplate ? '📄 Mode Fiche Standard' : '👁️ Modèle Résumé (3 Colonnes)'}
+                </button>
+              )}
               <button
                 type="button"
                 className="btn"
@@ -3862,7 +4188,12 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                     title: ficheTitle,
                     subject,
                     level: selectedLevel,
+                    docType,
+                    teacher,
+                    phone,
                     content: {
+                      doc_type: docType,
+                      metadata: { language: docLanguage },
                       header: {
                         fiche_title: ficheTitle,
                         subject,
@@ -3880,27 +4211,56 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                       sections
                     }
                   };
-                  if (viewSummaryTemplate) {
+                  if (docType === 'ebook' && viewEbookTemplate) {
+                    openEbookTemplatePrintWindow(lessonPayload, { columnsCount: 3, showSolutions: true });
+                  } else if (viewSummaryTemplate) {
                     openCourseSummaryPrintWindow(lessonPayload.content);
+                  } else if (docType === 'ebook') {
+                    openEbookTemplatePrintWindow(lessonPayload, { columnsCount: 3, showSolutions: true });
                   } else {
                     openLessonPrintWindow(lessonPayload, { layoutMode: 'standard', forceStandard: true });
                   }
                 }}
                 style={{
-                  background: viewSummaryTemplate ? 'linear-gradient(135deg, #0284c7, #0070ba)' : 'linear-gradient(135deg, #005086, #007cc6)',
+                  background: (viewSummaryTemplate || docType === 'ebook') ? 'linear-gradient(135deg, #0284c7, #0070ba)' : 'linear-gradient(135deg, #005086, #007cc6)',
                   color: '#fff',
                   fontWeight: 700,
                   fontSize: '0.85rem'
                 }}
-                title={viewSummaryTemplate ? 'Imprimer / Télécharger au format Résumé (3 Colonnes)' : 'Imprimer / Télécharger au format Fiche Standard'}
+                title={docType === 'ebook' ? 'Imprimer / Télécharger E-Book (3 Colonnes)' : (viewSummaryTemplate ? 'Imprimer / Télécharger au format Résumé (3 Colonnes)' : 'Imprimer / Télécharger au format Fiche Standard')}
               >
-                {viewSummaryTemplate ? '🖨️ Imprimer Résumé (3 Colonnes)' : '🖨️ Imprimer Format Standard'}
+                {docType === 'ebook' ? '🖨️ Imprimer E-Book (3 Colonnes)' : (viewSummaryTemplate ? '🖨️ Imprimer Résumé (3 Colonnes)' : '🖨️ Imprimer Format Standard')}
               </button>
             </div>
           </div>
 
-          {/* Summary Template View Mode */}
-          {viewSummaryTemplate ? (
+          {/* E-Book Template View Mode */}
+          {docType === 'ebook' && viewEbookTemplate ? (
+            <div className="glass-panel" style={{ padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--border)', background: '#ffffff', overflowX: 'auto' }}>
+              <EbookTemplate
+                data={{
+                  title: ficheTitle,
+                  subject,
+                  level: selectedLevel,
+                  docType: 'ebook',
+                  teacher,
+                  phone,
+                  content: {
+                    doc_type: 'ebook',
+                    metadata: { language: docLanguage },
+                    header: {
+                      fiche_title: ficheTitle,
+                      subject,
+                      level: selectedLevel,
+                      teacher,
+                      phone
+                    },
+                    sections
+                  }
+                }}
+              />
+            </div>
+          ) : viewSummaryTemplate ? (
             <div className="glass-panel" style={{ padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--border)', background: '#ffffff', overflowX: 'auto' }}>
               <CourseSummaryTemplate
                 data={{
@@ -4140,6 +4500,7 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                       {[
                         { id: 'exercises', label: "Série d'exercices", icon: Layers },
                         { id: 'course', label: 'Cours théorique', icon: BookOpen },
+                        { id: 'ebook', label: 'E-Book (3 Colonnes)', icon: BookOpen },
                         { id: 'homework', label: 'Devoir surveillé', icon: FileText },
                         { id: 'national', label: 'Examen National', icon: Award },
                         { id: 'concours', label: "Concours d'accès", icon: Target },
@@ -4155,10 +4516,19 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                                 setIsNationalExam(true);
                                 setDocType('national');
                                 setViewNationalTemplate(true);
+                                setViewEbookTemplate(false);
+                              } else if (t.id === 'ebook') {
+                                setIsNationalExam(false);
+                                setIsSummarySheet(false);
+                                setDocType('ebook');
+                                setViewNationalTemplate(false);
+                                setViewSummaryTemplate(false);
+                                setViewEbookTemplate(true);
                               } else {
                                 setIsNationalExam(false);
                                 setDocType(t.id);
                                 setViewNationalTemplate(false);
+                                setViewEbookTemplate(false);
                               }
                             }}
                             style={{

@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { UploadCloud, Sparkles, Loader2, CheckCircle2, Trash2, Plus, Send, AlertCircle, FileText, StopCircle, ArrowLeft, Wand2, RefreshCw, Zap, TrendingUp, Sliders, Check, Key } from 'lucide-react';
 import { getLevelDisplayName } from '../utils/levelHelpers';
+import { getEffectiveExamPrompt } from '../utils/extractionPrompts';
 import * as pdfjsLib from 'pdfjs-dist';
 import { generateSubjectHTML, generateCorrectionHTML, openPrintWindow } from '../utils/generateExamPDF';
 import NationalExamTemplate from '../components/NationalExamTemplate';
@@ -722,6 +723,8 @@ export default function AdminAIImport({ onBack }) {
     if (m === 'deepseek-v4-flash' || m === 'deepseek-v3') return 'deepseek-chat';
     return m;
   });
+  const [openaiKey, setOpenaiKey] = useState(() => localStorage.getItem('openaiApiKey') || '');
+  const [openaiModel, setOpenaiModel] = useState(() => draft?.openaiModel || localStorage.getItem('openaiModel') || 'gpt-4o');
   const [pdfFile, setPdfFile] = useState(null);
   const [pdfName, setPdfName] = useState('');
   const [pageFrom, setPageFrom] = useState(1);
@@ -827,6 +830,7 @@ export default function AdminAIImport({ onBack }) {
       setGeminiKey(localStorage.getItem('geminiApiKey') || '');
       setDeepseekKey(localStorage.getItem('deepseekApiKey') || '');
       setDeepseekUrl(localStorage.getItem('deepseekApiUrl') || 'https://api.deepseek.com');
+      setOpenaiKey(localStorage.getItem('openaiApiKey') || '');
     };
     window.addEventListener('storage', sync);
     return () => window.removeEventListener('storage', sync);
@@ -946,7 +950,7 @@ Pour le champ 'astuce', extrais/résume l'explication officielle fournie dans le
     let lastError = null;
     for (let i = 0; i < cascade.length; i++) {
       const modelToUse = cascade[i];
-      setProgressStep(`Envoi à Gemini [${modelToUse}] (${i + 1}/${cascade.length})...`);
+      setProgress(`Envoi à Gemini [${modelToUse}] (${i + 1}/${cascade.length})...`);
 
       // Try direct API call if user has configured geminiKey
       if (geminiKey && geminiKey.trim()) {
@@ -996,7 +1000,7 @@ Pour le champ 'astuce', extrais/résume l'explication officielle fournie dans le
 
       // Try secure server-side proxy fallback with server GEMINI_API_KEY
       try {
-        setProgressStep(`Connexion via passerelle serveur sécurisée [${modelToUse}]...`);
+        setProgress(`Connexion via passerelle serveur sécurisée [${modelToUse}]...`);
         const proxyRes = await fetch('/api/gemini/generate', {
           signal: abortRef.current?.signal,
           method: 'POST',
@@ -1244,6 +1248,83 @@ ${pdfText}
     return parseAiJson(rawText);
   };
 
+  const fetchOpenAIWithExam = async (pdfText, correctionText) => {
+    let pageNote = '';
+    if (pageFrom && pageTo) {
+      pageNote = `[PAGE LIMIT: Analyser UNIQUEMENT les pages ${pageFrom} à ${pageTo}. Ignorer toutes les autres pages.]\n\n`;
+    }
+    let userPromptText = '';
+    if (mode === 'with_correction' && correctionText) {
+      userPromptText = `${pageNote}--- ÉNONCÉ DU SUJET (Pages ${pageFrom}-${pageTo}) ---\n${pdfText}\n\n--- CORRIGÉ OFFICIEL (Pages ${correctionPageFrom}-${correctionPageTo}) ---\n${correctionText}\n\nExtrais TOUTES les questions QCM avec leurs solutions officielles détaillées et retourne le tableau JSON.`;
+    } else {
+      userPromptText = `${pageNote}--- DOCUMENT SOURCE ---\n${pdfText}\n\nExtrais TOUTES les questions QCM de la première à la dernière sans exception ni omission, et retourne le tableau JSON.`;
+    }
+
+    const targetModel = openaiModel || 'gpt-4o';
+    const isReasoning = targetModel.startsWith('o1') || targetModel.startsWith('o3');
+    abortRef.current = new AbortController();
+
+    const payload = {
+      model: targetModel,
+      messages: [
+        { role: "system", content: getEffectiveExamPrompt() || SYSTEM_PROMPT },
+        { role: "user", content: userPromptText }
+      ],
+      ...(isReasoning
+        ? { max_completion_tokens: 16000 }
+        : { max_tokens: 16000, temperature: 0.1, response_format: { type: 'json_object' } })
+    };
+
+    let rawText = '';
+    // 1. Try direct call
+    if (openaiKey && openaiKey.trim()) {
+      try {
+        const res = await fetch('https://api.openai.com/v1/chat/completions', {
+          signal: abortRef.current.signal,
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${openaiKey.trim()}`
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          rawText = data?.choices?.[0]?.message?.content;
+        }
+      } catch (_) {}
+    }
+
+    // 2. Fallback to server proxy
+    if (!rawText) {
+      const proxyRes = await fetch('/api/openai/generate', {
+        signal: abortRef.current.signal,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          apiKey: openaiKey || undefined,
+          model: targetModel,
+          messages: payload.messages,
+          max_tokens: isReasoning ? 16000 : 16000,
+          temperature: isReasoning ? undefined : 0.1,
+          response_format: isReasoning ? undefined : { type: 'json_object' }
+        })
+      });
+
+      if (!proxyRes.ok) {
+        const err = await proxyRes.json().catch(() => ({}));
+        throw new Error(err?.error || `OpenAI HTTP ${proxyRes.status}`);
+      }
+
+      const proxyData = await proxyRes.json();
+      rawText = proxyData?.data?.choices?.[0]?.message?.content;
+    }
+
+    if (!rawText) throw new Error("OpenAI n'a retourné aucun contenu.");
+    return parseAiJson(rawText);
+  };
+
   const handleAnalyze = async () => {
     setDetectedModels([]);
     if (provider === 'claude') {
@@ -1256,6 +1337,8 @@ ${pdfText}
       }
     } else if (provider === 'deepseek') {
       if (!deepseekKey) { setError('Clé API DeepSeek manquante. Configurez-la dans Paramètres.'); return; }
+    } else if (provider === 'openai') {
+      if (!openaiKey) { setError('Clé API OpenAI manquante. Configurez-la dans Paramètres.'); return; }
     } else {
       if (!geminiKey) { setError('Clé API Gemini manquante. Configurez-la dans Paramètres.'); return; }
     }
@@ -1288,6 +1371,16 @@ ${pdfText}
         }
         setProgress('Envoi du texte à DeepSeek AI...');
         parsedRaw = await fetchDeepSeekWithText(pdfText, correctionText);
+      } else if (provider === 'openai') {
+        setProgress('Extraction du texte du PDF...');
+        const pdfText = await extractTextFromPdf(pdfFile, pageFrom, pageTo);
+        let correctionText = '';
+        if (mode === 'with_correction') {
+          setProgress('Extraction du corrigé du PDF...');
+          correctionText = await extractTextFromPdf(pdfFile, correctionPageFrom, correctionPageTo);
+        }
+        setProgress(`Envoi du document à OpenAI [${openaiModel}]...`);
+        parsedRaw = await fetchOpenAIWithExam(pdfText, correctionText);
       } else {
         setProgress('Encodage du PDF...');
         const base64Pdf = await fileToBase64(pdfFile);
@@ -1602,6 +1695,30 @@ ${pdfText}
                 <span style={{ fontSize: '1.1rem' }}>🚀</span>
                 DeepSeek AI (Super Économique)
               </button>
+              <button
+                type="button"
+                onClick={() => { setProvider('openai'); localStorage.setItem('aiImportProvider', 'openai'); }}
+                style={{
+                  flex: 1,
+                  padding: '0.6rem 1rem',
+                  borderRadius: '10px',
+                  border: '1px solid',
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  borderColor: provider === 'openai' ? '#10b981' : 'var(--border)',
+                  background: provider === 'openai' ? 'rgba(16,185,129,0.12)' : 'var(--bg-glass)',
+                  color: provider === 'openai' ? '#10b981' : 'var(--text-muted)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem'
+                }}
+              >
+                <span style={{ fontSize: '1.1rem' }}>🟢</span>
+                OpenAI (GPT-4o / o3-mini)
+              </button>
             </div>
           </div>
 
@@ -1717,6 +1834,56 @@ ${pdfText}
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ ai_settings: { deepseekApiKey: val } })
+                  }).catch(() => {});
+                }}
+                style={{ padding: '0.45rem 0.75rem', fontSize: '0.85rem' }}
+              />
+            </div>
+          )}
+
+          {provider === 'openai' && (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.5rem',
+              padding: '1rem 1.25rem',
+              borderRadius: 12,
+              background: openaiKey ? 'rgba(16, 185, 129, 0.05)' : 'rgba(239, 68, 68, 0.06)',
+              border: openaiKey ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid rgba(239, 68, 68, 0.3)',
+              marginBottom: '1.5rem',
+              fontSize: '0.85rem'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700, color: openaiKey ? '#10b981' : '#ef4444' }}>
+                  <Key size={15} />
+                  <span>Clé API OpenAI {openaiKey ? '(Active)' : '(Requise)'}</span>
+                </div>
+                {openaiKey ? (
+                  <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 700 }}>✓ Prête</span>
+                ) : (
+                  <a
+                    href="https://platform.openai.com/api-keys"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: '#10b981', fontSize: '0.75rem', fontWeight: 700, textDecoration: 'none' }}
+                  >
+                    Obtenir une clé sur OpenAI Platform ↗
+                  </a>
+                )}
+              </div>
+              <input
+                type="password"
+                placeholder="Collez votre clé API OpenAI (sk-...)"
+                className="input-control"
+                value={openaiKey}
+                onChange={e => {
+                  const val = e.target.value.trim();
+                  setOpenaiKey(val);
+                  localStorage.setItem('openaiApiKey', val);
+                  fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ai_settings: { openaiApiKey: val } })
                   }).catch(() => {});
                 }}
                 style={{ padding: '0.45rem 0.75rem', fontSize: '0.85rem' }}
@@ -1894,6 +2061,37 @@ ${pdfText}
                 💡 Recommandé : <strong>claude-3-5-sonnet-20241022</strong> (Ultra stable, précis et optimal pour l&apos;extraction de concours et documents complexes).
               </p>
             </div>
+          ) : provider === 'openai' ? (
+            <div className="input-group" style={{ marginBottom: '1.5rem' }}>
+              <label>Modèle OpenAI <span style={{fontWeight:400, color:'var(--text-muted)'}}>— ID exact de l&apos;API</span></label>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+                {[
+                  { id: 'gpt-4o', label: '🌟 GPT-4o (Vision Multimodale & Haute Précision - Recommandé)' },
+                  { id: 'gpt-4o-mini', label: '⚡ GPT-4o-mini (Ultra Rapide & Économique)' },
+                  { id: 'o3-mini', label: '🧠 o3-mini (Raisonnement Mathématique Supérieur)' },
+                  { id: 'o1', label: '🚀 o1 (Raisonnement Profond Haute Puissance)' }
+                ].map(item => (
+                  <button key={item.id} type="button"
+                    onClick={() => { setOpenaiModel(item.id); localStorage.setItem('openaiModel', item.id); }}
+                    style={{ padding: '0.3rem 0.65rem', borderRadius: 8, border: '1px solid', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s',
+                      borderColor: openaiModel === item.id ? '#10b981' : 'var(--border)',
+                      background: openaiModel === item.id ? 'rgba(16,185,129,0.15)' : 'var(--bg-glass)',
+                      color: openaiModel === item.id ? '#10b981' : 'var(--text-muted)'
+                    }}>{item.label}</button>
+                ))}
+              </div>
+              <input
+                type="text"
+                className="input-control"
+                value={openaiModel}
+                onChange={e => { setOpenaiModel(e.target.value); localStorage.setItem('openaiModel', e.target.value); }}
+                placeholder="ex: gpt-4o"
+                style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}
+              />
+              <p style={{ marginTop: '0.4rem', fontSize: '0.73rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                💡 Recommandé : <strong>gpt-4o</strong> (Vision multimodale et précision d&apos;extraction maximale pour les formules et graphiques), ou <strong>o3-mini</strong> pour le raisonnement mathématique.
+              </p>
+            </div>
           ) : provider === 'deepseek' ? (
             <div className="input-group" style={{ marginBottom: '1.5rem' }}>
               <label>Modèle DeepSeek <span style={{fontWeight:400, color:'var(--text-muted)'}}>— ID exact de l&apos;API</span></label>
@@ -2014,7 +2212,7 @@ ${pdfText}
                         } catch (_) {}
                         setError('');
                         setTimeout(() => {
-                          handleExtract();
+                          handleAnalyze();
                         }, 300);
                       }}
                       className="btn-primary"
@@ -2091,8 +2289,8 @@ ${pdfText}
                   padding: '1.1rem',
                   fontSize: '1rem',
                   justifyContent: 'center',
-                  background: provider === 'claude' ? 'linear-gradient(135deg,#7c3aed,#6366f1)' : provider === 'deepseek' ? 'linear-gradient(135deg,#00BA7C,#4f46e5)' : 'linear-gradient(135deg,#4285F4,#34A853)',
-                  boxShadow: provider === 'claude' ? '0 8px 24px rgba(124,58,237,0.35)' : provider === 'deepseek' ? '0 8px 24px rgba(0,186,124,0.35)' : '0 8px 24px rgba(66,133,244,0.35)',
+                  background: provider === 'openai' ? 'linear-gradient(135deg,#10B981,#059669)' : (provider === 'claude' ? 'linear-gradient(135deg,#7c3aed,#6366f1)' : provider === 'deepseek' ? 'linear-gradient(135deg,#00BA7C,#4f46e5)' : 'linear-gradient(135deg,#4285F4,#34A853)'),
+                  boxShadow: provider === 'openai' ? '0 8px 24px rgba(16,185,129,0.35)' : (provider === 'claude' ? '0 8px 24px rgba(124,58,237,0.35)' : provider === 'deepseek' ? '0 8px 24px rgba(0,186,124,0.35)' : '0 8px 24px rgba(66,133,244,0.35)'),
                   opacity: 0.85
                 }}
               >
@@ -2110,17 +2308,17 @@ ${pdfText}
             <button
               className="btn"
               onClick={handleAnalyze}
-              disabled={!pdfFile || (provider === 'claude' ? (!apiKey && !proxyUrl) : provider === 'deepseek' ? !deepseekKey : !geminiKey)}
+              disabled={!pdfFile || (provider === 'claude' ? (!apiKey && !proxyUrl) : provider === 'deepseek' ? !deepseekKey : provider === 'openai' ? !openaiKey : !geminiKey)}
               style={{
                 width: '100%',
                 padding: '1.1rem',
                 fontSize: '1rem',
                 justifyContent: 'center',
-                background: provider === 'claude' ? 'linear-gradient(135deg,#7c3aed,#6366f1)' : provider === 'deepseek' ? 'linear-gradient(135deg,#00BA7C,#4f46e5)' : 'linear-gradient(135deg,#4285F4,#34A853)',
-                boxShadow: provider === 'claude' ? '0 8px 24px rgba(124,58,237,0.35)' : provider === 'deepseek' ? '0 8px 24px rgba(0,186,124,0.35)' : '0 8px 24px rgba(66,133,244,0.35)'
+                background: provider === 'openai' ? 'linear-gradient(135deg,#10B981,#059669)' : (provider === 'claude' ? 'linear-gradient(135deg,#7c3aed,#6366f1)' : provider === 'deepseek' ? 'linear-gradient(135deg,#00BA7C,#4f46e5)' : 'linear-gradient(135deg,#4285F4,#34A853)'),
+                boxShadow: provider === 'openai' ? '0 8px 24px rgba(16,185,129,0.35)' : (provider === 'claude' ? '0 8px 24px rgba(124,58,237,0.35)' : provider === 'deepseek' ? '0 8px 24px rgba(0,186,124,0.35)' : '0 8px 24px rgba(66,133,244,0.35)')
               }}
             >
-              <Sparkles size={20} /> Analyser avec {provider === 'claude' ? 'Claude AI' : provider === 'deepseek' ? 'DeepSeek AI' : 'Gemini AI'} ✨
+              <Sparkles size={20} /> Analyser avec {provider === 'openai' ? 'OpenAI' : (provider === 'claude' ? 'Claude AI' : provider === 'deepseek' ? 'DeepSeek AI' : 'Gemini AI')} ✨
             </button>
           )}
         </div>

@@ -19,7 +19,8 @@ const DOC_TYPES = [
   { id: 'homework', label: 'Devoir surveillé' },
   { id: 'national', label: 'Examen National' },
   { id: 'concours', label: 'Concours d\'accès' },
-  { id: 'summary', label: 'Résumé de cours' }
+  { id: 'summary', label: 'Résumé de cours' },
+  { id: 'ebook', label: 'E-Book (كتاب إلكتروني)' }
 ];
 
 export default function LessonBulkEditModal({
