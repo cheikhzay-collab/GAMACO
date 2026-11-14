@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Trash2, Settings, School, KeyRound, Eye, EyeOff, CheckCircle2, Sparkles, RefreshCw, Layers, MousePointerClick, Crown, Download, Sliders, FileText, Camera, MessageCircle, Volume2, BookOpen, Calendar, Palmtree, Pencil, Upload, ExternalLink, ShieldCheck, Cpu, Zap, Globe, Loader2, Copy, RotateCcw, FileCode, Check } from 'lucide-react';
+import { Plus, Trash2, Settings, School, KeyRound, Eye, EyeOff, CheckCircle2, Sparkles, RefreshCw, Layers, MousePointerClick, Crown, Download, Sliders, FileText, Camera, MessageCircle, Volume2, BookOpen, Calendar, Palmtree, Pencil, Upload, ExternalLink, ShieldCheck, Cpu, Zap, Globe, Loader2, Copy, RotateCcw, FileCode, Check, AlertTriangle } from 'lucide-react';
 import { getAllClasses } from '../services/classService';
 import {
   DEFAULT_EXAM_SYSTEM_PROMPT,
@@ -340,42 +340,89 @@ export default function AdminSettings() {
     setTimeout(() => setOpenaiKeySaved(false), 2500);
   };
 
-  // ── Database Backup & Restore ──────────────────────────────────────────────
-  const handleExportBackup = () => {
-    const backupData = {};
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key) {
-        backupData[key] = localStorage.getItem(key);
+  // ── Database Backup & Restore & Platform Reset ──────────────────────────────
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetConfirmInput, setResetConfirmInput] = useState('');
+  const [resetIncludeConfig, setResetIncludeConfig] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState(false);
+
+  const handleExportBackup = async () => {
+    try {
+      // 1. Fetch full server database (MySQL & JSON files)
+      let serverBackup = null;
+      try {
+        const res = await fetch('/api/admin/backup-full');
+        if (res.ok) serverBackup = await res.json();
+      } catch (_) {}
+
+      // 2. Collect localStorage items
+      const localData = {};
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key) {
+          localData[key] = localStorage.getItem(key);
+        }
       }
+
+      const fullBackup = {
+        meta: {
+          app: 'Gamaco Platform',
+          exportedAt: new Date().toISOString(),
+          version: '2.0'
+        },
+        server: serverBackup,
+        localStorage: localData
+      };
+
+      const jsonStr = JSON.stringify(fullBackup, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `GAMACO_Sauvegarde_Complete_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('Export backup error:', e);
     }
-    const jsonStr = JSON.stringify(backupData, null, 2);
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `LCONQ_Platform_Backup_${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
   };
 
   const handleImportBackup = (e) => {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const importedData = JSON.parse(event.target.result);
         if (typeof importedData !== 'object') throw new Error('Format de sauvegarde invalide');
+        
         let count = 0;
-        Object.entries(importedData).forEach(([key, val]) => {
+
+        // If it's a full backup with server payload
+        if (importedData.server && typeof importedData.server === 'object') {
+          try {
+            await fetch('/api/admin/restore-full', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(importedData.server)
+            });
+          } catch (srvErr) {
+            console.warn('Server restore error:', srvErr);
+          }
+        }
+
+        // Restore localStorage items
+        const localSource = importedData.localStorage || importedData;
+        Object.entries(localSource).forEach(([key, val]) => {
           if (typeof val === 'string') {
             localStorage.setItem(key, val);
             count++;
           }
         });
+
         alert(`✅ Sauvegarde restaurée avec succès ! ${count} éléments récupérés. La page va se recharger.`);
         window.location.reload();
       } catch (err) {
@@ -383,6 +430,67 @@ export default function AdminSettings() {
       }
     };
     reader.readAsText(file);
+  };
+
+  const handleExecutePlatformReset = async () => {
+    const cleaned = resetConfirmInput.trim().toUpperCase();
+    if (cleaned !== 'RESET' && cleaned !== 'CONFIRMER' && resetConfirmInput.trim() !== 'تفريغ') {
+      return;
+    }
+    setIsResetting(true);
+    try {
+      // 1. Call server API to wipe MySQL tables and persistent JSON files
+      const res = await fetch('/api/admin/reset-platform', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          confirm: 'RESET_PLATFORM',
+          includeConfig: resetIncludeConfig
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Erreur lors de la réinitialisation du serveur');
+      }
+
+      // 2. Wipe client-side localStorage data while preserving essential admin session
+      const keysToKeep = ['token', 'user', 'theme'];
+      if (!resetIncludeConfig) {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && (k.startsWith('prof') || k.startsWith('bank') || k.includes('apiKey') || k.includes('settings'))) {
+            keysToKeep.push(k);
+          }
+        }
+      }
+
+      const preserved = {};
+      keysToKeep.forEach(k => {
+        const val = localStorage.getItem(k);
+        if (val !== null) preserved[k] = val;
+      });
+
+      localStorage.clear();
+
+      Object.entries(preserved).forEach(([k, val]) => {
+        localStorage.setItem(k, val);
+      });
+
+      // Clear common storage keys explicitly
+      ['lconq_exams_db', 'lconq_lessons_db', 'lconq_classes_db', 'lconq_users_db', 'logbook_entries', 'lconq_offline_queue', 'progress', 'recent_tasks_v1'].forEach(k => {
+        localStorage.removeItem(k);
+      });
+
+      setIsResetting(false);
+      setResetSuccess(true);
+
+      setTimeout(() => {
+        window.location.href = '/admin';
+      }, 1600);
+    } catch (err) {
+      setIsResetting(false);
+      alert('Erreur: ' + err.message);
+    }
   };
 
   // ── Card Display Settings ──────────────────────────────────────────────────
@@ -3494,6 +3602,77 @@ export default function AdminSettings() {
                 </div>
               </div>
 
+              {/* ── ZONE DE DANGER : RÉINITIALISATION & PURGE COMPLÈTE DE LA PLATEFORME ── */}
+              <div 
+                className="bento-card" 
+                style={{
+                  background: 'rgba(239, 68, 68, 0.03)',
+                  border: '1.5px solid rgba(239, 68, 68, 0.28)',
+                  boxShadow: '0 8px 30px rgba(239, 68, 68, 0.06)'
+                }}
+              >
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2.5 mb-2.5">
+                      <div className="w-10 h-10 rounded-xl bg-[rgba(239,68,68,0.12)] border border-[rgba(239,68,68,0.3)] flex items-center justify-center text-red-500">
+                        <AlertTriangle size={20} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h2 className="settings-title" style={{ margin: 0, fontSize: '1.18rem', color: '#ef4444' }}>
+                            Zone de Danger : Réinitialisation & Purge de la Plateforme
+                          </h2>
+                          <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.55rem', borderRadius: '6px', background: 'rgba(239,68,68,0.15)', color: '#ef4444', fontWeight: 800, border: '1px solid rgba(239,68,68,0.3)' }}>
+                            DANGER / حذف كلي
+                          </span>
+                        </div>
+                        <p style={{ margin: '0.2rem 0 0', fontSize: '0.86rem', fontWeight: 700, color: '#f87171' }}>
+                          زر إعادة تهيئة وتفريغ المنصة من جميع البيانات (قاعدة البيانات والملفات)
+                        </p>
+                      </div>
+                    </div>
+
+                    <p style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-muted)', lineHeight: 1.6, margin: '0 0 0.5rem 0' }}>
+                      يقوم هذا الزر بتفريغ المنصة كلياً وإعادتها لحالتها الأولية؛ حيث يتم حذف جميع الدروس، التمارين، الامتحانات، الفروض، الأقسام، قوائم التلاميذ، وسجلات دفتر النصوص من قاعدة البيانات (MySQL والخادم) والذاكرة كلياً.
+                    </p>
+                    <p style={{ fontSize: '0.82rem', fontWeight: 500, color: 'var(--text-subtle)', margin: 0 }}>
+                      ⚠️ <b>ملاحظة أمان:</b> يتطلب هذا الإجراء تأكيداً صريحاً ولا يؤثر على استقرار الخادم أو الكود البرمجي للمنصة.
+                    </p>
+                  </div>
+
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setResetConfirmInput('');
+                        setResetSuccess(false);
+                        setShowResetModal(true);
+                      }}
+                      className="btn"
+                      style={{
+                        padding: '0.85rem 1.4rem',
+                        borderRadius: '12px',
+                        fontSize: '0.88rem',
+                        fontWeight: 800,
+                        background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 50%, #991b1b 100%)',
+                        color: '#fff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.65rem',
+                        boxShadow: '0 4px 18px rgba(239, 68, 68, 0.35)',
+                        border: 'none',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      <Trash2 size={18} />
+                      تفريغ وإعادة تهيئة المنصة
+                    </button>
+                  </div>
+                </div>
+              </div>
+
             </div>
           )}
 
@@ -3921,9 +4100,230 @@ export default function AdminSettings() {
               </div>
             </div>
           )}
-          </SectionErrorBoundary>
+           </SectionErrorBoundary>
         </div>
       </div>
+
+      {/* ── SECURE PLATFORM RESET CONFIRMATION MODAL ── */}
+      {showResetModal && (
+        <div 
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.78)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 99999,
+            padding: '1rem'
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isResetting) setShowResetModal(false);
+          }}
+        >
+          <div 
+            style={{
+              maxWidth: '560px',
+              width: '100%',
+              background: 'var(--bg-card, #1e293b)',
+              border: '1.5px solid rgba(239, 68, 68, 0.45)',
+              borderRadius: '20px',
+              padding: '1.75rem',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.65)',
+              color: 'var(--text-main, #f8fafc)',
+              direction: 'rtl',
+              textAlign: 'right'
+            }}
+          >
+            {resetSuccess ? (
+              <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
+                <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(16,185,129,0.15)', border: '2px solid #10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.25rem', color: '#10b981' }}>
+                  <CheckCircle2 size={36} />
+                </div>
+                <h3 style={{ fontSize: '1.3rem', fontWeight: 800, margin: '0 0 0.5rem 0', color: '#10b981' }}>
+                  تمت إعادة تهيئة المنصة بنجاح!
+                </h3>
+                <p style={{ fontSize: '0.92rem', color: 'var(--text-muted)', margin: '0 0 1.25rem 0' }}>
+                  تم تفريغ جميع البيانات والدروس والامتحانات وقاعدة البيانات كلياً. جاري تحديث التطبيق...
+                </p>
+                <Loader2 size={24} className="animate-spin" style={{ margin: '0 auto', color: '#10b981' }} />
+              </div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
+                  <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444', flexShrink: 0 }}>
+                    <AlertTriangle size={24} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: '#ef4444' }}>
+                      تأكيد تفريغ وإعادة تهيئة المنصة
+                    </h3>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      Réinitialisation d'usine et purge totale des données
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ padding: '0.9rem 1rem', borderRadius: '12px', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.25)', marginBottom: '1.25rem', fontSize: '0.88rem', lineHeight: 1.6, color: '#fca5a5' }}>
+                  ⚠️ <b>تحذير نهائي لا رجعة فيه:</b> هذا الإجراء سيقوم بحذف ومسح كافة السجلات من قاعدة بيانات الخادم (MySQL) والملفات الدائمة.
+                </div>
+
+                <div style={{ marginBottom: '1.25rem', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: '12px', padding: '0.85rem 1rem' }}>
+                  <p style={{ fontSize: '0.82rem', fontWeight: 700, margin: '0 0 0.5rem 0', color: 'var(--text-main)' }}>
+                    ما الذي سيتم تفريغه وحذفه بالكامل؟
+                  </p>
+                  <ul style={{ margin: 0, paddingRight: '1.25rem', fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.7 }}>
+                    <li>🗑️ جميع الدروس والملفات والتمارين والأنشطة (118+ ملف).</li>
+                    <li>🗑️ جميع الامتحانات والفروض وبنوك أسئلة الـ QCM.</li>
+                    <li>🗑️ جميع الفصول الدراسية وقوائم التلاميذ ونقاطهم.</li>
+                    <li>🗑️ جميع سجلات دفتر النصوص والأنشطة اليومية.</li>
+                    <li>🗑️ كافة ملفات التخزين الاحتياطي المؤقتة.</li>
+                  </ul>
+                </div>
+
+                {/* Backup recommendation button */}
+                <div style={{ marginBottom: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', background: 'rgba(16, 185, 129, 0.06)', border: '1px solid rgba(16, 185, 129, 0.25)', padding: '0.75rem 1rem', borderRadius: '12px' }}>
+                  <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#34d399' }}>
+                    💡 ننصح بتحميل نسخة احتياطية كاملة قبل المتابعة:
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleExportBackup}
+                    style={{
+                      padding: '0.45rem 0.85rem',
+                      borderRadius: '8px',
+                      background: '#10b981',
+                      color: '#fff',
+                      fontWeight: 700,
+                      fontSize: '0.78rem',
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    <Download size={14} /> تحميل نسخة (.json)
+                  </button>
+                </div>
+
+                {/* Include Config Checkbox */}
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', cursor: 'pointer', fontSize: '0.84rem', color: 'var(--text-main)', userSelect: 'none' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={resetIncludeConfig} 
+                      onChange={(e) => setResetIncludeConfig(e.target.checked)}
+                      style={{ width: '16px', height: '16px', accentColor: '#ef4444', cursor: 'pointer' }}
+                    />
+                    <span>تفريغ مفاتيح الذكاء الاصطناعي والإعدادات أيضاً (افتراضياً تُحفظ لتجنب إعادة إدخالها)</span>
+                  </label>
+                </div>
+
+                {/* Confirmation text input */}
+                <div style={{ marginBottom: '1.5rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 700, marginBottom: '0.5rem', color: 'var(--text-main)' }}>
+                    لتأكيد العملية، يرجى كتابة كلمة <b style={{ color: '#ef4444' }}>تفريغ</b> أو <b style={{ color: '#ef4444' }}>RESET</b> في الحقل أدناه:
+                  </label>
+                  <input 
+                    type="text"
+                    value={resetConfirmInput}
+                    onChange={(e) => setResetConfirmInput(e.target.value)}
+                    placeholder='اكتب "تفريغ" أو "RESET" هنا للتأكيد'
+                    disabled={isResetting}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem 1rem',
+                      borderRadius: '10px',
+                      background: 'rgba(0,0,0,0.2)',
+                      border: '1.5px solid rgba(239, 68, 68, 0.4)',
+                      color: '#fff',
+                      fontSize: '0.95rem',
+                      fontWeight: 700,
+                      textAlign: 'center',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+
+                {/* Actions */}
+                <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-start' }}>
+                  <button
+                    type="button"
+                    onClick={handleExecutePlatformReset}
+                    disabled={
+                      isResetting ||
+                      (resetConfirmInput.trim().toUpperCase() !== 'RESET' &&
+                       resetConfirmInput.trim().toUpperCase() !== 'CONFIRMER' &&
+                       resetConfirmInput.trim() !== 'تفريغ')
+                    }
+                    style={{
+                      flex: 1,
+                      padding: '0.8rem 1.25rem',
+                      borderRadius: '12px',
+                      fontSize: '0.88rem',
+                      fontWeight: 800,
+                      background: (
+                        resetConfirmInput.trim().toUpperCase() === 'RESET' ||
+                        resetConfirmInput.trim().toUpperCase() === 'CONFIRMER' ||
+                        resetConfirmInput.trim() === 'تفريغ'
+                      ) ? 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)' : 'rgba(239, 68, 68, 0.2)',
+                      color: '#fff',
+                      border: 'none',
+                      cursor: (
+                        resetConfirmInput.trim().toUpperCase() === 'RESET' ||
+                        resetConfirmInput.trim().toUpperCase() === 'CONFIRMER' ||
+                        resetConfirmInput.trim() === 'تفريغ'
+                      ) && !isResetting ? 'pointer' : 'not-allowed',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.5rem',
+                      boxShadow: '0 4px 15px rgba(239, 68, 68, 0.25)',
+                      opacity: (
+                        resetConfirmInput.trim().toUpperCase() === 'RESET' ||
+                        resetConfirmInput.trim().toUpperCase() === 'CONFIRMER' ||
+                        resetConfirmInput.trim() === 'تفريغ'
+                      ) ? 1 : 0.5
+                    }}
+                  >
+                    {isResetting ? (
+                      <>
+                        <Loader2 size={18} className="animate-spin" /> جاري التفريغ...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 size={18} /> تأكيد تفريغ وحذف جميع البيانات
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isResetting}
+                    onClick={() => setShowResetModal(false)}
+                    style={{
+                      padding: '0.8rem 1.25rem',
+                      borderRadius: '12px',
+                      fontSize: '0.88rem',
+                      fontWeight: 700,
+                      background: 'var(--bg-glass, rgba(255,255,255,0.05))',
+                      color: 'var(--text-main, #fff)',
+                      border: '1px solid var(--border)',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

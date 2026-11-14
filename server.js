@@ -935,6 +935,226 @@ export const handleApiRequest = async (req, res, next) => {
     }
   }
 
+  // 8.5. Platform Factory Reset & Full Backup Endpoints
+  if (pathname === '/api/admin/backup-full' && req.method === 'GET') {
+    try {
+      let exams = [];
+      let lessons = [];
+      let classes = [];
+      let users = [];
+      let config = {};
+
+      if (isMySqlActive) {
+        const [examRows] = await dbPool.query('SELECT data FROM tbl_exams');
+        exams = examRows.map(r => typeof r.data === 'string' ? JSON.parse(r.data) : r.data);
+
+        const [lessonRows] = await dbPool.query('SELECT data FROM tbl_lessons');
+        lessons = lessonRows.map(r => typeof r.data === 'string' ? JSON.parse(r.data) : r.data);
+
+        const [classRows] = await dbPool.query('SELECT data FROM tbl_classes');
+        classes = classRows.map(r => typeof r.data === 'string' ? JSON.parse(r.data) : r.data);
+
+        const [userRows] = await dbPool.query('SELECT data FROM tbl_users');
+        users = userRows.map(r => typeof r.data === 'string' ? JSON.parse(r.data) : r.data);
+
+        const [configRows] = await dbPool.query('SELECT key_name, value FROM tbl_config');
+        for (const row of configRows) {
+          config[row.key_name] = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+        }
+      } else {
+        exams = readDataFile('exams.json', []);
+        lessons = readDataFile('lessons.json', []);
+        classes = readDataFile('classes.json', []);
+        users = readDataFile('users.json', []);
+        config = readDataFile('config.json', {});
+      }
+
+      const backup = {
+        version: '1.0',
+        timestamp: new Date().toISOString(),
+        stats: {
+          examsCount: exams.length,
+          lessonsCount: lessons.length,
+          classesCount: classes.length,
+          usersCount: users.length
+        },
+        exams,
+        lessons,
+        classes,
+        users,
+        config
+      };
+
+      return sendJSON(res, 200, backup);
+    } catch (err) {
+      return sendJSON(res, 500, { error: err.message });
+    }
+  }
+
+  if (pathname === '/api/admin/restore-full' && req.method === 'POST') {
+    try {
+      const payload = await getBody(req);
+      const { exams = [], lessons = [], classes = [], users = [], config = {} } = payload || {};
+
+      if (isMySqlActive) {
+        if (Array.isArray(exams) && exams.length > 0) {
+          for (const ex of exams) {
+            if (ex.id) {
+              await dbPool.query(
+                'INSERT INTO tbl_exams (id, data) VALUES (?, ?) ON DUPLICATE KEY UPDATE data = VALUES(data), updated_at = NOW()',
+                [ex.id, JSON.stringify(ex)]
+              );
+            }
+          }
+        }
+        if (Array.isArray(lessons) && lessons.length > 0) {
+          for (const l of lessons) {
+            if (l.id) {
+              await dbPool.query(
+                'INSERT INTO tbl_lessons (id, title, subject, level, data) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE title = VALUES(title), subject = VALUES(subject), level = VALUES(level), data = VALUES(data), updated_at = NOW()',
+                [l.id, l.title || '', l.subject || '', l.level || '', JSON.stringify(l)]
+              );
+            }
+          }
+        }
+        if (Array.isArray(classes) && classes.length > 0) {
+          for (const c of classes) {
+            if (c.id) {
+              await dbPool.query(
+                'INSERT INTO tbl_classes (id, name, data) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name), data = VALUES(data), updated_at = NOW()',
+                [c.id, c.name || '', JSON.stringify(c)]
+              );
+            }
+          }
+        }
+        if (Array.isArray(users) && users.length > 0) {
+          for (const u of users) {
+            const uid = u.id || u.uid;
+            if (uid) {
+              await dbPool.query(
+                'INSERT INTO tbl_users (id, email, password, role, tier, data) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE email = VALUES(email), role = VALUES(role), tier = VALUES(tier), data = VALUES(data), updated_at = NOW()',
+                [uid, u.email || `${uid}@local.user`, u.password || 'student123', u.role || 'student', u.tier || 'freemium', JSON.stringify(u)]
+              );
+            }
+          }
+        }
+        if (config && typeof config === 'object') {
+          for (const [k, v] of Object.entries(config)) {
+            await dbPool.query(
+              'INSERT INTO tbl_config (key_name, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = NOW()',
+              [k, JSON.stringify(v)]
+            );
+          }
+        }
+      }
+
+      if (Array.isArray(exams)) writeDataFile('exams.json', exams);
+      if (Array.isArray(lessons)) writeDataFile('lessons.json', lessons);
+      if (Array.isArray(classes)) writeDataFile('classes.json', classes);
+      if (Array.isArray(users)) writeDataFile('users.json', users);
+      if (config && typeof config === 'object') {
+        const curr = readDataFile('config.json', {});
+        writeDataFile('config.json', { ...curr, ...config });
+      }
+
+      return sendJSON(res, 200, {
+        success: true,
+        restored: {
+          exams: exams.length,
+          lessons: lessons.length,
+          classes: classes.length,
+          users: users.length
+        }
+      });
+    } catch (err) {
+      return sendJSON(res, 500, { error: err.message });
+    }
+  }
+
+  if (pathname === '/api/admin/reset-platform' && req.method === 'POST') {
+    try {
+      const payload = await getBody(req);
+      const { confirm, includeConfig = false } = payload || {};
+
+      if (confirm !== 'RESET_PLATFORM') {
+        return sendJSON(res, 400, { error: 'Confirmation requise (confirm: "RESET_PLATFORM")' });
+      }
+
+      console.warn('[Server] ⚠️ INITIATING PLATFORM FACTORY RESET AND PURGE...');
+
+      // 1. Wipe MySQL tables
+      if (isMySqlActive) {
+        await dbPool.query('DELETE FROM tbl_exams');
+        await dbPool.query('DELETE FROM tbl_lessons');
+        await dbPool.query('DELETE FROM tbl_classes');
+        await dbPool.query('DELETE FROM tbl_users');
+        await dbPool.query('DELETE FROM tbl_assets');
+        if (includeConfig) {
+          await dbPool.query('DELETE FROM tbl_config');
+        } else {
+          // Wipe logbook entries and test data from tbl_config, keeping API keys and branding
+          await dbPool.query("DELETE FROM tbl_config WHERE key_name = 'logbook_entries' OR key_name = 'teacher_schedule_current'");
+        }
+        console.log('[Server] MySQL tables successfully emptied.');
+      }
+
+      // 2. Wipe JSON files in local data directory
+      writeDataFile('exams.json', []);
+      writeDataFile('lessons.json', []);
+      writeDataFile('classes.json', []);
+      writeDataFile('users.json', []);
+      writeDataFile('extraction_tasks.json', []);
+
+      if (includeConfig) {
+        writeDataFile('config.json', {});
+      } else {
+        const existingCfg = readDataFile('config.json', {});
+        delete existingCfg.logbook_entries;
+        delete existingCfg.teacher_schedule_current;
+        writeDataFile('config.json', existingCfg);
+      }
+
+      // 3. Wipe persistent directory files (Hostinger persistent volume)
+      if (PERSISTENT_DIR) {
+        try {
+          fs.writeFileSync(path.join(PERSISTENT_DIR, 'exams.json'), '[]', 'utf8');
+          fs.writeFileSync(path.join(PERSISTENT_DIR, 'lessons.json'), '[]', 'utf8');
+          fs.writeFileSync(path.join(PERSISTENT_DIR, 'classes.json'), '[]', 'utf8');
+          fs.writeFileSync(path.join(PERSISTENT_DIR, 'users.json'), '[]', 'utf8');
+          fs.writeFileSync(path.join(PERSISTENT_DIR, 'extraction_tasks.json'), '[]', 'utf8');
+          if (includeConfig) {
+            fs.writeFileSync(path.join(PERSISTENT_DIR, 'config.json'), '{}', 'utf8');
+          } else {
+            const pPath = path.join(PERSISTENT_DIR, 'config.json');
+            if (fs.existsSync(pPath)) {
+              try {
+                const pCfg = JSON.parse(fs.readFileSync(pPath, 'utf8'));
+                delete pCfg.logbook_entries;
+                delete pCfg.teacher_schedule_current;
+                fs.writeFileSync(pPath, JSON.stringify(pCfg, null, 2), 'utf8');
+              } catch (_) {}
+            }
+          }
+          console.log('[Server] Persistent external backup files successfully emptied.');
+        } catch (pErr) {
+          console.warn('[Server] Error resetting persistent dir files:', pErr.message);
+        }
+      }
+
+      // 4. Clear in-memory caches
+      memoryCache.clear();
+
+      console.log('[Server] Platform reset complete: all data emptied to factory state.');
+      return sendJSON(res, 200, {
+        success: true,
+        message: 'Plateforme réinitialisée et vidée avec succès. Toutes les données ont été effacées.'
+      });
+    } catch (err) {
+      console.error('[Server] Reset platform failed:', err);
+      return sendJSON(res, 500, { error: err.message });
+    }
+  }
+
   // 9. Extraction Tasks Endpoints
   if (pathname === '/api/extraction-tasks' || pathname.startsWith('/api/extraction-tasks/')) {
     const id = parsedUrl.searchParams.get('id') || (pathname.split('/api/extraction-tasks/')[1] || '').trim();
