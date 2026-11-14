@@ -2451,12 +2451,41 @@ body.hide-solutions .modern-solution-block {
   font-weight: normal !important;
 }
 
-/* Targeted refined scale for superscripts / powers only (leaves subscripts untouched) */
+/* Targeted refined scale for superscripts / powers (الأس) */
+.katex .msupsub {
+  font-size: 1.0em !important;
+}
+.katex .msupsub .sizing.size3,
+.katex .msupsub .sizing.reset-size6.size3,
 .katex .msupsub .vlist-t:not(.vlist-t2) .sizing.size3,
 .katex .msupsub .vlist-t:not(.vlist-t2) .sizing.reset-size6.size3,
 .katex .msupsub .vlist-t.vlist-t2 span[style*="top:-3"] .sizing.size3,
-.katex .msupsub .vlist-t.vlist-t2 span[style*="top:-3"] .sizing.reset-size6.size3 {
-  font-size: 0.63em !important;
+.katex .msupsub .vlist-t.vlist-t2 span[style*="top:-3"] .sizing.reset-size6.size3,
+.katex .msupsub .vlist-t .sizing.size3,
+.katex .msupsub .vlist-t .sizing.reset-size6.size3 {
+  font-size: 0.70em !important;
+}
+.katex .msupsub .sizing > span,
+.katex .msupsub .sizing .mord,
+.katex .msupsub .sizing .mtight {
+  font-size: inherit !important;
+}
+
+/* N-th root index (الجذر النوني): perfectly proportioned in radical hook */
+.katex .sqrt > .root {
+  font-size: 1.0em !important;
+}
+.katex .sqrt > .root .sizing,
+.katex .sqrt > .root .sizing.size1,
+.katex .sqrt > .root .sizing.reset-size6.size1,
+.katex .sizing.reset-size6.size1,
+.katex .fontsize-ensurer.reset-size6.size1 {
+  font-size: 0.58em !important;
+}
+.katex .sqrt > .root .sizing > span,
+.katex .sqrt > .root .sizing .mord,
+.katex .sqrt > .root .sizing .mtight {
+  font-size: inherit !important;
 }
 
 /* Block display-mode math: visible breathing room */
@@ -3770,8 +3799,6 @@ function _applyPrintStyles() {
     '.sections-container .modern-exercise-body',
     '.sections-container .exercise-text-line',
     '.sections-container .exercise-item-row',
-    '.sections-container .exercise-item-row span',
-    '.sections-container .exercise-item-row div',
     '.sections-container .exercise-bullet-item',
     '.sections-container .exercise-question-item',
     '.sections-container .exercise-statement',
@@ -3803,6 +3830,13 @@ function _applyPrintStyles() {
     '.katex, .homework-table .katex, .homework-content-cell .katex, .homework-subq-item .katex, .katex-inline .katex {',
     '  font-size: 1.0em !important;',
     '}',
+    '/* KaTeX root index & exponent protection in dynamic print styles */',
+    '.katex .sqrt > .root { font-size: 1.0em !important; }',
+    '.katex .sqrt > .root .sizing, .katex .sqrt > .root .sizing.size1, .katex .sqrt > .root .sizing.reset-size6.size1, .katex .sizing.reset-size6.size1, .katex .fontsize-ensurer.reset-size6.size1 { font-size: 0.58em !important; }',
+    '.katex .sqrt > .root .sizing > span, .katex .sqrt > .root .sizing .mord, .katex .sqrt > .root .sizing .mtight { font-size: inherit !important; }',
+    '.katex .msupsub { font-size: 1.0em !important; }',
+    '.katex .msupsub .sizing.size3, .katex .msupsub .sizing.reset-size6.size3, .katex .msupsub .vlist-t .sizing.size3, .katex .msupsub .vlist-t .sizing.reset-size6.size3, .katex .msupsub .vlist-t:not(.vlist-t2) .sizing.size3, .katex .msupsub .vlist-t:not(.vlist-t2) .sizing.reset-size6.size3, .katex .msupsub .vlist-t.vlist-t2 span[style*="top:-3"] .sizing.size3, .katex .msupsub .vlist-t.vlist-t2 span[style*="top:-3"] .sizing.reset-size6.size3 { font-size: 0.70em !important; }',
+    '.katex .msupsub .sizing > span, .katex .msupsub .sizing .mord, .katex .msupsub .sizing .mtight { font-size: inherit !important; }',
     '@media print {',
     '  ' + contentSelectors + ' {',
     '    font-size: ' + _currentFontSize + 'pt !important;',
@@ -3811,6 +3845,12 @@ function _applyPrintStyles() {
     '  .katex, .homework-table .katex, .homework-content-cell .katex, .homework-subq-item .katex, .katex-inline .katex {',
     '    font-size: 1.0em !important;',
     '  }',
+    '  .katex .sqrt > .root { font-size: 1.0em !important; }',
+    '  .katex .sqrt > .root .sizing, .katex .sqrt > .root .sizing.size1, .katex .sqrt > .root .sizing.reset-size6.size1, .katex .sizing.reset-size6.size1, .katex .fontsize-ensurer.reset-size6.size1 { font-size: 0.58em !important; }',
+    '  .katex .sqrt > .root .sizing > span, .katex .sqrt > .root .sizing .mord, .katex .sqrt > .root .sizing .mtight { font-size: inherit !important; }',
+    '  .katex .msupsub { font-size: 1.0em !important; }',
+    '  .katex .msupsub .sizing.size3, .katex .msupsub .sizing.reset-size6.size3, .katex .msupsub .vlist-t .sizing.size3, .katex .msupsub .vlist-t .sizing.reset-size6.size3, .katex .msupsub .vlist-t:not(.vlist-t2) .sizing.size3, .katex .msupsub .vlist-t:not(.vlist-t2) .sizing.reset-size6.size3, .katex .msupsub .vlist-t.vlist-t2 span[style*="top:-3"] .sizing.size3, .katex .msupsub .vlist-t.vlist-t2 span[style*="top:-3"] .sizing.reset-size6.size3 { font-size: 0.70em !important; }',
+    '  .katex .msupsub .sizing > span, .katex .msupsub .sizing .mord, .katex .msupsub .sizing .mtight { font-size: inherit !important; }',
     '}',
     '.exercises-one-column { column-count: 1 !important; display: block !important; width: 100% !important; column-rule: none !important; }',
     '.homework-sections-container, .sections-container.homework-sections-container, .sections-container:has(.homework-table), .sections-list-container:has(.homework-table) { column-count: 1 !important; display: block !important; width: 100% !important; column-rule: none !important; }',

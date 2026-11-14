@@ -900,6 +900,39 @@ export default function EbookTemplate({
           font-size: 1.07em;
           font-family: KaTeX_Main, 'STIX Two Text', serif;
         }
+        .katex .msupsub {
+          font-size: 1.0em !important;
+        }
+        .katex .msupsub .sizing.size3,
+        .katex .msupsub .sizing.reset-size6.size3,
+        .katex .msupsub .vlist-t:not(.vlist-t2) .sizing.size3,
+        .katex .msupsub .vlist-t:not(.vlist-t2) .sizing.reset-size6.size3,
+        .katex .msupsub .vlist-t.vlist-t2 span[style*="top:-3"] .sizing.size3,
+        .katex .msupsub .vlist-t.vlist-t2 span[style*="top:-3"] .sizing.reset-size6.size3,
+        .katex .msupsub .vlist-t .sizing.size3,
+        .katex .msupsub .vlist-t .sizing.reset-size6.size3 {
+          font-size: 0.70em !important;
+        }
+        .katex .msupsub .sizing > span,
+        .katex .msupsub .sizing .mord,
+        .katex .msupsub .sizing .mtight {
+          font-size: inherit !important;
+        }
+        .katex .sqrt > .root {
+          font-size: 1.0em !important;
+        }
+        .katex .sqrt > .root .sizing,
+        .katex .sqrt > .root .sizing.size1,
+        .katex .sqrt > .root .sizing.reset-size6.size1,
+        .katex .sizing.reset-size6.size1,
+        .katex .fontsize-ensurer.reset-size6.size1 {
+          font-size: 0.58em !important;
+        }
+        .katex .sqrt > .root .sizing > span,
+        .katex .sqrt > .root .sizing .mord,
+        .katex .sqrt > .root .sizing .mtight {
+          font-size: inherit !important;
+        }
 
         .katex-display {
           margin: 0.45em 0 !important;
