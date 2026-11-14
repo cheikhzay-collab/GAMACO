@@ -721,6 +721,10 @@ export default function LessonViewerPage() {
           setError("Ce cours n'existe pas ou a été supprimé.");
         } else {
           setLesson(data);
+          const prefDocCols = Number(data.content?.columns_count || data.columns_count);
+          if ([1, 2, 3].includes(prefDocCols)) {
+            setSeriesColumns(prefDocCols);
+          }
           const isEb = Boolean(
             data.docType === 'ebook' ||
             data.type === 'ebook' ||
@@ -1618,7 +1622,22 @@ export default function LessonViewerPage() {
           width: 100%;
         }
 
+        .exercises-one-column-layout {
+          display: flex !important;
+          flex-direction: column !important;
+          column-count: 1 !important;
+          column-rule: none !important;
+          width: 100% !important;
+        }
+
         @media (min-width: 768px) {
+          .exercises-one-column-layout {
+            display: block !important;
+            column-count: 1 !important;
+            column-rule: none !important;
+            width: 100% !important;
+          }
+
           .exercises-two-columns-layout {
             display: block !important;
             column-count: 2 !important;
@@ -2194,6 +2213,13 @@ export default function LessonViewerPage() {
             max-height: none !important;
           }
 
+          .exercises-one-column-layout {
+            display: block !important;
+            column-count: 1 !important;
+            column-rule: none !important;
+            width: 100% !important;
+          }
+
           .exercises-two-columns-layout {
             display: block !important;
             column-count: 2 !important;
@@ -2580,8 +2606,8 @@ export default function LessonViewerPage() {
             </div>
           )}
 
-          {/* Column Count Selector for Exercise Series only (never for homework or ebook) */}
-          {!isEbook && !isHomework && Boolean(lesson?.docType === 'exercises' || lesson?.content?.doc_type === 'exercises' || /s[ée]rie/i.test(lesson?.title || '')) && (
+          {/* Column Count Selector for Lessons and Exercise Series (never for homework or ebook) */}
+          {!isEbook && !isHomework && (
             <div style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -3059,9 +3085,9 @@ export default function LessonViewerPage() {
           )}
 
           <div className={`sections-list-container ${
-            !isHomework && (lesson?.docType === 'exercises' || lesson?.content?.doc_type === 'exercises')
-              ? (seriesColumns === 3 ? 'exercises-three-columns-layout' : (seriesColumns === 2 ? 'exercises-two-columns-layout' : ''))
-              : (isHomework ? 'homework-sections-container exercises-one-column' : '')
+            !isHomework
+              ? (seriesColumns === 3 ? 'exercises-three-columns-layout' : (seriesColumns === 2 ? 'exercises-two-columns-layout' : 'exercises-one-column-layout'))
+              : 'homework-sections-container exercises-one-column'
           }`}>
             {sections?.map((sec, idx) => {
               const isTheory = sec.type !== 'exercise';

@@ -1528,10 +1528,10 @@ export default function AdminLessonEdit() {
                 </select>
               </div>
 
-              {docType === 'exercises' && (
+              {(docType === 'exercises' || docType === 'course' || docType === 'lesson') && (
                 <div>
                   <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.2rem', display: 'block' }}>
-                    Colonnes (Série)
+                    Colonnes (Mise en page)
                   </label>
                   <select 
                     className="input-control" 
@@ -1539,9 +1539,9 @@ export default function AdminLessonEdit() {
                     onChange={e => setColumnsCount(Number(e.target.value))}
                     style={{ width: '100%', fontSize: '0.82rem', padding: '0.4rem 0.5rem', fontWeight: 700 }}
                   >
-                    <option value={3}>3 Colonnes (Compact)</option>
-                    <option value={2}>2 Colonnes (Standard)</option>
                     <option value={1}>1 Colonne (Pleine page)</option>
+                    <option value={2}>2 Colonnes (Standard)</option>
+                    <option value={3}>3 Colonnes (Compact)</option>
                   </select>
                 </div>
               )}
@@ -4212,8 +4212,8 @@ export default function AdminLessonEdit() {
             </select>
           </div>
 
-          {/* Columns switcher (if series) */}
-          {docType === 'exercises' && (
+          {/* Columns switcher (series / course / lesson) */}
+          {(docType === 'exercises' || docType === 'course' || docType === 'lesson') && (
             <>
               <div style={{ height: '20px', width: '1px', background: 'var(--border)' }} />
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>

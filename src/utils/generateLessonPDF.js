@@ -1172,11 +1172,9 @@ export const generateLessonHTML = (lesson, settings = {}) => {
   
   const columnsClass = isHomework
     ? 'exercises-one-column homework-sections-container'
-    : (isExercises
-        ? (columnsCount === 3 ? 'exercises-three-columns' : (columnsCount === 1 ? 'exercises-one-column' : 'exercises-two-columns'))
-        : '');
-  const isTwoColumns = !isHomework && isExercises && columnsCount === 2;
-  const isThreeColumns = !isHomework && isExercises && columnsCount === 3;
+    : (columnsCount === 3 ? 'exercises-three-columns' : (columnsCount === 1 ? 'exercises-one-column' : 'exercises-two-columns'));
+  const isTwoColumns = !isHomework && columnsCount === 2;
+  const isThreeColumns = !isHomework && columnsCount === 3;
   const isConcours = lesson.docType === 'concours' || content?.doc_type === 'concours';
   const checkArabicText = () => {
     // 1. Explicit settings or metadata language (Highest priority)
@@ -3492,7 +3490,7 @@ html[dir="rtl"] .homework-content-cell {
     </div>
   </div>
   <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
-    ${isExercises ? `
+    ${!isHomework ? `
     <div class="style-toggle-container">
       <span style="font-size:0.72rem;color:rgba(255,255,255,0.85);font-weight:700;">${isArabic ? 'الأعمدة:' : 'Colonnes:'}</span>
       <button id="colBtn1" class="hint-style-btn ${columnsCount === 1 ? 'active' : ''}" onclick="setSeriesColumns(1)">1 ${isArabic ? 'عمود' : 'Col'}</button>
