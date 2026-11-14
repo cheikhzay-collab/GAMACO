@@ -528,38 +528,34 @@ export function AuthProvider({ children }) {
       import('../utils/facebookPixel').then(m => m.initFacebookPixel());
     }
 
-    if (SUPABASE_ENABLED) {
-      try {
-        await saveBrandingConfig({
-          profName: name,
-          profPhone: phone,
-          profSchool: school,
-          profDirection: direction,
-          profAcademy: academy,
-          profSubject: subject,
-          profSOM: som,
-          profEmail: email,
-          profAcademicYear: academicYear,
-          profCity: city,
-          profSite: site,
-          bankName: bName,
-          bankRIB: bRIB,
-          bankBeneficiary: bBeneficiary,
-          fbPixelId: pixelId
-        });
-      } catch (e) {
-        console.error('[Supabase] Failed to save branding config:', e);
-      }
+    try {
+      await saveBrandingConfig({
+        profName: name,
+        profPhone: phone,
+        profSchool: school,
+        profDirection: direction,
+        profAcademy: academy,
+        profSubject: subject,
+        profSOM: som,
+        profEmail: email,
+        profAcademicYear: academicYear,
+        profCity: city,
+        profSite: site,
+        bankName: bName,
+        bankRIB: bRIB,
+        bankBeneficiary: bBeneficiary,
+        fbPixelId: pixelId
+      });
+    } catch (e) {
+      console.error('[Config] Failed to save branding config:', e);
     }
   };
 
   const updateFlashcardSettingsConfig = async (settings) => {
-    if (SUPABASE_ENABLED) {
-      try {
-        await saveFlashcardSettingsConfig(settings);
-      } catch (e) {
-        console.error('[Supabase] Failed to save flashcard settings config:', e);
-      }
+    try {
+      await saveFlashcardSettingsConfig(settings);
+    } catch (e) {
+      console.error('[Config] Failed to save flashcard settings config:', e);
     }
     localStorage.setItem('card_reveal_mode', settings.cardRevealMode);
     localStorage.setItem('card_flip_animation', String(settings.cardFlipEnabled));
@@ -573,12 +569,10 @@ export function AuthProvider({ children }) {
   };
 
   const updatePdfSettingsConfig = async (settings) => {
-    if (SUPABASE_ENABLED) {
-      try {
-        await savePdfSettingsConfig(settings);
-      } catch (e) {
-        console.error('[Supabase] Failed to save PDF settings config:', e);
-      }
+    try {
+      await savePdfSettingsConfig(settings);
+    } catch (e) {
+      console.error('[Config] Failed to save PDF settings config:', e);
     }
     localStorage.setItem('pdf_page_margins', settings.pdfPageMargins);
     localStorage.setItem('pdf_font_size', settings.pdfFontSize);
@@ -591,12 +585,10 @@ export function AuthProvider({ children }) {
   };
 
   const updateOmrScannerSettingsConfig = async (settings) => {
-    if (SUPABASE_ENABLED) {
-      try {
-        await saveOmrScannerSettingsConfig(settings);
-      } catch (e) {
-        console.error('[Supabase] Failed to save OMR scanner settings config:', e);
-      }
+    try {
+      await saveOmrScannerSettingsConfig(settings);
+    } catch (e) {
+      console.error('[Config] Failed to save OMR scanner settings config:', e);
     }
     localStorage.setItem('scanner_direct_capture_enabled', settings.scannerDirectCapture ? 'true' : 'false');
   };
@@ -626,12 +618,10 @@ export function AuthProvider({ children }) {
     setWhatsappSettings(settings);
     localStorage.setItem('whatsappSettings', JSON.stringify(settings));
 
-    if (SUPABASE_ENABLED) {
-      try {
-        await saveWhatsAppSettingsConfig(settings);
-      } catch (e) {
-        console.error('[Supabase] Failed to save WhatsApp settings config:', e);
-      }
+    try {
+      await saveWhatsAppSettingsConfig(settings);
+    } catch (e) {
+      console.error('[Config] Failed to save WhatsApp settings config:', e);
     }
   };
 
@@ -1993,12 +1983,10 @@ export function AuthProvider({ children }) {
     if (name && !schools.includes(name)) {
       const updatedSchools = [...schools, name];
       setSchools(updatedSchools);
-      if (SUPABASE_ENABLED) {
-        try {
-          await saveSchoolsConfig(updatedSchools, schoolBranding);
-        } catch (e) {
-          console.error('[Supabase] Failed to add school config:', e);
-        }
+      try {
+        await saveSchoolsConfig(updatedSchools, schoolBranding);
+      } catch (e) {
+        console.error('[Config] Failed to add school config:', e);
       }
     }
   };
@@ -2009,12 +1997,10 @@ export function AuthProvider({ children }) {
     delete updatedBranding[name];
     setSchools(updatedSchools);
     setSchoolBranding(updatedBranding);
-    if (SUPABASE_ENABLED) {
-      try {
-        await saveSchoolsConfig(updatedSchools, updatedBranding);
-      } catch (e) {
-        console.error('[Supabase] Failed to remove school config:', e);
-      }
+    try {
+      await saveSchoolsConfig(updatedSchools, updatedBranding);
+    } catch (e) {
+      console.error('[Config] Failed to remove school config:', e);
     }
   };
 
@@ -2029,24 +2015,20 @@ export function AuthProvider({ children }) {
     setSchools(updatedSchools);
     setSchoolBranding(updatedBranding);
     setExams(prev => prev.map(e => e.school === oldName ? { ...e, school: newName } : e));
-    if (SUPABASE_ENABLED) {
-      try {
-        await saveSchoolsConfig(updatedSchools, updatedBranding);
-      } catch (e) {
-        console.error('[Supabase] Failed to rename school config:', e);
-      }
+    try {
+      await saveSchoolsConfig(updatedSchools, updatedBranding);
+    } catch (e) {
+      console.error('[Config] Failed to rename school config:', e);
     }
   };
 
   const updateSchoolBranding = async (name, patch) => {
     const updatedBranding = { ...schoolBranding, [name]: { ...(schoolBranding[name] || {}), ...patch } };
     setSchoolBranding(updatedBranding);
-    if (SUPABASE_ENABLED) {
-      try {
-        await saveSchoolsConfig(schools, updatedBranding);
-      } catch (e) {
-        console.error('[Supabase] Failed to update school branding:', e);
-      }
+    try {
+      await saveSchoolsConfig(schools, updatedBranding);
+    } catch (e) {
+      console.error('[Config] Failed to update school branding:', e);
     }
   };
 

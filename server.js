@@ -171,6 +171,30 @@ const writeDataFile = (fileName, data) => {
   pendingWrites.set(fileName, timer);
 };
 
+const flushPendingWritesSync = () => {
+  if (pendingWrites.size === 0) return;
+  for (const [fileName, timer] of pendingWrites.entries()) {
+    clearTimeout(timer);
+    const data = memoryCache.get(fileName);
+    if (data !== undefined) {
+      const jsonStr = JSON.stringify(data, null, 2);
+      try {
+        fs.writeFileSync(path.join(DATA_DIR, fileName), jsonStr, 'utf8');
+      } catch (_) {}
+      if (PERSISTENT_DIR) {
+        try {
+          fs.writeFileSync(path.join(PERSISTENT_DIR, fileName), jsonStr, 'utf8');
+        } catch (_) {}
+      }
+    }
+  }
+  pendingWrites.clear();
+};
+
+process.on('SIGINT', () => { flushPendingWritesSync(); process.exit(0); });
+process.on('SIGTERM', () => { flushPendingWritesSync(); process.exit(0); });
+process.on('beforeExit', () => { flushPendingWritesSync(); });
+
 // ── MySQL Connection & Management ───────────────────────────────────────────
 let dbPool = null;
 let isMySqlActive = false;
@@ -237,36 +261,38 @@ const initMySQL = async () => {
       return;
     }
 
-    // Create tables if they do not exist
+    // Create tables if they do not exist with optimal UTF8MB4 schema
     await connection.query(`
       CREATE TABLE IF NOT EXISTS tbl_exams (
         id VARCHAR(64) PRIMARY KEY,
-        data JSON NOT NULL,
+        title TEXT,
+        level VARCHAR(100),
+        data LONGTEXT NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
     await connection.query(`
       CREATE TABLE IF NOT EXISTS tbl_lessons (
         id VARCHAR(64) PRIMARY KEY,
-        title VARCHAR(255),
-        subject VARCHAR(100),
-        level VARCHAR(50),
+        title TEXT,
+        subject VARCHAR(255),
+        level VARCHAR(100),
         data LONGTEXT NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
     await connection.query(`
       CREATE TABLE IF NOT EXISTS tbl_classes (
         id VARCHAR(64) PRIMARY KEY,
-        name VARCHAR(255),
+        name TEXT,
         data LONGTEXT NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
     await connection.query(`
@@ -276,18 +302,19 @@ const initMySQL = async () => {
         password VARCHAR(255),
         role VARCHAR(50) DEFAULT 'student',
         tier VARCHAR(50) DEFAULT 'freemium',
-        data JSON NOT NULL,
+        data LONGTEXT NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
     await connection.query(`
       CREATE TABLE IF NOT EXISTS tbl_config (
-        key_name VARCHAR(64) PRIMARY KEY,
-        value JSON NOT NULL,
+        key_name VARCHAR(128) PRIMARY KEY,
+        value LONGTEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
     await connection.query("DELETE FROM tbl_config WHERE key_name = 'key'").catch(() => null);
 
@@ -296,70 +323,232 @@ const initMySQL = async () => {
         asset_path VARCHAR(255) PRIMARY KEY,
         data LONGTEXT NOT NULL,
         mime_type VARCHAR(100) DEFAULT 'image/png',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
-    // Synchronize Lessons: seed from file if not in DB, AND dump DB back to file
-    const lessons = readDataFile('lessons.json', []);
-    for (const l of lessons) {
-      if (l.id) {
+    // Run safe column migrations to upgrade existing tables without dropping data
+    const safeAlters = [
+      "ALTER TABLE tbl_lessons MODIFY COLUMN title TEXT",
+      "ALTER TABLE tbl_lessons MODIFY COLUMN subject VARCHAR(255)",
+      "ALTER TABLE tbl_lessons MODIFY COLUMN level VARCHAR(100)",
+      "ALTER TABLE tbl_lessons MODIFY COLUMN data LONGTEXT NOT NULL",
+      "ALTER TABLE tbl_classes MODIFY COLUMN name TEXT",
+      "ALTER TABLE tbl_classes MODIFY COLUMN data LONGTEXT NOT NULL",
+      "ALTER TABLE tbl_exams MODIFY COLUMN title TEXT",
+      "ALTER TABLE tbl_exams MODIFY COLUMN level VARCHAR(100)",
+      "ALTER TABLE tbl_exams MODIFY COLUMN data LONGTEXT NOT NULL",
+      "ALTER TABLE tbl_users MODIFY COLUMN data LONGTEXT NOT NULL",
+      "ALTER TABLE tbl_config MODIFY COLUMN key_name VARCHAR(128)",
+      "ALTER TABLE tbl_config MODIFY COLUMN value LONGTEXT NOT NULL",
+      "ALTER TABLE tbl_assets MODIFY COLUMN data LONGTEXT NOT NULL"
+    ];
+    for (const alt of safeAlters) {
+      await connection.query(alt).catch(() => {});
+    }
+
+    // 1. Synchronize Configuration (tbl_config <-> config.json)
+    const fileConfig = readDataFile('config.json', {});
+    for (const [k, v] of Object.entries(fileConfig)) {
+      if (k && v !== undefined && k !== 'key') {
         await connection.query(
-          'INSERT IGNORE INTO tbl_lessons (id, title, subject, level, data) VALUES (?, ?, ?, ?, ?)',
+          'INSERT IGNORE INTO tbl_config (key_name, value) VALUES (?, ?)',
+          [k, JSON.stringify(v)]
+        ).catch(() => {});
+      }
+    }
+    const [dbConfigRows] = await connection.query('SELECT key_name, value FROM tbl_config');
+    const dbConfig = {};
+    for (const r of dbConfigRows) {
+      dbConfig[r.key_name] = safeJsonParse(r.value, r.value);
+    }
+    const mergedConfig = { ...fileConfig, ...dbConfig };
+    writeDataFile('config.json', mergedConfig);
+    console.log(`[Server] Synced ${Object.keys(mergedConfig).length} configuration settings with MySQL.`);
+
+    // 2. Synchronize Lessons: smart reconciliation preserving the most recent edits
+    const fileLessons = readDataFile('lessons.json', []);
+    const [dbLessonRows] = await connection.query('SELECT id, updated_at, data FROM tbl_lessons');
+    const dbLessonMap = new Map();
+    for (const row of dbLessonRows) {
+      const parsed = safeJsonParse(row.data, null);
+      if (parsed && row.id) {
+        dbLessonMap.set(row.id, {
+          updatedAt: new Date(row.updated_at || parsed.updatedAt || parsed.updated_at || 0).getTime(),
+          data: parsed
+        });
+      }
+    }
+
+    const consolidatedLessons = new Map();
+    for (const [id, entry] of dbLessonMap.entries()) {
+      consolidatedLessons.set(id, entry.data);
+    }
+
+    for (const l of fileLessons) {
+      if (!l || !l.id) continue;
+      const fileTime = new Date(l.updatedAt || l.updated_at || l.createdAt || 0).getTime();
+      const existingInDb = dbLessonMap.get(l.id);
+
+      if (!existingInDb) {
+        await connection.query(
+          'INSERT INTO tbl_lessons (id, title, subject, level, data) VALUES (?, ?, ?, ?, ?)',
           [l.id, l.title || '', l.subject || '', l.level || '', JSON.stringify(l)]
-        );
-      }
-    }
-    const [dbLessonRows] = await connection.query('SELECT data FROM tbl_lessons ORDER BY updated_at DESC');
-    if (dbLessonRows.length > 0) {
-      const allDbLessons = dbLessonRows.map(r => typeof r.data === 'string' ? JSON.parse(r.data) : r.data);
-      writeDataFile('lessons.json', allDbLessons);
-      console.log(`[Server] Synced ${allDbLessons.length} lessons from MySQL database.`);
-    }
-
-    // Synchronize Exams
-    const exams = readDataFile('exams.json', []);
-    for (const ex of exams) {
-      if (ex.id) {
-        await connection.query('INSERT IGNORE INTO tbl_exams (id, data) VALUES (?, ?)', [ex.id, JSON.stringify(ex)]);
-      }
-    }
-    const [dbExamRows] = await connection.query('SELECT data FROM tbl_exams ORDER BY updated_at DESC');
-    if (dbExamRows.length > 0) {
-      const allDbExams = dbExamRows.map(r => typeof r.data === 'string' ? JSON.parse(r.data) : r.data);
-      writeDataFile('exams.json', allDbExams);
-      console.log(`[Server] Synced ${allDbExams.length} exams from MySQL database.`);
-    }
-
-    // Synchronize Classes
-    const classes = readDataFile('classes.json', []);
-    for (const c of classes) {
-      if (c.id) {
-        await connection.query('INSERT IGNORE INTO tbl_classes (id, name, data) VALUES (?, ?, ?)', [c.id, c.name || '', JSON.stringify(c)]);
-      }
-    }
-    const [dbClassRows] = await connection.query('SELECT data FROM tbl_classes ORDER BY updated_at DESC');
-    if (dbClassRows.length > 0) {
-      const allDbClasses = dbClassRows.map(r => typeof r.data === 'string' ? JSON.parse(r.data) : r.data);
-      writeDataFile('classes.json', allDbClasses);
-    }
-
-    // Synchronize Users
-    const users = readDataFile('users.json', []);
-    for (const u of users) {
-      const id = u.id || u.uid;
-      if (id) {
+        ).catch(() => {});
+        consolidatedLessons.set(l.id, l);
+      } else if (fileTime > existingInDb.updatedAt + 1000) {
         await connection.query(
-          'INSERT IGNORE INTO tbl_users (id, email, password, role, tier, data) VALUES (?, ?, ?, ?, ?, ?)',
-          [id, u.email || `${id}@local.user`, u.password || 'student123', u.role || 'student', u.tier || 'freemium', JSON.stringify(u)]
-        );
+          'UPDATE tbl_lessons SET title = ?, subject = ?, level = ?, data = ?, updated_at = NOW() WHERE id = ?',
+          [l.title || '', l.subject || '', l.level || '', JSON.stringify(l), l.id]
+        ).catch(() => {});
+        consolidatedLessons.set(l.id, l);
       }
     }
-    const [dbUserRows] = await connection.query('SELECT data FROM tbl_users ORDER BY updated_at DESC');
-    if (dbUserRows.length > 0) {
-      const allDbUsers = dbUserRows.map(r => typeof r.data === 'string' ? JSON.parse(r.data) : r.data);
-      writeDataFile('users.json', allDbUsers);
+
+    const allLessonsList = Array.from(consolidatedLessons.values()).sort((a, b) => {
+      const tA = new Date(a.updatedAt || a.updated_at || a.createdAt || 0).getTime();
+      const tB = new Date(b.updatedAt || b.updated_at || b.createdAt || 0).getTime();
+      return tB - tA;
+    });
+    writeDataFile('lessons.json', allLessonsList);
+    console.log(`[Server] Synced ${allLessonsList.length} lessons from MySQL database.`);
+
+    // 3. Synchronize Exams: smart reconciliation preserving the most recent edits
+    const fileExams = readDataFile('exams.json', []);
+    const [dbExamRows] = await connection.query('SELECT id, updated_at, data FROM tbl_exams');
+    const dbExamMap = new Map();
+    for (const row of dbExamRows) {
+      const parsed = safeJsonParse(row.data, null);
+      if (parsed && row.id) {
+        dbExamMap.set(row.id, {
+          updatedAt: new Date(row.updated_at || parsed.updatedAt || parsed.updated_at || 0).getTime(),
+          data: parsed
+        });
+      }
     }
+
+    const consolidatedExams = new Map();
+    for (const [id, entry] of dbExamMap.entries()) {
+      consolidatedExams.set(id, entry.data);
+    }
+
+    for (const ex of fileExams) {
+      if (!ex || !ex.id) continue;
+      const fileTime = new Date(ex.updatedAt || ex.updated_at || ex.dateAdded || 0).getTime();
+      const existingInDb = dbExamMap.get(ex.id);
+      const title = ex.name || ex.title || '';
+      const level = ex.level || '';
+
+      if (!existingInDb) {
+        await connection.query(
+          'INSERT INTO tbl_exams (id, title, level, data) VALUES (?, ?, ?, ?)',
+          [ex.id, title, level, JSON.stringify(ex)]
+        ).catch(() => {});
+        consolidatedExams.set(ex.id, ex);
+      } else if (fileTime > existingInDb.updatedAt + 1000) {
+        await connection.query(
+          'UPDATE tbl_exams SET title = ?, level = ?, data = ?, updated_at = NOW() WHERE id = ?',
+          [title, level, JSON.stringify(ex), ex.id]
+        ).catch(() => {});
+        consolidatedExams.set(ex.id, ex);
+      }
+    }
+
+    const allExamsList = Array.from(consolidatedExams.values()).sort((a, b) => {
+      const tA = new Date(a.updatedAt || a.updated_at || a.dateAdded || 0).getTime();
+      const tB = new Date(b.updatedAt || b.updated_at || b.dateAdded || 0).getTime();
+      return tB - tA;
+    });
+    writeDataFile('exams.json', allExamsList);
+    console.log(`[Server] Synced ${allExamsList.length} exams from MySQL database.`);
+
+    // 4. Synchronize Classes: smart reconciliation
+    const fileClasses = readDataFile('classes.json', []);
+    const [dbClassRows] = await connection.query('SELECT id, updated_at, data FROM tbl_classes');
+    const dbClassMap = new Map();
+    for (const row of dbClassRows) {
+      const parsed = safeJsonParse(row.data, null);
+      if (parsed && row.id) {
+        dbClassMap.set(row.id, {
+          updatedAt: new Date(row.updated_at || parsed.updatedAt || parsed.updated_at || 0).getTime(),
+          data: parsed
+        });
+      }
+    }
+
+    const consolidatedClasses = new Map();
+    for (const [id, entry] of dbClassMap.entries()) {
+      consolidatedClasses.set(id, entry.data);
+    }
+
+    for (const c of fileClasses) {
+      if (!c || !c.id) continue;
+      const fileTime = new Date(c.updatedAt || c.updated_at || c.createdAt || 0).getTime();
+      const existingInDb = dbClassMap.get(c.id);
+
+      if (!existingInDb) {
+        await connection.query(
+          'INSERT INTO tbl_classes (id, name, data) VALUES (?, ?, ?)',
+          [c.id, c.name || '', JSON.stringify(c)]
+        ).catch(() => {});
+        consolidatedClasses.set(c.id, c);
+      } else if (fileTime > existingInDb.updatedAt + 1000) {
+        await connection.query(
+          'UPDATE tbl_classes SET name = ?, data = ?, updated_at = NOW() WHERE id = ?',
+          [c.name || '', JSON.stringify(c), c.id]
+        ).catch(() => {});
+        consolidatedClasses.set(c.id, c);
+      }
+    }
+
+    const allClassesList = Array.from(consolidatedClasses.values());
+    writeDataFile('classes.json', allClassesList);
+    console.log(`[Server] Synced ${allClassesList.length} classes from MySQL database.`);
+
+    // 5. Synchronize Users: smart reconciliation
+    const fileUsers = readDataFile('users.json', []);
+    const [dbUserRows] = await connection.query('SELECT id, updated_at, data FROM tbl_users');
+    const dbUserMap = new Map();
+    for (const row of dbUserRows) {
+      const parsed = safeJsonParse(row.data, null);
+      if (parsed && row.id) {
+        dbUserMap.set(row.id, {
+          updatedAt: new Date(row.updated_at || parsed.updatedAt || 0).getTime(),
+          data: parsed
+        });
+      }
+    }
+
+    const consolidatedUsers = new Map();
+    for (const [id, entry] of dbUserMap.entries()) {
+      consolidatedUsers.set(id, entry.data);
+    }
+
+    for (const u of fileUsers) {
+      const uid = u.id || u.uid;
+      if (!uid) continue;
+      const fileTime = new Date(u.updatedAt || u.updated_at || u.joined || 0).getTime();
+      const existingInDb = dbUserMap.get(uid);
+
+      if (!existingInDb) {
+        await connection.query(
+          'INSERT INTO tbl_users (id, email, password, role, tier, data) VALUES (?, ?, ?, ?, ?, ?)',
+          [uid, u.email || `${uid}@local.user`, u.password || 'student123', u.role || 'student', u.tier || 'freemium', JSON.stringify(u)]
+        ).catch(() => {});
+        consolidatedUsers.set(uid, u);
+      } else if (fileTime > existingInDb.updatedAt + 1000) {
+        await connection.query(
+          'UPDATE tbl_users SET email = ?, password = COALESCE(?, password), role = ?, tier = ?, data = ?, updated_at = NOW() WHERE id = ?',
+          [u.email || `${uid}@local.user`, u.password || null, u.role || 'student', u.tier || 'freemium', JSON.stringify(u), uid]
+        ).catch(() => {});
+        consolidatedUsers.set(uid, u);
+      }
+    }
+
+    const allUsersList = Array.from(consolidatedUsers.values());
+    writeDataFile('users.json', allUsersList);
+    console.log(`[Server] Synced ${allUsersList.length} users from MySQL database.`);
 
     connection.release();
     isMySqlActive = true;
@@ -598,12 +787,15 @@ export const handleApiRequest = async (req, res, next) => {
   // 3. Exams Endpoints
   if (pathname === '/api/exams') {
     if (req.method === 'GET') {
+      const fileExams = readDataFile('exams.json', []);
       if (isMySqlActive) {
-        const [rows] = await dbPool.query('SELECT data FROM tbl_exams ORDER BY updated_at DESC');
-        const exams = rows.map(r => typeof r.data === 'string' ? JSON.parse(r.data) : r.data);
-        return sendJSON(res, 200, exams);
+        try {
+          const [rows] = await dbPool.query('SELECT data FROM tbl_exams ORDER BY updated_at DESC');
+          const exams = rows.map(r => safeJsonParse(r.data, null)).filter(Boolean);
+          if (exams.length > 0) return sendJSON(res, 200, exams);
+        } catch (_) {}
       }
-      return sendJSON(res, 200, readDataFile('exams.json', []));
+      return sendJSON(res, 200, fileExams);
     }
 
     if (req.method === 'POST') {
@@ -611,11 +803,13 @@ export const handleApiRequest = async (req, res, next) => {
         const exam = await getBody(req);
         if (!exam.id) exam.id = Math.random().toString(36).substring(2, 11).toUpperCase();
         exam.updatedAt = new Date().toISOString();
+        const title = exam.name || exam.title || '';
+        const level = exam.level || '';
 
         if (isMySqlActive) {
           await dbPool.query(
-            'INSERT INTO tbl_exams (id, data) VALUES (?, ?) ON DUPLICATE KEY UPDATE data = VALUES(data), updated_at = NOW()',
-            [exam.id, JSON.stringify(exam)]
+            'INSERT INTO tbl_exams (id, title, level, data) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE title = VALUES(title), level = VALUES(level), data = VALUES(data), updated_at = NOW()',
+            [exam.id, title, level, JSON.stringify(exam)]
           );
         }
         const exams = readDataFile('exams.json', []);
@@ -644,16 +838,17 @@ export const handleApiRequest = async (req, res, next) => {
     const id = pathname.replace('/api/exams/', '').trim();
     if (req.method === 'GET') {
       if (isMySqlActive) {
-        const [rows] = await dbPool.query('SELECT data FROM tbl_exams WHERE id = ?', [id]);
-        if (rows.length > 0) {
-          const ex = typeof rows[0].data === 'string' ? JSON.parse(rows[0].data) : rows[0].data;
-          return sendJSON(res, 200, ex);
-        }
-      } else {
-        const exams = readDataFile('exams.json', []);
-        const found = exams.find(e => e.id === id);
-        if (found) return sendJSON(res, 200, found);
+        try {
+          const [rows] = await dbPool.query('SELECT data FROM tbl_exams WHERE id = ?', [id]);
+          if (rows.length > 0) {
+            const ex = safeJsonParse(rows[0].data, null);
+            if (ex) return sendJSON(res, 200, ex);
+          }
+        } catch (_) {}
       }
+      const exams = readDataFile('exams.json', []);
+      const found = exams.find(e => e.id === id);
+      if (found) return sendJSON(res, 200, found);
       return sendJSON(res, 404, { error: 'Exam not found' });
     }
   }
@@ -665,25 +860,29 @@ export const handleApiRequest = async (req, res, next) => {
     if (req.method === 'GET') {
       if (singleId) {
         if (isMySqlActive) {
-          const [rows] = await dbPool.query('SELECT data FROM tbl_lessons WHERE id = ?', [singleId]);
-          if (rows.length > 0) {
-            const lesson = typeof rows[0].data === 'string' ? JSON.parse(rows[0].data) : rows[0].data;
-            return sendJSON(res, 200, lesson);
-          }
-        } else {
-          const lessons = readDataFile('lessons.json', []);
-          const found = lessons.find(l => l.id === singleId);
-          if (found) return sendJSON(res, 200, found);
+          try {
+            const [rows] = await dbPool.query('SELECT data FROM tbl_lessons WHERE id = ?', [singleId]);
+            if (rows.length > 0) {
+              const lesson = safeJsonParse(rows[0].data, null);
+              if (lesson) return sendJSON(res, 200, lesson);
+            }
+          } catch (_) {}
         }
+        const lessons = readDataFile('lessons.json', []);
+        const found = lessons.find(l => l.id === singleId);
+        if (found) return sendJSON(res, 200, found);
         return sendJSON(res, 404, { error: 'Lesson not found' });
       }
 
+      const fileLessons = readDataFile('lessons.json', []);
       if (isMySqlActive) {
-        const [rows] = await dbPool.query('SELECT data FROM tbl_lessons ORDER BY updated_at DESC');
-        const lessons = rows.map(r => typeof r.data === 'string' ? JSON.parse(r.data) : r.data);
-        return sendJSON(res, 200, lessons);
+        try {
+          const [rows] = await dbPool.query('SELECT data FROM tbl_lessons ORDER BY updated_at DESC');
+          const lessons = rows.map(r => safeJsonParse(r.data, null)).filter(Boolean);
+          if (lessons.length > 0) return sendJSON(res, 200, lessons);
+        } catch (_) {}
       }
-      return sendJSON(res, 200, readDataFile('lessons.json', []));
+      return sendJSON(res, 200, fileLessons);
     }
 
     if (req.method === 'POST' || req.method === 'PUT') {
@@ -728,25 +927,29 @@ export const handleApiRequest = async (req, res, next) => {
     if (req.method === 'GET') {
       if (singleId) {
         if (isMySqlActive) {
-          const [rows] = await dbPool.query('SELECT data FROM tbl_classes WHERE id = ?', [singleId]);
-          if (rows.length > 0) {
-            const cls = typeof rows[0].data === 'string' ? JSON.parse(rows[0].data) : rows[0].data;
-            return sendJSON(res, 200, cls);
-          }
-        } else {
-          const classes = readDataFile('classes.json', []);
-          const found = classes.find(c => c.id === singleId);
-          if (found) return sendJSON(res, 200, found);
+          try {
+            const [rows] = await dbPool.query('SELECT data FROM tbl_classes WHERE id = ?', [singleId]);
+            if (rows.length > 0) {
+              const cls = safeJsonParse(rows[0].data, null);
+              if (cls) return sendJSON(res, 200, cls);
+            }
+          } catch (_) {}
         }
+        const classes = readDataFile('classes.json', []);
+        const found = classes.find(c => c.id === singleId);
+        if (found) return sendJSON(res, 200, found);
         return sendJSON(res, 404, { error: 'Class not found' });
       }
 
+      const fileClasses = readDataFile('classes.json', []);
       if (isMySqlActive) {
-        const [rows] = await dbPool.query('SELECT data FROM tbl_classes ORDER BY updated_at DESC');
-        const classes = rows.map(r => typeof r.data === 'string' ? JSON.parse(r.data) : r.data);
-        return sendJSON(res, 200, classes);
+        try {
+          const [rows] = await dbPool.query('SELECT data FROM tbl_classes ORDER BY updated_at DESC');
+          const classes = rows.map(r => safeJsonParse(r.data, null)).filter(Boolean);
+          if (classes.length > 0) return sendJSON(res, 200, classes);
+        } catch (_) {}
       }
-      return sendJSON(res, 200, readDataFile('classes.json', []));
+      return sendJSON(res, 200, fileClasses);
     }
 
     if (req.method === 'POST') {
@@ -790,25 +993,29 @@ export const handleApiRequest = async (req, res, next) => {
     if (req.method === 'GET') {
       if (singleId) {
         if (isMySqlActive) {
-          const [rows] = await dbPool.query('SELECT data FROM tbl_users WHERE id = ?', [singleId]);
-          if (rows.length > 0) {
-            const u = typeof rows[0].data === 'string' ? JSON.parse(rows[0].data) : rows[0].data;
-            return sendJSON(res, 200, u);
-          }
-        } else {
-          const users = readDataFile('users.json', []);
-          const found = users.find(u => u.id === singleId || u.uid === singleId);
-          if (found) return sendJSON(res, 200, found);
+          try {
+            const [rows] = await dbPool.query('SELECT data FROM tbl_users WHERE id = ?', [singleId]);
+            if (rows.length > 0) {
+              const u = safeJsonParse(rows[0].data, null);
+              if (u) return sendJSON(res, 200, u);
+            }
+          } catch (_) {}
         }
+        const users = readDataFile('users.json', []);
+        const found = users.find(u => u.id === singleId || u.uid === singleId);
+        if (found) return sendJSON(res, 200, found);
         return sendJSON(res, 404, { error: 'User not found' });
       }
 
+      const fileUsers = readDataFile('users.json', []);
       if (isMySqlActive) {
-        const [rows] = await dbPool.query('SELECT data FROM tbl_users ORDER BY updated_at DESC');
-        const users = rows.map(r => typeof r.data === 'string' ? JSON.parse(r.data) : r.data);
-        return sendJSON(res, 200, users);
+        try {
+          const [rows] = await dbPool.query('SELECT data FROM tbl_users ORDER BY updated_at DESC');
+          const users = rows.map(r => safeJsonParse(r.data, null)).filter(Boolean);
+          if (users.length > 0) return sendJSON(res, 200, users);
+        } catch (_) {}
       }
-      return sendJSON(res, 200, readDataFile('users.json', []));
+      return sendJSON(res, 200, fileUsers);
     }
 
     if (req.method === 'POST') {
@@ -821,8 +1028,8 @@ export const handleApiRequest = async (req, res, next) => {
 
         if (isMySqlActive) {
           await dbPool.query(
-            'INSERT INTO tbl_users (id, email, role, tier, data) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE email = VALUES(email), role = VALUES(role), tier = VALUES(tier), data = VALUES(data), updated_at = NOW()',
-            [id, userObj.email || `${id}@local.user`, userObj.role || 'student', userObj.tier || 'freemium', JSON.stringify(userObj)]
+            'INSERT INTO tbl_users (id, email, password, role, tier, data) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE email = VALUES(email), password = COALESCE(VALUES(password), password), role = VALUES(role), tier = VALUES(tier), data = VALUES(data), updated_at = NOW()',
+            [id, userObj.email || `${id}@local.user`, userObj.password || 'student123', userObj.role || 'student', userObj.tier || 'freemium', JSON.stringify(userObj)]
           );
         }
         const users = readDataFile('users.json', []);
@@ -850,15 +1057,21 @@ export const handleApiRequest = async (req, res, next) => {
   // 7. General Config Endpoints
   if (pathname === '/api/config') {
     if (req.method === 'GET') {
+      const fileConfig = readDataFile('config.json', {});
       if (isMySqlActive) {
-        const [rows] = await dbPool.query('SELECT key_name, value FROM tbl_config');
-        const config = {};
-        for (const row of rows) {
-          config[row.key_name] = safeJsonParse(row.value, row.value);
+        try {
+          const [rows] = await dbPool.query('SELECT key_name, value FROM tbl_config');
+          const dbConfig = {};
+          for (const row of rows) {
+            dbConfig[row.key_name] = safeJsonParse(row.value, row.value);
+          }
+          return sendJSON(res, 200, { ...fileConfig, ...dbConfig });
+        } catch (dbErr) {
+          console.warn('[Server] DB config read error, falling back to file config:', dbErr.message);
+          return sendJSON(res, 200, fileConfig);
         }
-        return sendJSON(res, 200, config);
       }
-      return sendJSON(res, 200, readDataFile('config.json', {}));
+      return sendJSON(res, 200, fileConfig);
     }
 
     if (req.method === 'POST') {
@@ -866,10 +1079,12 @@ export const handleApiRequest = async (req, res, next) => {
         const payload = await getBody(req);
         if (isMySqlActive) {
           for (const [k, v] of Object.entries(payload)) {
-            await dbPool.query(
-              'INSERT INTO tbl_config (key_name, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = NOW()',
-              [k, JSON.stringify(v)]
-            );
+            if (k && v !== undefined) {
+              await dbPool.query(
+                'INSERT INTO tbl_config (key_name, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = NOW()',
+                [k, JSON.stringify(v)]
+              );
+            }
           }
         }
         const existing = readDataFile('config.json', {});
