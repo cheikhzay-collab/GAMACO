@@ -1392,13 +1392,15 @@ export const generateLessonHTML = (lesson, settings = {}) => {
       return `<table style="width:100%; border-collapse:collapse; margin: 8px 0; border: none;"><tbody>${tableRows}</tbody></table>`;
     } else {
       // bullet or text
-      const bulletDot = item.type === 'bullet'
+      let itemText = item.text || '';
+      const startsWithNumber = /^(\d+[\.\)]|[a-zA-Z][\.\)])\s*/.test(itemText.trim());
+      const bulletDot = (item.type === 'bullet' && !startsWithNumber)
         ? `<span class="bullet-dot" style="${isArabic ? 'margin-left:0.4rem;margin-right:0' : ''}">•</span>`
         : '';
       const bulletStyle = isArabic
         ? 'flex-direction:row;text-align:right;'
         : '';
-      return `<div class="bullet-item" style="${bulletStyle}">${bulletDot}<span style="flex:1;font-family:${isArabic ? arabicFontFamily : 'inherit'}">${renderMath(item.text)}</span></div>`;
+      return `<div class="bullet-item" style="${bulletStyle}">${bulletDot}<span style="flex:1;font-family:${isArabic ? arabicFontFamily : 'inherit'}">${renderMath(itemText)}</span></div>`;
     }
   };
 
@@ -1505,6 +1507,9 @@ export const generateLessonHTML = (lesson, settings = {}) => {
           itemsHtml += renderItemHtml(item);
         });
       }
+      if (!itemsHtml && sec.content) {
+        itemsHtml = renderMath(sec.content);
+      }
 
       const type = sec.type || 'content';
       let cleanTitleText = (sec.title || '').trim();
@@ -1560,8 +1565,8 @@ export const generateLessonHTML = (lesson, settings = {}) => {
         cleanTitleText = stripSectionKeyword(cleanTitleText, /^(Techniques?)\s*[:\-]*\s*/i);
       }
 
-      let cardStyles = `margin-bottom: 0.5rem; padding: 0.2rem 0; display: flex; flex-direction: column; gap: 0.2rem; page-break-inside: avoid;`;
-      let headerStyles = `font-size: 0.95rem; font-weight: 800; margin-bottom: 0.25rem; display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;`;
+      let cardStyles = `margin-bottom: 0.45rem; padding: 0.15rem 0; display: flex; flex-direction: column; gap: 0.2rem; break-inside: auto; page-break-inside: auto;`;
+      let headerStyles = `font-size: 0.95rem; font-weight: 800; margin-bottom: 0.25rem; display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; break-after: avoid; page-break-after: avoid;`;
 
       if (isArabic) {
         cardStyles += ` font-family: ${arabicFontFamily}; direction: rtl; text-align: right;`;
@@ -1569,17 +1574,17 @@ export const generateLessonHTML = (lesson, settings = {}) => {
 
       if (isBoxed) {
         sectionsHtml += `
-          <div style="${cardStyles}">
+          <div class="theory-section-wrapper" style="${cardStyles}">
             <div style="${headerStyles}">${prefix}${cleanTitleText ? ' ' + renderLineContent(cleanTitleText) : ''}</div>
             ${sec.accent_text ? `<div style="color:#0f766e;font-weight:700;font-style:italic;margin-bottom:0.2rem">${renderMath((sec.accent_text || '').replace(/\\n/g, '\n'))}</div>` : ''}
-            <div style="border: 1px solid #cbd5e1; border-left: 4px solid ${borderAccentColor}; border-radius: 8px; background: #ffffff; box-shadow: 0 2px 10px rgba(0,0,0,0.03); padding: 0.6rem 0.85rem; margin-top: 0.1rem;">
+            <div class="theory-box-content" style="border: 1px solid #cbd5e1; border-left: 4px solid ${borderAccentColor}; border-radius: 8px; background: #ffffff; box-shadow: 0 2px 10px rgba(0,0,0,0.03); padding: 0.55rem 0.8rem; margin-top: 0.1rem; break-inside: auto; page-break-inside: auto;">
               ${itemsHtml}
             </div>
           </div>`;
       } else {
         // Examples, Remarks, Activities, Technique: NO frame, just content flows below the title
         sectionsHtml += `
-          <div style="${cardStyles}">
+          <div class="theory-section-wrapper" style="${cardStyles}">
             <div style="${headerStyles}">${prefix}${cleanTitleText ? ' ' + renderLineContent(cleanTitleText) : ''}</div>
             ${sec.accent_text ? `<div style="color:#009688;font-weight:700;font-style:italic;margin-bottom:0.1rem">${renderMath((sec.accent_text || '').replace(/\\n/g, '\n'))}</div>` : ''}
             ${itemsHtml}
@@ -1824,6 +1829,67 @@ body {
 }
 .fiche-pedagogique-header .right-info-table tr:last-child td {
   border-bottom: none;
+}
+
+/* Compact Pedagogical Header (used when pedagogic competencies/contents are empty to save space) */
+.fiche-pedagogique-compact-header {
+  width: 100%;
+  border: 1.5px solid #005086;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 0.65rem;
+  background-color: #ffffff;
+  box-shadow: 0 2px 8px rgba(0,80,134,0.06);
+  font-family: inherit;
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+  break-after: avoid !important;
+  page-break-after: avoid !important;
+}
+.fiche-pedagogique-compact-header .compact-title-cell {
+  background: #005086;
+  text-align: center;
+  font-weight: 900;
+  font-size: 13pt;
+  color: #ffffff;
+  padding: 8px 14px;
+  letter-spacing: 0.04em;
+}
+.fiche-pedagogique-compact-header .compact-meta-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  padding: 5px 12px;
+  background: #f8fafc;
+  gap: 6px 14px;
+  font-size: 8.2pt;
+  color: #1e293b;
+  border-top: 1px solid rgba(0,80,134,0.15);
+}
+.fiche-pedagogique-compact-header .compact-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.fiche-pedagogique-compact-header .meta-lbl {
+  color: #64748b;
+  font-weight: 700;
+}
+.fiche-pedagogique-compact-header .meta-val {
+  color: #0f172a;
+  font-weight: 800;
+}
+.fiche-pedagogique-compact-header .level-val {
+  color: #005086;
+}
+.fiche-pedagogique-compact-header .compact-badge-degre {
+  background-color: #fef08a;
+  color: #854d0e;
+  padding: 1px 6px;
+  font-weight: 800;
+  border-radius: 4px;
+  font-size: 8pt;
 }
 
 /* Badge pill styles for definitions, properties, theorems, etc. */
@@ -2211,14 +2277,20 @@ html[dir="rtl"] .header-info-row {
    HIGHLIGHT BOX (green tint like reference)
    ═══════════════════════════════════════ */
 .highlight-box {
-  background: rgba(144, 238, 144, 0.25);
+  background: rgba(144, 238, 144, 0.22);
   border: none;
-  padding: 0.3rem 0.6rem;
-  margin: 0.15rem 0;
+  padding: 0.4rem 0.75rem;
+  margin: 0.2rem 0;
   line-height: 1.55;
-  text-align: center;
-  font-style: italic;
+  text-align: left;
+  border-radius: 6px;
   font-weight: 500;
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+}
+[dir="rtl"] .highlight-box,
+.arabic-content .highlight-box {
+  text-align: right;
 }
 
 /* ═══════════════════════════════════════
@@ -2522,10 +2594,14 @@ b .katex * {
   column-fill: balance !important;
 }
 
+.theory-section-wrapper,
+.theory-box-content,
+.sections-container > div,
 .exercises-two-columns > *,
+.exercises-three-columns > *,
 .exercise-wrapper,
 .modern-exercise-wrapper {
-  margin-bottom: 0.75rem !important;
+  margin-bottom: 0.65rem !important;
   break-inside: auto !important;
   page-break-inside: auto !important;
   -webkit-column-break-inside: auto !important;
@@ -2549,19 +2625,36 @@ b .katex * {
 .exercise-question-item,
 .exercise-text-line,
 .list-item-row,
+.bullet-item,
+.highlight-box,
+.modern-figure-wrapper,
+.side-image-wrapper,
+.side-by-side-container,
+.notation-column,
 .exercises-two-columns .exercise-body > div,
 .exercises-two-columns .exercise-body > span,
-.exercises-two-columns .katex-display {
+.exercises-two-columns .katex-display,
+.exercises-three-columns .katex-display {
   break-inside: avoid !important;
   page-break-inside: avoid !important;
   -webkit-column-break-inside: avoid !important;
 }
 
 /* Keep exercise header attached to its body — never break between banner and first question */
+.section-header-row,
+.section-badge,
+.doc-badge-pill,
 .exercise-banner,
-.modern-exercise-banner {
+.modern-exercise-banner,
+.solution-title,
+.fiche-pedagogique-header,
+.fiche-pedagogique-compact-header,
+h1, h2, h3, h4 {
   break-inside: avoid !important;
   break-after: avoid !important;
+  page-break-after: avoid !important;
+  -webkit-column-break-after: avoid !important;
+}
   page-break-after: avoid !important;
   -webkit-column-break-after: avoid !important;
 }
@@ -3611,69 +3704,102 @@ html[dir="rtl"] .homework-content-cell {
   </div>
   ` : `
   <!-- CLASSIC HEADER: lessons / courses -->
-  <table class="fiche-pedagogique-header">
-    <tr>
-      <!-- Left Side (73% width) -->
-      <td style="width: 73%; padding: 0;" rowspan="1">
-        <table style="width: 100%; border-collapse: collapse; height: 100%;">
-          <tr>
-            <td colspan="2" class="title-cell">
-              ${esc(title)}
-            </td>
-          </tr>
-          <tr>
-            <td style="width: 50%; padding: 0;">
-              <div class="header-section-title">${isArabic ? 'القدرات المنتظرة' : 'Les capacités attendues'}</div>
-              <div style="padding: 6px 10px; font-size: 8.2pt; min-height: 50px; font-family: ${isArabic ? arabicFontFamily : 'inherit'}">
-                ${renderMath(lesson.header?.capacites_attendues || lesson.header?.capacites || lesson.content?.capacites_attendues || '')}
-              </div>
-            </td>
-            <td style="width: 50%; padding: 0;">
-              <div class="header-section-title">${isArabic ? 'المحتويات' : 'Contenus'}</div>
-              <div style="padding: 6px 10px; font-size: 8.2pt; min-height: 50px; font-family: ${isArabic ? arabicFontFamily : 'inherit'}">
-                ${renderMath(lesson.header?.contenus || lesson.header?.prerequisites || lesson.content?.contenus || '')}
-              </div>
-            </td>
-          </tr>
-          <tr>
-            <td colspan="2" style="padding: 0;">
-              <div class="header-section-title">${isArabic ? 'المحتوى' : 'Le contenu'}</div>
-              <div style="padding: 6px 10px; font-size: 8.2pt; min-height: 40px; font-family: ${isArabic ? arabicFontFamily : 'inherit'}">
-                ${renderMath(lesson.header?.le_contenu || lesson.header?.overview || lesson.content?.le_contenu || '')}
-              </div>
-            </td>
-          </tr>
-        </table>
-      </td>
-      
-      <!-- Right Side (27% width) -->
-      <td style="width: 27%; padding: 0;">
-        <table class="right-info-table" style="width: 100%; border-collapse: collapse; height: 100%;">
-          <tr>
-            <td style="font-family: ${isArabic ? arabicFontFamily : 'inherit'}"><strong>${isArabic ? 'الأكاديمية' : 'Académie'} :</strong><br/>${esc(lesson.header?.academie || (isArabic ? 'فاس - مكناس' : 'FES-MEKNES'))}</td>
-          </tr>
-          <tr>
-            <td style="font-family: ${isArabic ? arabicFontFamily : 'inherit'}"><strong>${isArabic ? 'المديرية الإقليمية' : 'Direction Provinciale'} :</strong><br/>${esc(lesson.header?.direction || (isArabic ? 'مكناس' : 'MY'))}</td>
-          </tr>
-          <tr>
-            <td style="font-family: ${isArabic ? arabicFontFamily : 'inherit'}"><strong>${isArabic ? 'المؤسسة' : 'Etablissement'} :</strong><br/>${esc(lesson.header?.etablissement || schools[0] || (isArabic ? '18 نونبر' : '18 NOVEMBRE'))}</td>
-          </tr>
-          <tr>
-            <td style="font-family: ${isArabic ? arabicFontFamily : 'inherit'}">
-              <strong>${isArabic ? 'الأهمية' : "Degré d'importance"} :</strong><br/>
-              <span style="background-color: #fef08a; padding: 1px 5px; font-weight: 800; color: #854d0e; font-size: 8.5pt; display: inline-block; margin-top: 2px;">${esc(lesson.header?.degre_importance || '40%')}</span>
-            </td>
-          </tr>
-          <tr>
-            <td style="font-family: ${isArabic ? arabicFontFamily : 'inherit'}; border-bottom: none;">
-              <strong>${isArabic ? 'ملاحظات' : 'Remarques'} :</strong><br/>
-              ${renderMath(lesson.header?.remarques || '')}
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
+  ${(() => {
+    const capacitesRaw = (lesson.header?.capacites_attendues || lesson.header?.capacites || lesson.content?.capacites_attendues || '').trim();
+    const contenusRaw = (lesson.header?.contenus || lesson.header?.prerequisites || lesson.content?.contenus || '').trim();
+    const leContenuRaw = (lesson.header?.le_contenu || lesson.header?.overview || lesson.content?.le_contenu || '').trim();
+    const remarquesRaw = (lesson.header?.remarques || '').trim();
+    const hasPedagogicalDetails = Boolean(capacitesRaw || contenusRaw || leContenuRaw);
+
+    const academieVal = lesson.header?.academie || (isArabic ? 'فاس - مكناس' : 'FES-MEKNES');
+    const directionVal = lesson.header?.direction || (isArabic ? 'مكناس' : 'MY');
+    const etablissementVal = lesson.header?.etablissement || schools[0] || (isArabic ? '18 نونبر' : '18 NOVEMBRE');
+    const degreVal = lesson.header?.degre_importance || '40%';
+
+    if (!hasPedagogicalDetails) {
+      // Sleek, compact academic header — saves 160px of space on Page 1!
+      return `
+      <div class="fiche-pedagogique-compact-header" style="${isArabic ? `font-family:${arabicFontFamily};direction:rtl;` : ''}">
+        <div class="compact-title-cell">${esc(title)}</div>
+        <div class="compact-meta-bar">
+          <div class="compact-meta-item"><span class="meta-lbl">${isArabic ? 'الأكاديمية' : 'Académie'} :</span> <strong class="meta-val">${esc(academieVal)}</strong></div>
+          <div class="compact-meta-item"><span class="meta-lbl">${isArabic ? 'المديرية الإقليمية' : 'Direction'} :</span> <strong class="meta-val">${esc(directionVal)}</strong></div>
+          <div class="compact-meta-item"><span class="meta-lbl">${isArabic ? 'المؤسسة' : 'Établissement'} :</span> <strong class="meta-val">${esc(etablissementVal)}</strong></div>
+          ${levelText ? `<div class="compact-meta-item"><span class="meta-lbl">${isArabic ? 'المستوى' : 'Niveau'} :</span> <strong class="meta-val level-val">${esc(levelText)}</strong></div>` : ''}
+          ${teacher ? `<div class="compact-meta-item"><span class="meta-lbl">${isArabic ? 'الأستاذ' : 'Prof'} :</span> <strong class="meta-val">${esc(formatTeacherName(teacher))}</strong></div>` : ''}
+          <div class="compact-meta-item"><span class="meta-lbl">${isArabic ? 'الأهمية' : 'Importance'} :</span> <span class="compact-badge-degre">${esc(degreVal)}</span></div>
+        </div>
+      </div>`;
+    }
+
+    // Full pedagogical table (when teacher entered competencies/contents) with dynamic heights
+    return `
+    <table class="fiche-pedagogique-header" style="${isArabic ? `font-family:${arabicFontFamily};direction:rtl;` : ''}">
+      <tr>
+        <!-- Left Side (73% width) -->
+        <td style="width: 73%; padding: 0;" rowspan="1">
+          <table style="width: 100%; border-collapse: collapse; height: 100%;">
+            <tr>
+              <td colspan="2" class="title-cell">
+                ${esc(title)}
+              </td>
+            </tr>
+            <tr>
+              <td style="width: 50%; padding: 0;">
+                <div class="header-section-title">${isArabic ? 'القدرات المنتظرة' : 'Les capacités attendues'}</div>
+                <div style="padding: 5px 8px; font-size: 8pt; min-height: 24px; font-family: ${isArabic ? arabicFontFamily : 'inherit'}">
+                  ${renderMath(capacitesRaw || '—')}
+                </div>
+              </td>
+              <td style="width: 50%; padding: 0;">
+                <div class="header-section-title">${isArabic ? 'المحتويات' : 'Contenus'}</div>
+                <div style="padding: 5px 8px; font-size: 8pt; min-height: 24px; font-family: ${isArabic ? arabicFontFamily : 'inherit'}">
+                  ${renderMath(contenusRaw || '—')}
+                </div>
+              </td>
+            </tr>
+            ${leContenuRaw ? `
+            <tr>
+              <td colspan="2" style="padding: 0;">
+                <div class="header-section-title">${isArabic ? 'المحتوى' : 'Le contenu'}</div>
+                <div style="padding: 5px 8px; font-size: 8pt; min-height: 24px; font-family: ${isArabic ? arabicFontFamily : 'inherit'}">
+                  ${renderMath(leContenuRaw)}
+                </div>
+              </td>
+            </tr>` : ''}
+          </table>
+        </td>
+        
+        <!-- Right Side (27% width) -->
+        <td style="width: 27%; padding: 0;">
+          <table class="right-info-table" style="width: 100%; border-collapse: collapse; height: 100%;">
+            <tr>
+              <td style="font-family: ${isArabic ? arabicFontFamily : 'inherit'}"><strong>${isArabic ? 'الأكاديمية' : 'Académie'} :</strong><br/>${esc(academieVal)}</td>
+            </tr>
+            <tr>
+              <td style="font-family: ${isArabic ? arabicFontFamily : 'inherit'}"><strong>${isArabic ? 'المديرية الإقليمية' : 'Direction Provinciale'} :</strong><br/>${esc(directionVal)}</td>
+            </tr>
+            <tr>
+              <td style="font-family: ${isArabic ? arabicFontFamily : 'inherit'}"><strong>${isArabic ? 'المؤسسة' : 'Etablissement'} :</strong><br/>${esc(etablissementVal)}</td>
+            </tr>
+            <tr>
+              <td style="font-family: ${isArabic ? arabicFontFamily : 'inherit'}">
+                <strong>${isArabic ? 'الأهمية' : "Degré d'importance"} :</strong><br/>
+                <span style="background-color: #fef08a; padding: 1px 5px; font-weight: 800; color: #854d0e; font-size: 8.5pt; display: inline-block; margin-top: 2px;">${esc(degreVal)}</span>
+              </td>
+            </tr>
+            ${remarquesRaw ? `
+            <tr>
+              <td style="font-family: ${isArabic ? arabicFontFamily : 'inherit'}; border-bottom: none;">
+                <strong>${isArabic ? 'ملاحظات' : 'Remarques'} :</strong><br/>
+                ${renderMath(remarquesRaw)}
+              </td>
+            </tr>` : ''}
+          </table>
+        </td>
+      </tr>
+    </table>`;
+  })()}
   `}
 
   <!-- BANNER: only for classic (non-exercise/non-homework) docs -->
@@ -3862,6 +3988,9 @@ function _applyPrintStyles() {
     '.exercises-two-columns .katex, .exercises-three-columns .katex, .exercises-two-columns .katex-html, .exercises-three-columns .katex-html { white-space: normal !important; max-width: 100% !important; }',
     '.exercises-two-columns .katex .base, .exercises-three-columns .katex .base { max-width: 100% !important; }',
     '@media print {',
+    '  .theory-section-wrapper, .theory-box-content, .sections-container > div, .exercise-wrapper, .modern-exercise-wrapper { break-inside: auto !important; page-break-inside: auto !important; }',
+    '  .section-header-row, .section-badge, .doc-badge-pill, .exercise-banner, .modern-exercise-banner, .solution-title, .fiche-pedagogique-header, .fiche-pedagogique-compact-header, h1, h2, h3, h4 { break-inside: avoid !important; break-after: avoid !important; page-break-after: avoid !important; }',
+    '  .exercise-item-row, .exercise-bullet-item, .exercise-question-item, .bullet-item, .highlight-box, .modern-figure-wrapper, .side-image-wrapper, .side-by-side-container, .notation-column { break-inside: avoid !important; page-break-inside: avoid !important; }',
     '  .exercises-one-column { column-count: 1 !important; display: block !important; width: 100% !important; column-rule: none !important; }',
     '  .homework-sections-container, .sections-container.homework-sections-container, .sections-container:has(.homework-table), .sections-list-container:has(.homework-table) { column-count: 1 !important; display: block !important; width: 100% !important; column-rule: none !important; }',
     '  .homework-table { display: table !important; width: 100% !important; max-width: 100% !important; border-collapse: collapse !important; break-inside: auto !important; page-break-inside: auto !important; }',

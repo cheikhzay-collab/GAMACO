@@ -703,6 +703,8 @@ export default function LessonViewerPage() {
     return 2;
   });
 
+  const [showDetailedPedagogy, setShowDetailedPedagogy] = useState(false);
+
   const handleSetSeriesColumns = (cols) => {
     setSeriesColumns(cols);
     try {
@@ -721,6 +723,16 @@ export default function LessonViewerPage() {
           setError("Ce cours n'existe pas ou a été supprimé.");
         } else {
           setLesson(data);
+          const hasPed = Boolean(
+            data.header?.capacites_attendues ||
+            data.header?.contenus ||
+            data.header?.le_contenu ||
+            data.content?.capacites_attendues ||
+            data.content?.contenus
+          );
+          if (hasPed) {
+            setShowDetailedPedagogy(true);
+          }
           const prefDocCols = Number(data.content?.columns_count || data.columns_count);
           if ([1, 2, 3].includes(prefDocCols)) {
             setSeriesColumns(prefDocCols);
@@ -2219,6 +2231,22 @@ export default function LessonViewerPage() {
             column-rule: none !important;
             width: 100% !important;
           }
+          .exercises-one-column-layout > *,
+          .exercises-one-column-layout .exercise-section-wrapper,
+          .exercises-one-column-layout .exercise-wrapper,
+          .exercises-one-column-layout .exercise-body {
+            break-inside: auto !important;
+            page-break-inside: auto !important;
+            margin-bottom: 0.65rem !important;
+          }
+          .exercises-one-column-layout .list-item-row,
+          .exercises-one-column-layout .exercise-item-row,
+          .exercises-one-column-layout .bullet-item,
+          .exercises-one-column-layout .classic-highlight-box,
+          .exercises-one-column-layout .modern-figure-wrapper {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
 
           .exercises-two-columns-layout {
             display: block !important;
@@ -2229,16 +2257,21 @@ export default function LessonViewerPage() {
             width: 100% !important;
           }
           .exercises-two-columns-layout > *,
+          .exercises-two-columns-layout .exercise-section-wrapper,
           .exercises-two-columns-layout .exercise-wrapper,
           .exercises-two-columns-layout .exercise-body,
           .exercises-two-columns-layout .exercise-body-box {
-            margin-bottom: 1rem !important;
+            margin-bottom: 0.65rem !important;
             break-inside: auto !important;
             page-break-inside: auto !important;
             -webkit-column-break-inside: auto !important;
           }
           .exercises-two-columns-layout .exercise-banner,
-          .exercises-two-columns-layout .modern-exercise-banner {
+          .exercises-two-columns-layout .modern-exercise-banner,
+          .section-header-row,
+          .fiche-pedagogique-header,
+          .fiche-pedagogique-compact-header,
+          h1, h2, h3, h4 {
             break-inside: avoid !important;
             break-after: avoid !important;
             page-break-after: avoid !important;
@@ -2246,8 +2279,11 @@ export default function LessonViewerPage() {
           }
           .exercises-two-columns-layout .list-item-row,
           .exercises-two-columns-layout .exercise-item-row,
-          .exercises-two-columns-layout div[style*="display: flex"],
-          .exercises-two-columns-layout div[style*="display:flex"] {
+          .bullet-item,
+          .highlight-box,
+          .classic-highlight-box,
+          .modern-figure-wrapper,
+          .notation-column {
             break-inside: avoid !important;
             page-break-inside: avoid !important;
             -webkit-column-break-inside: avoid !important;
@@ -2493,7 +2529,52 @@ export default function LessonViewerPage() {
           .classic-highlight-box {
             background: rgba(0,80,134,0.04) !important;
             border: 1.5px solid #005086 !important;
+            border-radius: 6px !important;
             color: #1a202c !important;
+            text-align: left !important;
+            padding: 0.45rem 0.8rem !important;
+            margin: 0.25rem 0 !important;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+          [dir="rtl"] .classic-highlight-box {
+            text-align: right !important;
+          }
+
+          /* Compact pedagogical header */
+          .fiche-pedagogique-compact-header {
+            width: 100% !important;
+            border: 1.5px solid #005086 !important;
+            border-radius: 6px !important;
+            overflow: hidden !important;
+            margin-bottom: 0.65rem !important;
+            background: #ffffff !important;
+            box-shadow: 0 2px 8px rgba(0,80,134,0.06) !important;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+            break-after: avoid !important;
+            page-break-after: avoid !important;
+          }
+          .fiche-pedagogique-compact-header .compact-title-cell {
+            background: #005086 !important;
+            color: #ffffff !important;
+            text-align: center !important;
+            font-weight: 900 !important;
+            font-size: 1.15rem !important;
+            padding: 0.55rem 1rem !important;
+            letter-spacing: 0.03em !important;
+          }
+          .fiche-pedagogique-compact-header .compact-meta-bar {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            flex-wrap: wrap !important;
+            padding: 0.4rem 0.85rem !important;
+            background: #f8fafc !important;
+            gap: 0.4rem 1rem !important;
+            font-size: 0.78rem !important;
+            color: #1e293b !important;
+            border-top: 1px solid rgba(0,80,134,0.15) !important;
           }
 
           /* KaTeX math — always crisp regular weight, metric isolated, and strictly LTR */
@@ -2857,212 +2938,348 @@ export default function LessonViewerPage() {
         </header>
 
         {/* Screen & Print Pedagogical Header Table — ONLY FOR LESSONS / COURSES */}
-        {!(lesson?.docType === 'exercises' || lesson?.docType === 'homework' || lesson?.type === 'exercises' || lesson?.type === 'homework' || lesson?.content?.doc_type === 'homework') && (
-          <table className="fiche-pedagogique-header" style={{
-            width: '100%',
-            borderCollapse: 'separate',
-            borderSpacing: 0,
-            border: '1.5px solid #005086',
-            borderRadius: '6px',
-            overflow: 'hidden',
-            marginBottom: '1.25rem',
-            background: '#ffffff',
-            boxShadow: '0 2px 8px rgba(0,80,134,0.06)'
-          }}>
-            <tbody>
-              <tr>
-                {/* Left Main Content Block (73% width) */}
-                <td style={{ width: '73%', padding: 0, borderRight: '1.5px solid #005086', borderBottom: 'none' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <tbody>
-                      {/* Top Main Title Row */}
-                      <tr>
-                        <td colSpan={2} className="title-cell" style={{
-                          background: '#005086',
-                          color: '#ffffff',
-                          textAlign: 'center',
-                          fontWeight: 900,
-                          fontSize: '1.25rem',
-                          padding: '0.65rem 1rem',
-                          letterSpacing: '0.04em',
-                          borderBottom: '1.5px solid #005086'
-                        }}>
-                          <input
-                            type="text"
-                            value={header.fiche_title || header.subject || "CALCULS D' INTEGRALS"}
-                            onChange={(e) => handleHeaderChange('fiche_title', e.target.value)}
-                            placeholder="Titre de la fiche..."
-                            style={{
-                              width: '100%',
-                              fontSize: '1.2rem',
-                              background: 'transparent',
+        {!(lesson?.docType === 'exercises' || lesson?.docType === 'homework' || lesson?.type === 'exercises' || lesson?.type === 'homework' || lesson?.content?.doc_type === 'homework') && (() => {
+          const hasPedagogy = Boolean(
+            (header.capacites_attendues || '').trim() ||
+            (header.contenus || '').trim() ||
+            (header.le_contenu || '').trim()
+          );
+
+          if (!hasPedagogy && !showDetailedPedagogy) {
+            return (
+              <div className="fiche-pedagogique-compact-header" style={{
+                width: '100%',
+                border: '1.5px solid #005086',
+                borderRadius: '6px',
+                overflow: 'hidden',
+                marginBottom: '1rem',
+                background: '#ffffff',
+                boxShadow: '0 2px 8px rgba(0,80,134,0.06)'
+              }}>
+                <div className="compact-title-cell" style={{
+                  background: '#005086',
+                  color: '#ffffff',
+                  textAlign: 'center',
+                  fontWeight: 900,
+                  fontSize: '1.25rem',
+                  padding: '0.65rem 1rem',
+                  letterSpacing: '0.04em'
+                }}>
+                  <input
+                    type="text"
+                    value={header.fiche_title || header.subject || "CALCULS D' INTEGRALS"}
+                    onChange={(e) => handleHeaderChange('fiche_title', e.target.value)}
+                    placeholder="Titre de la fiche..."
+                    style={{
+                      width: '100%',
+                      fontSize: '1.2rem',
+                      background: 'transparent',
+                      color: '#ffffff',
+                      border: 'none',
+                      textAlign: 'center',
+                      fontWeight: 900,
+                      outline: 'none',
+                      fontFamily: 'inherit'
+                    }}
+                  />
+                </div>
+                <div className="compact-meta-bar" style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  padding: '0.45rem 1rem',
+                  background: '#f8fafc',
+                  gap: '0.5rem 1.25rem',
+                  fontSize: '0.8rem',
+                  color: '#1e293b',
+                  borderTop: '1px solid rgba(0,80,134,0.15)'
+                }}>
+                  <div className="compact-meta-item">
+                    <strong style={{ color: '#005086' }}>{isArabic ? 'الأكاديمية' : 'Académie'} :</strong>
+                    <input
+                      type="text"
+                      value={header.academie || 'FES-MEKNES'}
+                      onChange={(e) => handleHeaderChange('academie', e.target.value)}
+                      style={{ border: 'none', background: 'transparent', fontWeight: 700, fontSize: '0.8rem', outline: 'none', color: '#1e293b', width: '90px' }}
+                    />
+                  </div>
+                  <div className="compact-meta-item">
+                    <strong style={{ color: '#005086' }}>{isArabic ? 'المديرية' : 'Direction'} :</strong>
+                    <input
+                      type="text"
+                      value={header.direction || 'MY'}
+                      onChange={(e) => handleHeaderChange('direction', e.target.value)}
+                      style={{ border: 'none', background: 'transparent', fontWeight: 700, fontSize: '0.8rem', outline: 'none', color: '#1e293b', width: '50px' }}
+                    />
+                  </div>
+                  <div className="compact-meta-item">
+                    <strong style={{ color: '#005086' }}>{isArabic ? 'المؤسسة' : 'Établissement'} :</strong>
+                    <input
+                      type="text"
+                      value={header.etablissement || '18 NOVEMBRE'}
+                      onChange={(e) => handleHeaderChange('etablissement', e.target.value)}
+                      style={{ border: 'none', background: 'transparent', fontWeight: 700, fontSize: '0.8rem', outline: 'none', color: '#1e293b', width: '110px' }}
+                    />
+                  </div>
+                  <div className="compact-meta-item">
+                    <strong style={{ color: '#005086' }}>{isArabic ? 'الأهمية' : 'Importance'} :</strong>
+                    <input
+                      type="text"
+                      value={header.degre_importance || '40%'}
+                      onChange={(e) => handleHeaderChange('degre_importance', e.target.value)}
+                      style={{ background: '#fef08a', border: 'none', borderRadius: '3px', padding: '1px 5px', fontWeight: 800, color: '#854d0e', fontSize: '0.78rem', width: '45px', textAlign: 'center' }}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowDetailedPedagogy(true)}
+                    className="no-print"
+                    style={{
+                      background: 'rgba(0,80,134,0.08)',
+                      border: '1px solid rgba(0,80,134,0.25)',
+                      borderRadius: '99px',
+                      padding: '0.2rem 0.6rem',
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      color: '#005086',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    + {isArabic ? 'إضافة القدرات والمحتويات' : 'Détailler les capacités & contenus'}
+                  </button>
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <div>
+              {!hasPedagogy && showDetailedPedagogy && (
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.35rem' }} className="no-print">
+                  <button
+                    type="button"
+                    onClick={() => setShowDetailedPedagogy(false)}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#64748b',
+                      fontSize: '0.72rem',
+                      cursor: 'pointer',
+                      textDecoration: 'underline'
+                    }}
+                  >
+                    {isArabic ? 'تصغير الرأس التربوي' : 'Réduire au bandeau compact'}
+                  </button>
+                </div>
+              )}
+              <table className="fiche-pedagogique-header" style={{
+                width: '100%',
+                borderCollapse: 'separate',
+                borderSpacing: 0,
+                border: '1.5px solid #005086',
+                borderRadius: '6px',
+                overflow: 'hidden',
+                marginBottom: '1.25rem',
+                background: '#ffffff',
+                boxShadow: '0 2px 8px rgba(0,80,134,0.06)'
+              }}>
+                <tbody>
+                  <tr>
+                    {/* Left Main Content Block (73% width) */}
+                    <td style={{ width: '73%', padding: 0, borderRight: '1.5px solid #005086', borderBottom: 'none' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <tbody>
+                          {/* Top Main Title Row */}
+                          <tr>
+                            <td colSpan={2} className="title-cell" style={{
+                              background: '#005086',
                               color: '#ffffff',
-                              border: 'none',
                               textAlign: 'center',
                               fontWeight: 900,
-                              outline: 'none',
-                              fontFamily: 'inherit'
-                            }}
-                          />
-                        </td>
-                      </tr>
+                              fontSize: '1.25rem',
+                              padding: '0.65rem 1rem',
+                              letterSpacing: '0.04em',
+                              borderBottom: '1.5px solid #005086'
+                            }}>
+                              <input
+                                type="text"
+                                value={header.fiche_title || header.subject || "CALCULS D' INTEGRALS"}
+                                onChange={(e) => handleHeaderChange('fiche_title', e.target.value)}
+                                placeholder="Titre de la fiche..."
+                                style={{
+                                  width: '100%',
+                                  fontSize: '1.2rem',
+                                  background: 'transparent',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  textAlign: 'center',
+                                  fontWeight: 900,
+                                  outline: 'none',
+                                  fontFamily: 'inherit'
+                                }}
+                              />
+                            </td>
+                          </tr>
 
-                      {/* Middle Row: Capacités Attendues & Contenus */}
-                      <tr>
-                        {/* Red Line 1: LES CAPACITÉS ATTENDUES */}
-                        <td style={{ width: '50%', padding: 0, verticalAlign: 'top', borderRight: '1.5px solid #005086', borderBottom: '1.5px solid #005086' }}>
-                          <div className="header-section-title" style={{ background: '#f8fafc', color: '#005086', fontWeight: 800, textAlign: 'center', padding: '0.35rem 0.5rem', fontSize: '0.78rem', borderBottom: '1.5px solid #005086', textTransform: 'uppercase' }}>
-                            {isArabic ? 'القدرات المنتظرة' : 'LES CAPACITÉS ATTENDUES'}
-                          </div>
-                          <div style={{ padding: '0.4rem 0.5rem', minHeight: '65px' }}>
-                            <textarea
-                              value={header.capacites_attendues || ''}
-                              onChange={(e) => handleHeaderChange('capacites_attendues', e.target.value)}
-                              placeholder={isArabic ? 'انقر هنا لإضافة القدرات المنتظرة...' : 'Cliquer ici pour ajouter les capacités attendues...'}
-                              rows={3}
-                              style={{
-                                width: '100%',
-                                fontSize: '0.82rem',
-                                border: '1px dashed rgba(0,80,134,0.25)',
-                                background: 'rgba(0,80,134,0.02)',
-                                padding: '0.35rem',
-                                borderRadius: '4px',
-                                resize: 'vertical',
-                                outline: 'none',
-                                color: '#0f172a',
-                                fontFamily: 'inherit'
-                              }}
-                            />
-                          </div>
-                        </td>
+                          {/* Middle Row: Capacités Attendues & Contenus */}
+                          <tr>
+                            {/* Red Line 1: LES CAPACITÉS ATTENDUES */}
+                            <td style={{ width: '50%', padding: 0, verticalAlign: 'top', borderRight: '1.5px solid #005086', borderBottom: '1.5px solid #005086' }}>
+                              <div className="header-section-title" style={{ background: '#f8fafc', color: '#005086', fontWeight: 800, textAlign: 'center', padding: '0.35rem 0.5rem', fontSize: '0.78rem', borderBottom: '1.5px solid #005086', textTransform: 'uppercase' }}>
+                                {isArabic ? 'القدرات المنتظرة' : 'LES CAPACITÉS ATTENDUES'}
+                              </div>
+                              <div style={{ padding: '0.4rem 0.5rem', minHeight: '45px' }}>
+                                <textarea
+                                  value={header.capacites_attendues || ''}
+                                  onChange={(e) => handleHeaderChange('capacites_attendues', e.target.value)}
+                                  placeholder={isArabic ? 'انقر هنا لإضافة القدرات المنتظرة...' : 'Cliquer ici pour ajouter les capacités attendues...'}
+                                  rows={2}
+                                  style={{
+                                    width: '100%',
+                                    fontSize: '0.82rem',
+                                    border: '1px dashed rgba(0,80,134,0.25)',
+                                    background: 'rgba(0,80,134,0.02)',
+                                    padding: '0.35rem',
+                                    borderRadius: '4px',
+                                    resize: 'vertical',
+                                    outline: 'none',
+                                    color: '#0f172a',
+                                    fontFamily: 'inherit'
+                                  }}
+                                />
+                              </div>
+                            </td>
 
-                        {/* Red Line 2: CONTENUS */}
-                        <td style={{ width: '50%', padding: 0, verticalAlign: 'top', borderBottom: '1.5px solid #005086' }}>
-                          <div className="header-section-title" style={{ background: '#f8fafc', color: '#005086', fontWeight: 800, textAlign: 'center', padding: '0.35rem 0.5rem', fontSize: '0.78rem', borderBottom: '1.5px solid #005086', textTransform: 'uppercase' }}>
-                            {isArabic ? 'المحتويات' : 'CONTENUS'}
-                          </div>
-                          <div style={{ padding: '0.4rem 0.5rem', minHeight: '65px' }}>
-                            <textarea
-                              value={header.contenus || ''}
-                              onChange={(e) => handleHeaderChange('contenus', e.target.value)}
-                              placeholder={isArabic ? 'انقر هنا لإضافة المحتويات...' : 'Cliquer ici pour ajouter les contenus...'}
-                              rows={3}
-                              style={{
-                                width: '100%',
-                                fontSize: '0.82rem',
-                                border: '1px dashed rgba(0,80,134,0.25)',
-                                background: 'rgba(0,80,134,0.02)',
-                                padding: '0.35rem',
-                                borderRadius: '4px',
-                                resize: 'vertical',
-                                outline: 'none',
-                                color: '#0f172a',
-                                fontFamily: 'inherit'
-                              }}
-                            />
-                          </div>
-                        </td>
-                      </tr>
+                            {/* Red Line 2: CONTENUS */}
+                            <td style={{ width: '50%', padding: 0, verticalAlign: 'top', borderBottom: '1.5px solid #005086' }}>
+                              <div className="header-section-title" style={{ background: '#f8fafc', color: '#005086', fontWeight: 800, textAlign: 'center', padding: '0.35rem 0.5rem', fontSize: '0.78rem', borderBottom: '1.5px solid #005086', textTransform: 'uppercase' }}>
+                                {isArabic ? 'المحتويات' : 'CONTENUS'}
+                              </div>
+                              <div style={{ padding: '0.4rem 0.5rem', minHeight: '45px' }}>
+                                <textarea
+                                  value={header.contenus || ''}
+                                  onChange={(e) => handleHeaderChange('contenus', e.target.value)}
+                                  placeholder={isArabic ? 'انقر هنا لإضافة المحتويات...' : 'Cliquer ici pour ajouter les contenus...'}
+                                  rows={2}
+                                  style={{
+                                    width: '100%',
+                                    fontSize: '0.82rem',
+                                    border: '1px dashed rgba(0,80,134,0.25)',
+                                    background: 'rgba(0,80,134,0.02)',
+                                    padding: '0.35rem',
+                                    borderRadius: '4px',
+                                    resize: 'vertical',
+                                    outline: 'none',
+                                    color: '#0f172a',
+                                    fontFamily: 'inherit'
+                                  }}
+                                />
+                              </div>
+                            </td>
+                          </tr>
 
-                      {/* Bottom Row: Red Line 3: LE CONTENU */}
-                      <tr>
-                        <td colSpan={2} style={{ padding: 0, verticalAlign: 'top' }}>
-                          <div className="header-section-title" style={{ background: '#f8fafc', color: '#005086', fontWeight: 800, textAlign: 'center', padding: '0.35rem 0.5rem', fontSize: '0.78rem', borderBottom: '1.5px solid #005086', textTransform: 'uppercase' }}>
-                            {isArabic ? 'المحتوى' : 'LE CONTENU'}
-                          </div>
-                          <div style={{ padding: '0.4rem 0.6rem', minHeight: '50px' }}>
-                            <textarea
-                              value={header.le_contenu || ''}
-                              onChange={(e) => handleHeaderChange('le_contenu', e.target.value)}
-                              placeholder={isArabic ? 'انقر هنا لإضافة المحتوى العام...' : 'Cliquer ici pour ajouter le contenu général...'}
-                              rows={2}
-                              style={{
-                                width: '100%',
-                                fontSize: '0.82rem',
-                                border: '1px dashed rgba(0,80,134,0.25)',
-                                background: 'rgba(0,80,134,0.02)',
-                                padding: '0.35rem',
-                                borderRadius: '4px',
-                                resize: 'vertical',
-                                outline: 'none',
-                                color: '#0f172a',
-                                fontFamily: 'inherit'
-                              }}
-                            />
-                          </div>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </td>
+                          {/* Bottom Row: Red Line 3: LE CONTENU */}
+                          <tr>
+                            <td colSpan={2} style={{ padding: 0, verticalAlign: 'top' }}>
+                              <div className="header-section-title" style={{ background: '#f8fafc', color: '#005086', fontWeight: 800, textAlign: 'center', padding: '0.35rem 0.5rem', fontSize: '0.78rem', borderBottom: '1.5px solid #005086', textTransform: 'uppercase' }}>
+                                {isArabic ? 'المحتوى' : 'LE CONTENU'}
+                              </div>
+                              <div style={{ padding: '0.4rem 0.6rem', minHeight: '40px' }}>
+                                <textarea
+                                  value={header.le_contenu || ''}
+                                  onChange={(e) => handleHeaderChange('le_contenu', e.target.value)}
+                                  placeholder={isArabic ? 'انقر هنا لإضافة المحتوى العام...' : 'Cliquer ici pour ajouter le contenu général...'}
+                                  rows={2}
+                                  style={{
+                                    width: '100%',
+                                    fontSize: '0.82rem',
+                                    border: '1px dashed rgba(0,80,134,0.25)',
+                                    background: 'rgba(0,80,134,0.02)',
+                                    padding: '0.35rem',
+                                    borderRadius: '4px',
+                                    resize: 'vertical',
+                                    outline: 'none',
+                                    color: '#0f172a',
+                                    fontFamily: 'inherit'
+                                  }}
+                                />
+                              </div>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </td>
 
-                {/* Right Metadata Side (27% width) */}
-                <td style={{ width: '27%', padding: 0, verticalAlign: 'top', borderBottom: 'none' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <tbody>
-                      <tr>
-                        <td style={{ padding: '0.45rem 0.65rem', borderBottom: '1.5px solid #005086', fontSize: '0.8rem' }}>
-                          <strong style={{ color: '#005086' }}>{isArabic ? 'الأكاديمية' : 'Académie'} :</strong><br/>
-                          <input
-                            type="text"
-                            value={header.academie || 'FES-MEKNES'}
-                            onChange={(e) => handleHeaderChange('academie', e.target.value)}
-                            style={{ width: '100%', fontSize: '0.78rem', border: '1px solid rgba(0,80,134,0.2)', background: 'transparent', fontWeight: 600, color: '#1e293b', outline: 'none', marginTop: '2px', borderRadius: '3px', padding: '0.1rem 0.25rem' }}
-                          />
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style={{ padding: '0.45rem 0.65rem', borderBottom: '1.5px solid #005086', fontSize: '0.8rem' }}>
-                          <strong style={{ color: '#005086' }}>{isArabic ? 'المديرية الإقليمية' : 'Direction Provinciale'} :</strong><br/>
-                          <input
-                            type="text"
-                            value={header.direction || 'MY'}
-                            onChange={(e) => handleHeaderChange('direction', e.target.value)}
-                            style={{ width: '100%', fontSize: '0.78rem', border: '1px solid rgba(0,80,134,0.2)', background: 'transparent', fontWeight: 600, color: '#1e293b', outline: 'none', marginTop: '2px', borderRadius: '3px', padding: '0.1rem 0.25rem' }}
-                          />
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style={{ padding: '0.45rem 0.65rem', borderBottom: '1.5px solid #005086', fontSize: '0.8rem' }}>
-                          <strong style={{ color: '#005086' }}>{isArabic ? 'المؤسسة' : 'Etablissement'} :</strong><br/>
-                          <input
-                            type="text"
-                            value={header.etablissement || '18 NOVEMBRE'}
-                            onChange={(e) => handleHeaderChange('etablissement', e.target.value)}
-                            style={{ width: '100%', fontSize: '0.78rem', border: '1px solid rgba(0,80,134,0.2)', background: 'transparent', fontWeight: 600, color: '#1e293b', outline: 'none', marginTop: '2px', borderRadius: '3px', padding: '0.1rem 0.25rem' }}
-                          />
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style={{ padding: '0.45rem 0.65rem', borderBottom: '1.5px solid #005086', fontSize: '0.8rem' }}>
-                          <strong style={{ color: '#005086' }}>{isArabic ? 'الأهمية' : "Degré d'importance"} :</strong><br/>
-                          <input
-                            type="text"
-                            value={header.degre_importance || '40%'}
-                            onChange={(e) => handleHeaderChange('degre_importance', e.target.value)}
-                            style={{ width: '100%', fontSize: '0.78rem', border: 'none', background: '#fef08a', color: '#854d0e', fontWeight: 800, padding: '1px 5px', borderRadius: '3px', outline: 'none', marginTop: '2px' }}
-                          />
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style={{ padding: '0.45rem 0.65rem', fontSize: '0.8rem', borderBottom: 'none' }}>
-                          <strong style={{ color: '#005086' }}>{isArabic ? 'ملاحظات' : 'Remarques'} :</strong><br/>
-                          <input
-                            type="text"
-                            value={header.remarques || ''}
-                            onChange={(e) => handleHeaderChange('remarques', e.target.value)}
-                            placeholder="Remarques..."
-                            style={{ width: '100%', fontSize: '0.78rem', border: '1px solid rgba(0,80,134,0.2)', background: 'transparent', color: '#1e293b', outline: 'none', marginTop: '2px', borderRadius: '3px', padding: '0.1rem 0.25rem' }}
-                          />
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        )}
+                    {/* Right Metadata Side (27% width) */}
+                    <td style={{ width: '27%', padding: 0, verticalAlign: 'top', borderBottom: 'none' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <tbody>
+                          <tr>
+                            <td style={{ padding: '0.45rem 0.65rem', borderBottom: '1.5px solid #005086', fontSize: '0.8rem' }}>
+                              <strong style={{ color: '#005086' }}>{isArabic ? 'الأكاديمية' : 'Académie'} :</strong><br/>
+                              <input
+                                type="text"
+                                value={header.academie || 'FES-MEKNES'}
+                                onChange={(e) => handleHeaderChange('academie', e.target.value)}
+                                style={{ width: '100%', fontSize: '0.78rem', border: '1px solid rgba(0,80,134,0.2)', background: 'transparent', fontWeight: 600, color: '#1e293b', outline: 'none', marginTop: '2px', borderRadius: '3px', padding: '0.1rem 0.25rem' }}
+                              />
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style={{ padding: '0.45rem 0.65rem', borderBottom: '1.5px solid #005086', fontSize: '0.8rem' }}>
+                              <strong style={{ color: '#005086' }}>{isArabic ? 'المديرية الإقليمية' : 'Direction Provinciale'} :</strong><br/>
+                              <input
+                                type="text"
+                                value={header.direction || 'MY'}
+                                onChange={(e) => handleHeaderChange('direction', e.target.value)}
+                                style={{ width: '100%', fontSize: '0.78rem', border: '1px solid rgba(0,80,134,0.2)', background: 'transparent', fontWeight: 600, color: '#1e293b', outline: 'none', marginTop: '2px', borderRadius: '3px', padding: '0.1rem 0.25rem' }}
+                              />
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style={{ padding: '0.45rem 0.65rem', borderBottom: '1.5px solid #005086', fontSize: '0.8rem' }}>
+                              <strong style={{ color: '#005086' }}>{isArabic ? 'المؤسسة' : 'Etablissement'} :</strong><br/>
+                              <input
+                                type="text"
+                                value={header.etablissement || '18 NOVEMBRE'}
+                                onChange={(e) => handleHeaderChange('etablissement', e.target.value)}
+                                style={{ width: '100%', fontSize: '0.78rem', border: '1px solid rgba(0,80,134,0.2)', background: 'transparent', fontWeight: 600, color: '#1e293b', outline: 'none', marginTop: '2px', borderRadius: '3px', padding: '0.1rem 0.25rem' }}
+                              />
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style={{ padding: '0.45rem 0.65rem', borderBottom: '1.5px solid #005086', fontSize: '0.8rem' }}>
+                              <strong style={{ color: '#005086' }}>{isArabic ? 'الأهمية' : "Degré d'importance"} :</strong><br/>
+                              <input
+                                type="text"
+                                value={header.degre_importance || '40%'}
+                                onChange={(e) => handleHeaderChange('degre_importance', e.target.value)}
+                                style={{ width: '100%', fontSize: '0.78rem', border: 'none', background: '#fef08a', color: '#854d0e', fontWeight: 800, padding: '1px 5px', borderRadius: '3px', outline: 'none', marginTop: '2px' }}
+                              />
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style={{ padding: '0.45rem 0.65rem', fontSize: '0.8rem', borderBottom: 'none' }}>
+                              <strong style={{ color: '#005086' }}>{isArabic ? 'ملاحظات' : 'Remarques'} :</strong><br/>
+                              <input
+                                type="text"
+                                value={header.remarques || ''}
+                                onChange={(e) => handleHeaderChange('remarques', e.target.value)}
+                                placeholder="Remarques..."
+                                style={{ width: '100%', fontSize: '0.78rem', border: '1px solid rgba(0,80,134,0.2)', background: 'transparent', color: '#1e293b', outline: 'none', marginTop: '2px', borderRadius: '3px', padding: '0.1rem 0.25rem' }}
+                              />
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          );
+        })()}
 
         {/* WORKBOOK MAIN BODY */}
         <div className="sheet-body" dir={lessonDir} style={isArabic ? { fontFamily: arabicFont } : {}}>
