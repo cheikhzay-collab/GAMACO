@@ -65,6 +65,15 @@ if (PERSISTENT_DIR) {
 const memoryCache = new Map();
 const pendingWrites = new Map();
 
+const safeJsonParse = (val, fallback = val) => {
+  if (typeof val !== 'string') return val;
+  try {
+    return JSON.parse(val);
+  } catch (_) {
+    return fallback;
+  }
+};
+
 const readDataFile = (fileName, defaultValue = []) => {
   if (memoryCache.has(fileName)) {
     return memoryCache.get(fileName);
@@ -280,6 +289,7 @@ const initMySQL = async () => {
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
+    await connection.query("DELETE FROM tbl_config WHERE key_name = 'key'").catch(() => null);
 
     await connection.query(`
       CREATE TABLE IF NOT EXISTS tbl_assets (
@@ -844,7 +854,7 @@ export const handleApiRequest = async (req, res, next) => {
         const [rows] = await dbPool.query('SELECT key_name, value FROM tbl_config');
         const config = {};
         for (const row of rows) {
-          config[row.key_name] = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+          config[row.key_name] = safeJsonParse(row.value, row.value);
         }
         return sendJSON(res, 200, config);
       }
@@ -946,20 +956,20 @@ export const handleApiRequest = async (req, res, next) => {
 
       if (isMySqlActive) {
         const [examRows] = await dbPool.query('SELECT data FROM tbl_exams');
-        exams = examRows.map(r => typeof r.data === 'string' ? JSON.parse(r.data) : r.data);
+        exams = examRows.map(r => safeJsonParse(r.data, {}));
 
         const [lessonRows] = await dbPool.query('SELECT data FROM tbl_lessons');
-        lessons = lessonRows.map(r => typeof r.data === 'string' ? JSON.parse(r.data) : r.data);
+        lessons = lessonRows.map(r => safeJsonParse(r.data, {}));
 
         const [classRows] = await dbPool.query('SELECT data FROM tbl_classes');
-        classes = classRows.map(r => typeof r.data === 'string' ? JSON.parse(r.data) : r.data);
+        classes = classRows.map(r => safeJsonParse(r.data, {}));
 
         const [userRows] = await dbPool.query('SELECT data FROM tbl_users');
-        users = userRows.map(r => typeof r.data === 'string' ? JSON.parse(r.data) : r.data);
+        users = userRows.map(r => safeJsonParse(r.data, {}));
 
         const [configRows] = await dbPool.query('SELECT key_name, value FROM tbl_config');
         for (const row of configRows) {
-          config[row.key_name] = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+          config[row.key_name] = safeJsonParse(row.value, row.value);
         }
       } else {
         exams = readDataFile('exams.json', []);
