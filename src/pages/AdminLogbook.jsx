@@ -609,6 +609,7 @@ export default function AdminLogbook() {
   const [missingPanelOpen, setMissingPanelOpen] = useState(false);
   const [programDrawerOpen, setProgramDrawerOpen] = useState(false);
   const [previewSections, setPreviewSections] = useState({});
+  const [sectionFilterMode, setSectionFilterMode] = useState('all'); // 'all' | 'uncovered' | 'covered'
 
   const toggleSectionPreview = (sectionId) => {
     setPreviewSections(prev => ({
@@ -628,18 +629,49 @@ export default function AdminLogbook() {
     return '';
   };
 
-  const insertSectionContent = (s) => {
-    const contentToInsert = getSectionContentString(s);
-    if (!contentToInsert) return;
+  const insertTextToContent = (text, asBullet = false) => {
+    if (!text || !text.trim()) return;
+    const cleanText = text.replace(/\*\*/g, '').trim();
+    const formatted = asBullet ? `• ${cleanText}` : cleanText;
     
     setFormData(prev => {
-      let currentContent = prev.customContent;
+      let currentContent = prev.customContent || '';
       if (currentContent.trim() === '') {
-        currentContent = contentToInsert;
+        currentContent = formatted;
+      } else {
+        currentContent = currentContent.endsWith('\n')
+          ? `${currentContent}${formatted}`
+          : `${currentContent}\n${formatted}`;
+      }
+      return { ...prev, customContent: currentContent };
+    });
+  };
+
+  const insertSectionContent = (s, mode = 'full') => {
+    const rawTitle = (s.title || '').replace(/\*\*/g, '').trim();
+    if (mode === 'title') {
+      insertTextToContent(rawTitle, true);
+      setFormData(prev => ({
+        ...prev,
+        selectedSections: prev.selectedSections.includes(s.title)
+          ? prev.selectedSections
+          : [...prev.selectedSections, s.title]
+      }));
+      return;
+    }
+
+    const contentToInsert = getSectionContentString(s);
+    const textToInsert = contentToInsert || rawTitle;
+    if (!textToInsert) return;
+    
+    setFormData(prev => {
+      let currentContent = prev.customContent || '';
+      if (currentContent.trim() === '') {
+        currentContent = textToInsert;
       } else {
         currentContent = currentContent.endsWith('\n') 
-          ? `${currentContent}${contentToInsert}` 
-          : `${currentContent}\n${contentToInsert}`;
+          ? `${currentContent}${textToInsert}` 
+          : `${currentContent}\n${textToInsert}`;
       }
       
       // Check the checkbox if not checked
@@ -1077,21 +1109,25 @@ export default function AdminLogbook() {
         ? prev.selectedSections.filter(s => s !== sectionTitle)
         : [...prev.selectedSections, sectionTitle];
       
-      let currentContent = prev.customContent;
-      const escaped = sectionTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      let currentContent = prev.customContent || '';
+      const cleanTitle = sectionTitle.replace(/\*\*/g, '').trim();
+      const escapedRaw = sectionTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const escapedClean = cleanTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       
       if (isSelected) {
-        // Unchecked: remove the bullet point line for this section
-        const regex = new RegExp(`^\\s*•\\s*${escaped}\\s*\\n?`, 'm');
-        currentContent = currentContent.replace(regex, '');
+        // Unchecked: remove the bullet point line for this section (raw or clean)
+        const regexRaw = new RegExp(`^\\s*•\\s*${escapedRaw}\\s*\\n?`, 'm');
+        const regexClean = new RegExp(`^\\s*•\\s*${escapedClean}\\s*\\n?`, 'm');
+        currentContent = currentContent.replace(regexRaw, '').replace(regexClean, '');
       } else {
         // Checked: append the bullet point
+        const line = `• ${cleanTitle}`;
         if (currentContent.trim() === '') {
-          currentContent = `• ${sectionTitle}`;
+          currentContent = line;
         } else {
           currentContent = currentContent.endsWith('\n') 
-            ? `${currentContent}• ${sectionTitle}` 
-            : `${currentContent}\n• ${sectionTitle}`;
+            ? `${currentContent}${line}` 
+            : `${currentContent}\n${line}`;
         }
       }
       
@@ -1099,6 +1135,55 @@ export default function AdminLogbook() {
         ...prev,
         selectedSections: nextSections,
         customContent: currentContent
+      };
+    });
+  };
+
+  const handleSelectAllVisibleSections = (sectionsList) => {
+    if (!sectionsList || sectionsList.length === 0) return;
+    setFormData(prev => {
+      const currentSelected = new Set(prev.selectedSections);
+      let content = prev.customContent || '';
+      
+      sectionsList.forEach(s => {
+        if (!currentSelected.has(s.title)) {
+          currentSelected.add(s.title);
+          const cleanTitle = (s.title || '').replace(/\*\*/g, '').trim();
+          const line = `• ${cleanTitle}`;
+          if (content.trim() === '') {
+            content = line;
+          } else {
+            content = content.endsWith('\n') ? `${content}${line}` : `${content}\n${line}`;
+          }
+        }
+      });
+      
+      return {
+        ...prev,
+        selectedSections: Array.from(currentSelected),
+        customContent: content
+      };
+    });
+  };
+
+  const handleDeselectAllVisibleSections = (sectionsList) => {
+    if (!sectionsList || sectionsList.length === 0) return;
+    setFormData(prev => {
+      const titlesToRemove = new Set(sectionsList.map(s => s.title));
+      let content = prev.customContent || '';
+      
+      sectionsList.forEach(s => {
+        const cleanTitle = (s.title || '').replace(/\*\*/g, '').trim();
+        const escapedRaw = s.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const escapedClean = cleanTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        content = content.replace(new RegExp(`^\\s*•\\s*${escapedRaw}\\s*\\n?`, 'm'), '');
+        content = content.replace(new RegExp(`^\\s*•\\s*${escapedClean}\\s*\\n?`, 'm'), '');
+      });
+      
+      return {
+        ...prev,
+        selectedSections: prev.selectedSections.filter(t => !titlesToRemove.has(t)),
+        customContent: content
       };
     });
   };
@@ -3723,10 +3808,6 @@ export default function AdminLogbook() {
               {/* Checkbox selector for Sections */}
               {formData.lessonId && (
                 <div style={{ background: 'rgba(255, 255, 255, 0.01)', border: '1px solid var(--border)', borderRadius: '16px', padding: '1.25rem' }}>
-                  <label style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--violet)', display: 'block', marginBottom: '0.75rem' }}>
-                    {isArMode ? 'العناوين المنجزة :' : 'Sélectionner les titres couverts :'}
-                  </label>
-                  
                   {(() => {
                     const selectedLesson = lessons.find(l => l.id === formData.lessonId);
                     const sections = selectedLesson?.content?.sections || [];
@@ -3738,14 +3819,21 @@ export default function AdminLogbook() {
                     const coveredInOtherEntries = new Set();
                     entries.forEach(e => {
                       if (editingEntry && e.id === editingEntry.id) return; // Skip the current entry we are editing
+                      if (selectedClass && e.classId && e.classId !== selectedClass.id) return; // Only for current class
                       if (e.selectedSections && Array.isArray(e.selectedSections)) {
                         e.selectedSections.forEach(title => coveredInOtherEntries.add(title));
                       }
                     });
 
-                    const visibleSections = sections.filter(s => !coveredInOtherEntries.has(s.title));
-                    if (visibleSections.length === 0) {
-                      return <span style={{ fontSize: '0.8rem', color: 'var(--text-subtle)' }}>{isArMode ? 'تم إنجاز جميع فقرات هذا الدرس!' : 'Toutes les sections ont été complétées !'}</span>;
+                    const totalCount = sections.length;
+                    const uncoveredCount = sections.filter(s => !coveredInOtherEntries.has(s.title)).length;
+                    const coveredCount = sections.filter(s => coveredInOtherEntries.has(s.title)).length;
+
+                    let filteredSections = sections;
+                    if (sectionFilterMode === 'uncovered') {
+                      filteredSections = sections.filter(s => !coveredInOtherEntries.has(s.title));
+                    } else if (sectionFilterMode === 'covered') {
+                      filteredSections = sections.filter(s => coveredInOtherEntries.has(s.title));
                     }
 
                     // Detect block type from text prefix
@@ -3764,199 +3852,526 @@ export default function AdminLogbook() {
 
                     let lastHeader = null;
                     return (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: '240px', overflowY: 'auto', paddingRight: '0.25rem' }}>
-                        {visibleSections.map(s => {
-                          const isChecked = formData.selectedSections.includes(s.title);
-                          const isPreviewOpen = !!previewSections[s.id || s.title];
-                          const blockType = getBlockType(s);
-                          const showHeader = s.section_header && s.section_header !== lastHeader;
-                          if (showHeader) lastHeader = s.section_header;
-                          return (
-                            <div key={s.id || s.title} style={{ marginBottom: '0.35rem' }}>
-                              {/* Roman numeral section header — selectable checkbox */}
-                              {showHeader && (() => {
-                                const headerTitle = s.section_header;
-                                const isHeaderChecked = formData.selectedSections.includes(headerTitle);
-                                return (
-                                  <label
-                                    style={{
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      gap: '0.55rem',
-                                      padding: '0.4rem 0.75rem',
-                                      marginTop: '0.35rem',
-                                      background: isHeaderChecked
-                                        ? 'linear-gradient(135deg, rgba(99,102,241,0.14) 0%, rgba(139,92,246,0.08) 100%)'
-                                        : 'linear-gradient(135deg, rgba(99,102,241,0.06) 0%, rgba(139,92,246,0.02) 100%)',
-                                      borderLeft: `3px solid ${isHeaderChecked ? 'var(--violet)' : 'rgba(99,102,241,0.4)'}`,
-                                      borderRadius: '6px',
-                                      cursor: 'pointer',
-                                      userSelect: 'none',
-                                      transition: 'all 0.18s ease'
-                                    }}
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked={isHeaderChecked}
-                                      onChange={() => handleToggleSection(headerTitle)}
-                                      style={{ accentColor: 'var(--violet)', width: '14px', height: '14px', flexShrink: 0 }}
-                                    />
-                                    <span style={{
-                                      fontSize: '0.75rem',
-                                      fontWeight: 900,
-                                      color: isHeaderChecked ? 'var(--violet)' : 'rgba(99,102,241,0.7)',
-                                      letterSpacing: '0.02em',
-                                      flex: 1
-                                    }}>
-                                      {parseBold(headerTitle)}
-                                    </span>
-                                    <span style={{
-                                      fontSize: '0.6rem',
-                                      fontWeight: 800,
-                                      color: 'var(--violet)',
-                                      background: 'rgba(99,102,241,0.1)',
-                                      padding: '0.1rem 0.4rem',
-                                      borderRadius: '4px',
-                                      flexShrink: 0
-                                    }}>
-                                      {isArMode ? 'محور' : 'Axe'}
-                                    </span>
-                                  </label>
-                                );
-                              })()}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                        {/* Header Banner: Document / Series title */}
+                        <div style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'space-between', 
+                          flexWrap: 'wrap', 
+                          gap: '0.5rem', 
+                          padding: '0.6rem 0.85rem', 
+                          background: 'rgba(99, 102, 241, 0.06)', 
+                          border: '1px solid rgba(99, 102, 241, 0.2)', 
+                          borderRadius: '10px' 
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0, flex: 1 }}>
+                            <BookOpen size={16} color="var(--violet)" style={{ flexShrink: 0 }} />
+                            <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {selectedLesson.title}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
+                            <button
+                              type="button"
+                              onClick={() => insertTextToContent(`=== ${selectedLesson.title.toUpperCase()} ===\n`)}
+                              style={{ 
+                                fontSize: '0.68rem', 
+                                fontWeight: 700, 
+                                padding: '0.2rem 0.5rem', 
+                                borderRadius: '6px', 
+                                background: 'rgba(99, 102, 241, 0.14)', 
+                                border: '1px solid rgba(99, 102, 241, 0.35)', 
+                                color: 'var(--violet)', 
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.25rem'
+                              }}
+                              title={isArMode ? 'إدراج كعنوان رئيسي كبير' : 'Insérer comme grand titre centré'}
+                            >
+                              <Plus size={11} />
+                              {isArMode ? 'عنوان رئيسي' : 'Grand Titre'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => insertTextToContent(selectedLesson.title, true)}
+                              style={{ 
+                                fontSize: '0.68rem', 
+                                fontWeight: 700, 
+                                padding: '0.2rem 0.5rem', 
+                                borderRadius: '6px', 
+                                background: 'rgba(255, 255, 255, 0.05)', 
+                                border: '1px solid var(--border)', 
+                                color: 'var(--text-main)', 
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.25rem'
+                              }}
+                              title={isArMode ? 'إدراج كسطر نقطي' : 'Insérer comme puce'}
+                            >
+                              <Plus size={11} />
+                              {isArMode ? 'نقطة عنوان' : 'Puce'}
+                            </button>
+                          </div>
+                        </div>
 
-                              {/* Section row */}
-                              <div
+                        {/* Filter Tabs & Bulk Actions */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                            <button
+                              type="button"
+                              onClick={() => setSectionFilterMode('all')}
+                              style={{
+                                fontSize: '0.72rem',
+                                fontWeight: sectionFilterMode === 'all' ? 800 : 500,
+                                padding: '0.22rem 0.65rem',
+                                borderRadius: '7px',
+                                border: '1px solid',
+                                borderColor: sectionFilterMode === 'all' ? 'var(--violet)' : 'var(--border)',
+                                background: sectionFilterMode === 'all' ? 'rgba(99, 102, 241, 0.16)' : 'rgba(255, 255, 255, 0.02)',
+                                color: sectionFilterMode === 'all' ? 'var(--violet)' : 'var(--text-muted)',
+                                cursor: 'pointer',
+                                transition: 'all 0.18s'
+                              }}
+                            >
+                              {isArMode ? `الكل (${totalCount})` : `Tous (${totalCount})`}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSectionFilterMode('uncovered')}
+                              style={{
+                                fontSize: '0.72rem',
+                                fontWeight: sectionFilterMode === 'uncovered' ? 800 : 500,
+                                padding: '0.22rem 0.65rem',
+                                borderRadius: '7px',
+                                border: '1px solid',
+                                borderColor: sectionFilterMode === 'uncovered' ? 'var(--violet)' : 'var(--border)',
+                                background: sectionFilterMode === 'uncovered' ? 'rgba(99, 102, 241, 0.16)' : 'rgba(255, 255, 255, 0.02)',
+                                color: sectionFilterMode === 'uncovered' ? 'var(--violet)' : 'var(--text-muted)',
+                                cursor: 'pointer',
+                                transition: 'all 0.18s'
+                              }}
+                            >
+                              {isArMode ? `غير منجزة (${uncoveredCount})` : `Non abordés (${uncoveredCount})`}
+                            </button>
+                            {coveredCount > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setSectionFilterMode('covered')}
                                 style={{
-                                  display: 'flex',
-                                  flexDirection: 'column',
-                                  background: isChecked ? 'rgba(99, 102, 241, 0.08)' : 'rgba(255, 255, 255, 0.01)',
-                                  border: isChecked ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid rgba(255, 255, 255, 0.04)',
-                                  borderRadius: '10px',
-                                  transition: 'all 0.18s ease',
-                                  padding: '0.55rem 0.9rem',
-                                  marginTop: '0.2rem'
+                                  fontSize: '0.72rem',
+                                  fontWeight: sectionFilterMode === 'covered' ? 800 : 500,
+                                  padding: '0.22rem 0.65rem',
+                                  borderRadius: '7px',
+                                  border: '1px solid',
+                                  borderColor: sectionFilterMode === 'covered' ? 'var(--violet)' : 'var(--border)',
+                                  background: sectionFilterMode === 'covered' ? 'rgba(99, 102, 241, 0.16)' : 'rgba(255, 255, 255, 0.02)',
+                                  color: sectionFilterMode === 'covered' ? 'var(--violet)' : 'var(--text-muted)',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.18s'
                                 }}
                               >
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', width: '100%' }}>
-                                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0, flex: 1, cursor: 'pointer', margin: 0 }}>
-                                    <input
-                                      type="checkbox"
-                                      checked={isChecked}
-                                      onChange={() => handleToggleSection(s.title)}
-                                      style={{ accentColor: 'var(--violet)', width: '15px', height: '15px', flexShrink: 0 }}
-                                    />
-                                    <span style={{
-                                      fontWeight: isChecked ? 700 : 500,
-                                      fontSize: '0.8rem',
-                                      color: isChecked ? 'var(--text-main)' : 'var(--text-muted)',
-                                      overflow: 'hidden',
-                                      textOverflow: 'ellipsis',
-                                      whiteSpace: 'nowrap'
-                                    }}>
-                                      {parseBold(s.title)}
-                                    </span>
-                                  </label>
+                                {isArMode ? `منجزة (${coveredCount})` : `Déjà abordés (${coveredCount})`}
+                              </button>
+                            )}
+                          </div>
 
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flexShrink: 0 }}>
-                                    {/* Insert Content Button */}
-                                    {(s.content || (s.items && s.items.length > 0)) && (
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.preventDefault();
-                                          e.stopPropagation();
-                                          insertSectionContent(s);
-                                        }}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleSelectAllVisibleSections(filteredSections)}
+                              style={{
+                                fontSize: '0.68rem',
+                                fontWeight: 700,
+                                padding: '0.2rem 0.55rem',
+                                borderRadius: '6px',
+                                background: 'rgba(99, 102, 241, 0.09)',
+                                border: '1px solid rgba(99, 102, 241, 0.25)',
+                                color: 'var(--violet)',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              {isArMode ? 'تحديد الكل' : 'Tout sélectionner'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeselectAllVisibleSections(filteredSections)}
+                              style={{
+                                fontSize: '0.68rem',
+                                fontWeight: 600,
+                                padding: '0.2rem 0.55rem',
+                                borderRadius: '6px',
+                                background: 'rgba(255, 255, 255, 0.03)',
+                                border: '1px solid var(--border)',
+                                color: 'var(--text-subtle)',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              {isArMode ? 'إلغاء التحديد' : 'Tout désélectionner'}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* List of Sections */}
+                        {filteredSections.length === 0 ? (
+                          <div style={{ padding: '1rem', textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-subtle)', background: 'rgba(255,255,255,0.01)', borderRadius: '8px' }}>
+                            {sectionFilterMode === 'uncovered'
+                              ? (isArMode ? 'تم إنجاز جميع عناصر هذا الدرس أو السلسلة في حصص سابقة!' : 'Toutes les sections ont été abordées dans des séances précédentes !')
+                              : (isArMode ? 'لا توجد عناصر مطابقة.' : 'Aucun élément correspondant.')}
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: '280px', overflowY: 'auto', paddingRight: '0.25rem' }}>
+                            {filteredSections.map(s => {
+                              const isChecked = formData.selectedSections.includes(s.title);
+                              const isPreviewOpen = !!previewSections[s.id || s.title];
+                              const isCovered = coveredInOtherEntries.has(s.title);
+                              const blockType = getBlockType(s);
+                              const showHeader = s.section_header && s.section_header !== lastHeader;
+                              if (showHeader) lastHeader = s.section_header;
+
+                              return (
+                                <div key={s.id || s.title} style={{ marginBottom: '0.35rem' }}>
+                                  {/* Section Header (Axe) */}
+                                  {showHeader && (() => {
+                                    const headerTitle = s.section_header;
+                                    const isHeaderChecked = formData.selectedSections.includes(headerTitle);
+                                    return (
+                                      <div
                                         style={{
-                                          background: 'rgba(16, 185, 129, 0.08)',
-                                          border: '1px solid rgba(16, 185, 129, 0.25)',
-                                          color: 'var(--emerald)',
-                                          cursor: 'pointer',
                                           display: 'flex',
                                           alignItems: 'center',
-                                          gap: '0.2rem',
-                                          padding: '0.2rem 0.45rem',
+                                          justifyContent: 'space-between',
+                                          gap: '0.55rem',
+                                          padding: '0.4rem 0.75rem',
+                                          marginTop: '0.35rem',
+                                          background: isHeaderChecked
+                                            ? 'linear-gradient(135deg, rgba(99,102,241,0.14) 0%, rgba(139,92,246,0.08) 100%)'
+                                            : 'linear-gradient(135deg, rgba(99,102,241,0.06) 0%, rgba(139,92,246,0.02) 100%)',
+                                          borderLeft: `3px solid ${isHeaderChecked ? 'var(--violet)' : 'rgba(99,102,241,0.4)'}`,
                                           borderRadius: '6px',
+                                          transition: 'all 0.18s ease'
+                                        }}
+                                      >
+                                        <label
+                                          style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.55rem',
+                                            cursor: 'pointer',
+                                            userSelect: 'none',
+                                            flex: 1,
+                                            margin: 0
+                                          }}
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            checked={isHeaderChecked}
+                                            onChange={() => handleToggleSection(headerTitle)}
+                                            style={{ accentColor: 'var(--violet)', width: '14px', height: '14px', flexShrink: 0 }}
+                                          />
+                                          <span style={{
+                                            fontSize: '0.75rem',
+                                            fontWeight: 900,
+                                            color: isHeaderChecked ? 'var(--violet)' : 'rgba(99,102,241,0.7)',
+                                            letterSpacing: '0.02em',
+                                            flex: 1
+                                          }}>
+                                            {parseBold(headerTitle)}
+                                          </span>
+                                        </label>
+
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                              insertTextToContent(headerTitle, true);
+                                              if (!formData.selectedSections.includes(headerTitle)) {
+                                                setFormData(prev => ({ ...prev, selectedSections: [...prev.selectedSections, headerTitle] }));
+                                              }
+                                            }}
+                                            style={{
+                                              background: 'rgba(99, 102, 241, 0.1)',
+                                              border: '1px solid rgba(99, 102, 241, 0.25)',
+                                              color: 'var(--violet)',
+                                              cursor: 'pointer',
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              gap: '0.2rem',
+                                              padding: '0.15rem 0.45rem',
+                                              borderRadius: '5px',
+                                              fontSize: '0.64rem',
+                                              fontWeight: 700
+                                            }}
+                                            title={isArMode ? 'إدراج عنوان المحور' : "Insérer l'axe dans la séance"}
+                                          >
+                                            <Plus size={10} />
+                                            {isArMode ? 'إدراج المحور' : '+ Axe'}
+                                          </button>
+                                          <span style={{
+                                            fontSize: '0.6rem',
+                                            fontWeight: 800,
+                                            color: 'var(--violet)',
+                                            background: 'rgba(99,102,241,0.1)',
+                                            padding: '0.1rem 0.4rem',
+                                            borderRadius: '4px'
+                                          }}>
+                                            {isArMode ? 'محور' : 'Axe'}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })()}
+
+                                  {/* Section Row */}
+                                  <div
+                                    style={{
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      background: isChecked ? 'rgba(99, 102, 241, 0.08)' : 'rgba(255, 255, 255, 0.01)',
+                                      border: isChecked ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid rgba(255, 255, 255, 0.04)',
+                                      borderRadius: '10px',
+                                      transition: 'all 0.18s ease',
+                                      padding: '0.55rem 0.9rem',
+                                      marginTop: '0.2rem'
+                                    }}
+                                  >
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', width: '100%' }}>
+                                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0, flex: 1, cursor: 'pointer', margin: 0 }}>
+                                        <input
+                                          type="checkbox"
+                                          checked={isChecked}
+                                          onChange={() => handleToggleSection(s.title)}
+                                          style={{ accentColor: 'var(--violet)', width: '15px', height: '15px', flexShrink: 0 }}
+                                        />
+                                        <span style={{
+                                          fontWeight: isChecked ? 700 : 500,
+                                          fontSize: '0.8rem',
+                                          color: isChecked ? 'var(--text-main)' : 'var(--text-muted)',
+                                          overflow: 'hidden',
+                                          textOverflow: 'ellipsis',
+                                          whiteSpace: 'nowrap'
+                                        }}>
+                                          {parseBold(s.title)}
+                                        </span>
+                                      </label>
+
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexShrink: 0 }}>
+                                        {/* Covered badge */}
+                                        {isCovered && (
+                                          <span style={{
+                                            fontSize: '0.6rem',
+                                            fontWeight: 700,
+                                            color: '#059669',
+                                            background: 'rgba(16, 185, 129, 0.12)',
+                                            padding: '0.1rem 0.4rem',
+                                            borderRadius: '4px',
+                                            whiteSpace: 'nowrap'
+                                          }}>
+                                            ✓ {isArMode ? 'منجز سابقاً' : 'Déjà abordé'}
+                                          </span>
+                                        )}
+
+                                        {/* Insert Title Button */}
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            insertSectionContent(s, 'title');
+                                          }}
+                                          style={{
+                                            background: 'rgba(99, 102, 241, 0.08)',
+                                            border: '1px solid rgba(99, 102, 241, 0.25)',
+                                            color: 'var(--violet)',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.2rem',
+                                            padding: '0.2rem 0.45rem',
+                                            borderRadius: '6px',
+                                            fontSize: '0.65rem',
+                                            fontWeight: 700,
+                                            transition: 'all 0.2s',
+                                          }}
+                                          title={isArMode ? 'إدراج عنوان هذا العنصر كنقطة' : 'Insérer le titre comme puce'}
+                                        >
+                                          <Plus size={10} />
+                                          {isArMode ? 'عنوان' : 'Titre'}
+                                        </button>
+
+                                        {/* Insert Full Statement / Content Button */}
+                                        {(s.content || (s.items && s.items.length > 0)) && (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                              insertSectionContent(s, 'full');
+                                            }}
+                                            style={{
+                                              background: 'rgba(16, 185, 129, 0.08)',
+                                              border: '1px solid rgba(16, 185, 129, 0.25)',
+                                              color: 'var(--emerald)',
+                                              cursor: 'pointer',
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              gap: '0.2rem',
+                                              padding: '0.2rem 0.45rem',
+                                              borderRadius: '6px',
+                                              fontSize: '0.65rem',
+                                              fontWeight: 700,
+                                              transition: 'all 0.2s',
+                                            }}
+                                            title={isArMode ? 'إدراج نص المحتوى / التمرين كاملاً' : "Insérer tout l'énoncé"}
+                                          >
+                                            <Plus size={10} />
+                                            {isArMode ? 'نص' : 'Énoncé'}
+                                          </button>
+                                        )}
+
+                                        {/* Preview Toggle Button */}
+                                        {(s.content || (s.items && s.items.length > 0)) && (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                              toggleSectionPreview(s.id || s.title);
+                                            }}
+                                            style={{
+                                              border: 'none',
+                                              color: isPreviewOpen ? 'var(--violet)' : 'var(--text-muted)',
+                                              cursor: 'pointer',
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              justifyContent: 'center',
+                                              padding: '0.25rem',
+                                              borderRadius: '6px',
+                                              transition: 'all 0.2s',
+                                              background: isPreviewOpen ? 'rgba(99, 102, 241, 0.1)' : 'transparent'
+                                            }}
+                                            title={isArMode ? 'عرض المحتوى والفقرات الفرعية' : 'Voir le contenu et sous-éléments'}
+                                          >
+                                            {isPreviewOpen ? <EyeOff size={14} /> : <Eye size={14} />}
+                                          </button>
+                                        )}
+
+                                        {/* Block Type Tag */}
+                                        <span style={{
                                           fontSize: '0.66rem',
-                                          fontWeight: 700,
-                                          transition: 'all 0.2s',
-                                        }}
-                                        title={isArMode ? 'إدراج محتوى التمرين في الحصة' : 'Insérer le contenu dans la séance'}
-                                      >
-                                        <Plus size={11} />
-                                        {isArMode ? 'إدراج' : 'Insérer'}
-                                      </button>
-                                    )}
-
-                                    {/* Preview Toggle Button */}
-                                    {(s.content || (s.items && s.items.length > 0)) && (
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.preventDefault();
-                                          e.stopPropagation();
-                                          toggleSectionPreview(s.id || s.title);
-                                        }}
-                                        style={{
-                                          border: 'none',
-                                          color: isPreviewOpen ? 'var(--violet)' : 'var(--text-muted)',
-                                          cursor: 'pointer',
-                                          display: 'flex',
-                                          alignItems: 'center',
-                                          justifyContent: 'center',
-                                          padding: '0.25rem',
+                                          fontWeight: 800,
+                                          color: blockType.color,
+                                          background: blockType.bg,
+                                          padding: '0.12rem 0.45rem',
                                           borderRadius: '6px',
-                                          transition: 'all 0.2s',
-                                          background: isPreviewOpen ? 'rgba(99, 102, 241, 0.1)' : 'transparent'
-                                        }}
-                                        title={isArMode ? 'عرض المحتوى' : 'Voir le contenu'}
-                                      >
-                                        {isPreviewOpen ? <EyeOff size={14} /> : <Eye size={14} />}
-                                      </button>
-                                    )}
+                                          whiteSpace: 'nowrap'
+                                        }}>
+                                          {blockType.label}
+                                        </span>
+                                      </div>
+                                    </div>
 
-                                    <span style={{
-                                      fontSize: '0.66rem',
-                                      fontWeight: 800,
-                                      color: blockType.color,
-                                      background: blockType.bg,
-                                      padding: '0.12rem 0.45rem',
-                                      borderRadius: '6px',
-                                      whiteSpace: 'nowrap'
-                                    }}>
-                                      {blockType.label}
-                                    </span>
+                                    {/* Content & Sub-items Breakdown Drawer */}
+                                    {isPreviewOpen && (s.content || (s.items && s.items.length > 0)) && (
+                                      <div style={{
+                                        marginTop: '0.55rem',
+                                        marginLeft: isArMode ? 0 : '1.8rem',
+                                        marginRight: isArMode ? '1.8rem' : 0,
+                                        padding: '0.75rem',
+                                        background: 'rgba(255, 255, 255, 0.02)',
+                                        border: '1px solid var(--border)',
+                                        borderRadius: '8px',
+                                        fontSize: '0.75rem',
+                                        color: 'var(--text-muted)',
+                                        maxHeight: '230px',
+                                        overflowY: 'auto'
+                                      }}>
+                                        {/* Drawer Top Toolbar */}
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.4rem' }}>
+                                          <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                                            {isArMode ? 'الفقرات الفرعية والأسئلة (إدراج انتقائي) :' : 'Sous-éléments et questions (insertion sélective) :'}
+                                          </span>
+                                          <button
+                                            type="button"
+                                            onClick={() => insertSectionContent(s, 'full')}
+                                            style={{
+                                              fontSize: '0.65rem',
+                                              fontWeight: 700,
+                                              padding: '0.15rem 0.45rem',
+                                              borderRadius: '4px',
+                                              background: 'rgba(16, 185, 129, 0.1)',
+                                              border: '1px solid rgba(16, 185, 129, 0.3)',
+                                              color: 'var(--emerald)',
+                                              cursor: 'pointer'
+                                            }}
+                                          >
+                                            <Plus size={10} style={{ display: 'inline', verticalAlign: '-1px' }} />
+                                            {isArMode ? 'إدراج كل النص' : 'Insérer tout le texte'}
+                                          </button>
+                                        </div>
+
+                                        {/* Granular Items / Questions Breakdown */}
+                                        {s.items && s.items.length > 0 ? (
+                                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                                            {s.items.map((it, itIdx) => {
+                                              const itemText = it.text || it.content || '';
+                                              if (!itemText.trim()) return null;
+                                              return (
+                                                <div
+                                                  key={itIdx}
+                                                  style={{
+                                                    display: 'flex',
+                                                    alignItems: 'flex-start',
+                                                    justifyContent: 'space-between',
+                                                    gap: '0.5rem',
+                                                    padding: '0.4rem 0.55rem',
+                                                    background: 'rgba(255, 255, 255, 0.02)',
+                                                    borderRadius: '6px',
+                                                    border: '1px solid rgba(255, 255, 255, 0.04)'
+                                                  }}
+                                                >
+                                                  <div style={{ flex: 1, minWidth: 0, direction: 'ltr', textAlign: 'left', fontSize: '0.72rem', whiteSpace: 'pre-wrap' }}>
+                                                    {renderWithMath(itemText)}
+                                                  </div>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => insertTextToContent(itemText, false)}
+                                                    style={{
+                                                      fontSize: '0.62rem',
+                                                      fontWeight: 700,
+                                                      padding: '0.15rem 0.45rem',
+                                                      borderRadius: '4px',
+                                                      background: 'rgba(99, 102, 241, 0.1)',
+                                                      border: '1px solid rgba(99, 102, 241, 0.25)',
+                                                      color: 'var(--violet)',
+                                                      cursor: 'pointer',
+                                                      flexShrink: 0
+                                                    }}
+                                                    title={isArMode ? 'إدراج هذه الفقرة/السؤال فقط' : 'Insérer cet élément uniquement'}
+                                                  >
+                                                    + {isArMode ? 'إدراج' : 'Insérer'}
+                                                  </button>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        ) : (
+                                          <div style={{ direction: 'ltr', textAlign: 'left', whiteSpace: 'pre-wrap' }}>
+                                            {renderWithMath(getSectionContentString(s))}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
-
-                                {/* Content Preview Drawer */}
-                                {isPreviewOpen && (s.content || (s.items && s.items.length > 0)) && (() => {
-                                  const textVal = getSectionContentString(s);
-                                  return (
-                                    <div style={{
-                                      marginTop: '0.55rem',
-                                      marginLeft: '1.8rem',
-                                      padding: '0.65rem 0.85rem',
-                                      background: 'rgba(255, 255, 255, 0.02)',
-                                      border: '1px solid var(--border)',
-                                      borderRadius: '8px',
-                                      fontSize: '0.75rem',
-                                      color: 'var(--text-muted)',
-                                      maxHeight: '160px',
-                                      overflowY: 'auto',
-                                      direction: 'ltr',
-                                      textAlign: 'left',
-                                      whiteSpace: 'pre-wrap'
-                                    }}>
-                                      {renderWithMath(textVal)}
-                                    </div>
-                                  );
-                                })()}
-                              </div>
-                            </div>
-                          );
-                        })}
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     );
                   })()}
@@ -3973,7 +4388,7 @@ export default function AdminLogbook() {
                 <div style={{ 
                   display: 'flex', 
                   flexWrap: 'wrap', 
-                  gap: '0.5rem', 
+                  gap: '0.45rem', 
                   marginBottom: '0.75rem', 
                   background: 'rgba(255, 255, 255, 0.01)', 
                   padding: '0.6rem 0.8rem', 
@@ -3986,7 +4401,7 @@ export default function AdminLogbook() {
                   
                   {isArMode ? (
                     // Arabic Quick Tags
-                    ['تعريف', 'خاصية', 'مبرهنة', 'ملاحظة', 'مثال', 'تطبيق', 'تصحيح'].map(tag => (
+                    ['عنوان', 'محور', 'تمرين', 'تطبيق', 'تصحيح', 'تعريف', 'خاصية', 'مبرهنة', 'مثال', 'ملاحظة', 'نشاط', 'خلاصة'].map(tag => (
                       <button
                         key={tag}
                         type="button"
@@ -4010,7 +4425,7 @@ export default function AdminLogbook() {
                     ))
                   ) : (
                     // French Quick Tags
-                    ['Définition', 'Propriété', 'Théorème', 'Remarque', 'Exemple', 'Application', 'Correction'].map(tag => (
+                    ['Titre', 'Axe', 'Exercice', 'Application', 'Correction', 'Définition', 'Propriété', 'Théorème', 'Exemple', 'Remarque', 'Activité', 'Synthèse'].map(tag => (
                       <button
                         key={tag}
                         type="button"
