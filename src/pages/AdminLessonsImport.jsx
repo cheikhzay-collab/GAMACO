@@ -10,6 +10,7 @@ import {
   Clock, RefreshCw, Check, Play, ListFilter, Inbox, ArrowRight, Key
 } from 'lucide-react';
 import { addLesson } from '../services/lessonService';
+import { saveGrade, extractPointsTableFromSections, calculateTotalPointsFromTable } from '../services/gradeService';
 import {
   getExtractionTasks,
   getExtractionTaskById,
@@ -312,12 +313,25 @@ Ton objectif UNIQUE est de produire un JSON structuré représentant FIDÈLEMENT
      - Épreuves de concours d'accès (Médecine FMP/FMD, ENSA, ENSAM, CNC, APESA, etc.).
      - Définis "header.doc_type": "concours", "header.is_national_exam": false.
 
-3. EXTRACTION DU BARÈME DE NOTATION ET DES POINTS ("points" & "header.total_points") :
-   - Si le document est un devoir / contrôle / examen ou s'il contient des mentions de points (ex: (1.5 pts), (2 pts), (0.75 pt), [3 pts], (1,5 ن), (2 ن), (0,75 نقطة)) :
-     • Dans le "header", indique "total_points": 20 (ou la somme totale des points calculée).
-     • Pour CHAQUE exercice ou section (type 'exercise' ou 'activity') :
-       - Extrais le nombre numérique de points attribués dans le champ "points" (ex: 3.5, 2, 1.5, 0.75).
-       - Conserve aussi les mentions de points des sous-questions dans le texte de l'énoncé (ex: "**1.a.** (0.75 pt) Montrer que...").
+3. EXTRACTION DU BARÈME DE NOTATION, DES POINTS ET DU TABLEAU DES NOTES ("points_table" & "header.total_points") :
+   - ⚠️ TRÈS IMPORTANT : Lorsque le document est un devoir surveillé / devoir maison / contrôle (فرض محروس / فرض منزلي / مراقبة مستمرة) ou s'il contient des points / barème :
+     • Dans le "header", indique "total_points": 20 (ou la somme totale calculée des points).
+     • Tu DOIS OBLIGATOIREMENT GÉNÉRER ET EXTRAIRE LE TABLEAU COMPLET DES POINTS dans "header.points_table" :
+       [
+         {
+           "exercise": "Exercice 1",
+           "title": "Nom ou thème de l'exercice",
+           "points": 4.5,
+           "questions": [
+             { "num": "1.a", "points": 0.75, "desc": "Calculer la limite..." },
+             { "num": "1.b", "points": 1.25, "desc": "..." },
+             { "num": "2", "points": 2.5, "desc": "..." }
+           ]
+         }
+       ]
+     • Pour CHAQUE exercice ou section : extrais le nombre numérique de points attribués dans le champ "points" (ex: 4.5, 2, 1.5, 0.75).
+     • Conserve IMPÉRATIVEMENT les mentions de points des sous-questions dans le texte de l'énoncé (ex: "**1.a.** (0.75 pt) Montrer que...").
+     • Si le document original comporte un tableau de notes ou grille de notation (جدول النقط / جدول تفريغ النقط), extrais et retranscris toutes ses données fidèlement dans "header.points_table".
 
 4. DÉTAILS DE L'EXAMEN NATIONAL MAROCAIN (UNIQUEMENT SI doc_type === 'national') :
    - Extrais l'objet "header.national_exam_meta" avec les champs exacts :
@@ -873,6 +887,8 @@ export default function AdminLessonsImport({ onBack }) {
   const [docLanguage, setDocLanguage] = useState('fr');
   const [topics, setTopics] = useState([]);
   const [totalPoints, setTotalPoints] = useState(20);
+  const [pointsTable, setPointsTable] = useState([]);
+  const [showPointsTable, setShowPointsTable] = useState(true);
 
   // Page snapshots map — { [pageNum]: dataUrl } — built after AI analysis for figure placeholders
   const [pageSnapshotsMap, setPageSnapshotsMap] = useState({});
@@ -2068,6 +2084,22 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
       }
 
       setSections(mappedSections);
+
+      // Extract and tabulate points table from header or exercises
+      let extractedPtsTable = [];
+      if (Array.isArray(header.points_table) && header.points_table.length > 0) {
+        extractedPtsTable = header.points_table;
+      } else if (Array.isArray(parsed?.points_table) && parsed.points_table.length > 0) {
+        extractedPtsTable = parsed.points_table;
+      } else {
+        extractedPtsTable = extractPointsTableFromSections(mappedSections, header.total_points || 20);
+      }
+      setPointsTable(extractedPtsTable);
+      if (extractedPtsTable.length > 0) {
+        const calculatedTot = calculateTotalPointsFromTable(extractedPtsTable);
+        if (calculatedTot > 0) setTotalPoints(calculatedTot);
+      }
+
       const isAr = /[\u0600-\u06FF]/.test((header.fiche_title || '') + ' ' + (header.subject || ''));
       setDocLanguage(parsed?.metadata?.language || (isAr ? 'ar' : 'fr'));
       
@@ -2273,6 +2305,22 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
     });
 
     setSections(mappedSections);
+
+    // Extract and tabulate points table from header or exercises
+    let extractedPtsTable = [];
+    if (Array.isArray(header.points_table) && header.points_table.length > 0) {
+      extractedPtsTable = header.points_table;
+    } else if (Array.isArray(parsed?.points_table) && parsed.points_table.length > 0) {
+      extractedPtsTable = parsed.points_table;
+    } else {
+      extractedPtsTable = extractPointsTableFromSections(mappedSections, header.total_points || 20);
+    }
+    setPointsTable(extractedPtsTable);
+    if (extractedPtsTable.length > 0) {
+      const calculatedTot = calculateTotalPointsFromTable(extractedPtsTable);
+      if (calculatedTot > 0) setTotalPoints(calculatedTot);
+    }
+
     const isAr = /[\u0600-\u06FF]/.test((header.fiche_title || '') + ' ' + (header.subject || ''));
     setDocLanguage(parsed?.metadata?.language || (isAr ? 'ar' : 'fr'));
     const numMatch = (header.fiche_title || '').match(/Fiche\s*(\d+)/i);
@@ -2638,6 +2686,8 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
           national_exam_meta: isNationalExam ? nationalExamMeta : null,
           is_summary: effectiveIsSummary,
           summary_meta: effectiveSummaryMeta,
+          points_table: pointsTable,
+          total_points: totalPoints,
           metadata: {
             language: docLanguage
           },
@@ -2652,14 +2702,37 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
             is_national_exam: isNationalExam,
             national_exam_meta: isNationalExam ? nationalExamMeta : null,
             is_summary: effectiveIsSummary,
-            summary_meta: effectiveSummaryMeta
+            summary_meta: effectiveSummaryMeta,
+            points_table: pointsTable,
+            total_points: totalPoints
           },
           sections
         },
         isActive: true
       };
 
-      await addLesson(lessonData);
+      const savedLessonId = await addLesson(lessonData);
+
+      // Save structured points table in tbl_grades
+      if (pointsTable && pointsTable.length > 0) {
+        try {
+          await saveGrade({
+            id: `grade-${savedLessonId || ('l_' + Date.now())}`,
+            lesson_id: savedLessonId,
+            title: ficheTitle,
+            doc_type: effectiveDocType,
+            total_points: totalPoints,
+            data: {
+              points_table: pointsTable,
+              total_points: totalPoints,
+              title: ficheTitle,
+              level: selectedLevel
+            }
+          });
+        } catch (gradeErr) {
+          console.warn('[handleSaveLesson] Grade save to tbl_grades warning:', gradeErr);
+        }
+      }
       if (taskUnderReview?.id) {
         try {
           await deleteExtractionTask(taskUnderReview.id);
@@ -2682,6 +2755,97 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
     } else {
       setSelectedSchools([...selectedSchools, sch]);
     }
+  };
+
+  // Points table handlers for homework / exams
+  const handleRecalculatePointsFromSections = () => {
+    const extracted = extractPointsTableFromSections(sections, totalPoints);
+    setPointsTable(extracted);
+    if (extracted.length > 0) {
+      const tot = calculateTotalPointsFromTable(extracted);
+      if (tot > 0) setTotalPoints(tot);
+    }
+  };
+
+  const handleUpdateExercisePoints = (index, newPts) => {
+    const updated = [...pointsTable];
+    const val = parseFloat(newPts);
+    updated[index] = { ...updated[index], points: isNaN(val) ? 0 : val };
+    setPointsTable(updated);
+  };
+
+  const handleUpdateExerciseTitle = (index, newTitle) => {
+    const updated = [...pointsTable];
+    updated[index] = { ...updated[index], title: newTitle };
+    setPointsTable(updated);
+  };
+
+  const handleUpdateExerciseNumber = (index, newEx) => {
+    const updated = [...pointsTable];
+    updated[index] = { ...updated[index], exercise: newEx };
+    setPointsTable(updated);
+  };
+
+  const handleAddPointsTableRow = () => {
+    const nextIdx = pointsTable.length + 1;
+    const newRow = {
+      exercise: `Exercice ${nextIdx}`,
+      title: '',
+      points: 4,
+      subpoints: []
+    };
+    const updated = [...pointsTable, newRow];
+    setPointsTable(updated);
+    const tot = calculateTotalPointsFromTable(updated);
+    if (tot > 0) setTotalPoints(tot);
+  };
+
+  const handleDeletePointsTableRow = (index) => {
+    const updated = pointsTable.filter((_, i) => i !== index);
+    setPointsTable(updated);
+    const tot = calculateTotalPointsFromTable(updated);
+    if (tot > 0) setTotalPoints(tot);
+  };
+
+  const handleAddSubpoint = (exIdx) => {
+    const updated = [...pointsTable];
+    const sub = updated[exIdx].subpoints || [];
+    const nextQ = `${sub.length + 1}.`;
+    updated[exIdx] = {
+      ...updated[exIdx],
+      subpoints: [...sub, { question: nextQ, points: 1 }]
+    };
+    const subSum = updated[exIdx].subpoints.reduce((s, p) => s + (parseFloat(p.points) || 0), 0);
+    if (subSum > 0) updated[exIdx].points = subSum;
+    setPointsTable(updated);
+    const tot = calculateTotalPointsFromTable(updated);
+    if (tot > 0) setTotalPoints(tot);
+  };
+
+  const handleUpdateSubpoint = (exIdx, subIdx, field, val) => {
+    const updated = [...pointsTable];
+    const sub = [...(updated[exIdx].subpoints || [])];
+    sub[subIdx] = {
+      ...sub[subIdx],
+      [field]: field === 'points' ? (parseFloat(val) || 0) : val
+    };
+    updated[exIdx] = { ...updated[exIdx], subpoints: sub };
+    const subSum = sub.reduce((s, p) => s + (parseFloat(p.points) || 0), 0);
+    if (subSum > 0) updated[exIdx].points = subSum;
+    setPointsTable(updated);
+    const tot = calculateTotalPointsFromTable(updated);
+    if (tot > 0) setTotalPoints(tot);
+  };
+
+  const handleDeleteSubpoint = (exIdx, subIdx) => {
+    const updated = [...pointsTable];
+    const sub = (updated[exIdx].subpoints || []).filter((_, i) => i !== subIdx);
+    updated[exIdx] = { ...updated[exIdx], subpoints: sub };
+    const subSum = sub.reduce((s, p) => s + (parseFloat(p.points) || 0), 0);
+    if (subSum > 0) updated[exIdx].points = subSum;
+    setPointsTable(updated);
+    const tot = calculateTotalPointsFromTable(updated);
+    if (tot > 0) setTotalPoints(tot);
   };
 
   // Renders the smart image item editor with thumbnail preview and Jump & Crop button
@@ -4676,6 +4840,304 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                   </div>
 
                 </div>
+
+                {/* Section: Points Table / Grille de notation & Barème */}
+                {(docType === 'homework' || isNationalExam || (pointsTable && pointsTable.length > 0) || sections.some(s => s.points)) && (
+                  <div className="glass-panel" style={{
+                    padding: '1.5rem',
+                    borderRadius: '16px',
+                    border: '1.5px solid rgba(14, 165, 233, 0.35)',
+                    background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.04) 0%, rgba(99, 102, 241, 0.04) 100%)',
+                    boxShadow: '0 4px 20px rgba(14, 165, 233, 0.08)'
+                  }}>
+                    {/* Header */}
+                    <div style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: '1rem',
+                      marginBottom: '1rem',
+                      borderBottom: '1px solid rgba(14, 165, 233, 0.15)',
+                      paddingBottom: '0.75rem'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <div style={{
+                          width: '38px',
+                          height: '38px',
+                          borderRadius: '10px',
+                          background: 'linear-gradient(135deg, #0ea5e9, #6366f1)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#fff',
+                          fontSize: '1.2rem',
+                          fontWeight: 'bold',
+                          boxShadow: '0 2px 8px rgba(14, 165, 233, 0.3)'
+                        }}>
+                          📊
+                        </div>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                            <h2 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>
+                              جدول النقط وسلم التنقيط (Grille & Barème des Points)
+                            </h2>
+                            <span style={{
+                              fontSize: '0.75rem',
+                              fontWeight: 800,
+                              padding: '0.15rem 0.6rem',
+                              borderRadius: '20px',
+                              background: 'rgba(14, 165, 233, 0.15)',
+                              color: '#0284c7',
+                              border: '1px solid rgba(14, 165, 233, 0.3)'
+                            }}>
+                              {pointsTable.reduce((sum, row) => sum + (parseFloat(row.points) || 0), 0).toFixed(2)} / {totalPoints} pts
+                            </span>
+                          </div>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                            تفريغ تلقائي لسلّم التنقيط وتوزيع النقط على التمارين والأسئلة الفرعية مع حفظها في جدول قاعدة البيانات (tbl_grades)
+                          </span>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          onClick={handleRecalculatePointsFromSections}
+                          className="btn-outline"
+                          style={{
+                            fontSize: '0.75rem',
+                            padding: '0.35rem 0.75rem',
+                            borderColor: 'rgba(14, 165, 233, 0.4)',
+                            color: '#0284c7',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem'
+                          }}
+                          title="استخراج النقط تلقائياً من محتوى التمارين الحالية"
+                        >
+                          <RefreshCw size={13} /> استخراج من التمارين
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleAddPointsTableRow}
+                          className="btn-outline"
+                          style={{
+                            fontSize: '0.75rem',
+                            padding: '0.35rem 0.75rem',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem'
+                          }}
+                        >
+                          <Plus size={13} /> + إضافة تمرين
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowPointsTable(!showPointsTable)}
+                          className="btn-outline"
+                          style={{ fontSize: '0.75rem', padding: '0.35rem 0.6rem' }}
+                        >
+                          {showPointsTable ? 'طوي الجدول ▲' : 'عرض الجدول ▼'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Table View */}
+                    {showPointsTable && (
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{
+                          width: '100%',
+                          borderCollapse: 'collapse',
+                          fontSize: '0.82rem',
+                          background: 'rgba(255, 255, 255, 0.02)',
+                          borderRadius: '12px',
+                          overflow: 'hidden'
+                        }}>
+                          <thead>
+                            <tr style={{ background: 'rgba(14, 165, 233, 0.08)', borderBottom: '1px solid rgba(14, 165, 233, 0.2)' }}>
+                              <th style={{ padding: '0.6rem 0.75rem', textAlign: 'left', fontWeight: 800, width: '130px' }}>التمرين / Exercice</th>
+                              <th style={{ padding: '0.6rem 0.75rem', textAlign: 'left', fontWeight: 800 }}>الموضوع / Thème</th>
+                              <th style={{ padding: '0.6rem 0.75rem', textAlign: 'center', fontWeight: 800, width: '120px' }}>النقطة / Barème</th>
+                              <th style={{ padding: '0.6rem 0.75rem', textAlign: 'left', fontWeight: 800 }}>تفاصيل الأسئلة الفرعية (Subpoints)</th>
+                              <th style={{ padding: '0.6rem 0.75rem', textAlign: 'center', fontWeight: 800, width: '60px' }}>حذف</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {pointsTable.length === 0 ? (
+                              <tr>
+                                <td colSpan={5} style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                                  لا توجد نقط مفرغة حالياً. اضغط على "استخراج من التمارين" لتفريغ النقط تلقائياً من محتوى الفرض.
+                                </td>
+                              </tr>
+                            ) : (
+                              pointsTable.map((row, idx) => (
+                                <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
+                                  <td style={{ padding: '0.5rem 0.75rem' }}>
+                                    <input
+                                      type="text"
+                                      className="input-control"
+                                      value={row.exercise || `Exercice ${idx + 1}`}
+                                      onChange={(e) => handleUpdateExerciseNumber(idx, e.target.value)}
+                                      style={{ width: '100%', fontSize: '0.8rem', padding: '0.35rem 0.5rem', fontWeight: 700 }}
+                                    />
+                                  </td>
+                                  <td style={{ padding: '0.5rem 0.75rem' }}>
+                                    <input
+                                      type="text"
+                                      className="input-control"
+                                      value={row.title || ''}
+                                      onChange={(e) => handleUpdateExerciseTitle(idx, e.target.value)}
+                                      placeholder="موضوع التمرين (مثال: دراسة الدوال، المتتاليات...)"
+                                      style={{ width: '100%', fontSize: '0.8rem', padding: '0.35rem 0.5rem' }}
+                                    />
+                                  </td>
+                                  <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>
+                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                                      <input
+                                        type="number"
+                                        step="0.25"
+                                        min="0"
+                                        max="20"
+                                        className="input-control"
+                                        value={row.points !== undefined ? row.points : 0}
+                                        onChange={(e) => handleUpdateExercisePoints(idx, e.target.value)}
+                                        style={{ width: '70px', textAlign: 'center', fontSize: '0.85rem', fontWeight: 800, padding: '0.35rem 0.4rem', color: '#0284c7' }}
+                                      />
+                                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700 }}>pts</span>
+                                    </div>
+                                  </td>
+                                  <td style={{ padding: '0.5rem 0.75rem' }}>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center' }}>
+                                      {(row.subpoints || []).map((sub, sIdx) => (
+                                        <div
+                                          key={sIdx}
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '0.25rem',
+                                            background: 'rgba(14, 165, 233, 0.08)',
+                                            border: '1px solid rgba(14, 165, 233, 0.25)',
+                                            borderRadius: '6px',
+                                            padding: '0.15rem 0.4rem',
+                                            fontSize: '0.75rem'
+                                          }}
+                                        >
+                                          <input
+                                            type="text"
+                                            value={sub.question || `${sIdx + 1}.`}
+                                            onChange={(e) => handleUpdateSubpoint(idx, sIdx, 'question', e.target.value)}
+                                            style={{
+                                              width: '32px',
+                                              border: 'none',
+                                              background: 'transparent',
+                                              fontWeight: 700,
+                                              fontSize: '0.72rem',
+                                              color: 'inherit',
+                                              padding: 0,
+                                              textAlign: 'center'
+                                            }}
+                                          />
+                                          <span style={{ color: 'var(--text-muted)' }}>:</span>
+                                          <input
+                                            type="number"
+                                            step="0.25"
+                                            min="0"
+                                            max="20"
+                                            value={sub.points !== undefined ? sub.points : 0}
+                                            onChange={(e) => handleUpdateSubpoint(idx, sIdx, 'points', e.target.value)}
+                                            style={{
+                                              width: '42px',
+                                              border: 'none',
+                                              background: 'transparent',
+                                              fontWeight: 800,
+                                              fontSize: '0.75rem',
+                                              color: '#0284c7',
+                                              padding: 0,
+                                              textAlign: 'center'
+                                            }}
+                                          />
+                                          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>pt</span>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleDeleteSubpoint(idx, sIdx)}
+                                            style={{
+                                              background: 'none',
+                                              border: 'none',
+                                              color: 'var(--rose, #f43f5e)',
+                                              cursor: 'pointer',
+                                              padding: '0 0.15rem',
+                                              fontSize: '0.8rem',
+                                              lineHeight: 1
+                                            }}
+                                            title="حذف هذا السؤال الفرعي"
+                                          >
+                                            ×
+                                          </button>
+                                        </div>
+                                      ))}
+                                      <button
+                                        type="button"
+                                        onClick={() => handleAddSubpoint(idx)}
+                                        style={{
+                                          background: 'rgba(255, 255, 255, 0.05)',
+                                          border: '1px dashed rgba(14, 165, 233, 0.4)',
+                                          borderRadius: '6px',
+                                          color: '#0284c7',
+                                          cursor: 'pointer',
+                                          fontSize: '0.7rem',
+                                          padding: '0.15rem 0.45rem',
+                                          fontWeight: 700
+                                        }}
+                                        title="إضافة سؤال فرعي بسلم تنقيطه"
+                                      >
+                                        + سؤال
+                                      </button>
+                                    </div>
+                                  </td>
+                                  <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeletePointsTableRow(idx)}
+                                      className="btn-outline"
+                                      style={{ padding: '0.25rem 0.45rem', color: 'var(--rose, #f43f5e)', borderColor: 'rgba(244,63,94,0.3)' }}
+                                      title="حذف هذا التمرين من جدول النقط"
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                          {pointsTable.length > 0 && (
+                            <tfoot>
+                              <tr style={{ background: 'rgba(14, 165, 233, 0.08)', fontWeight: 800 }}>
+                                <td colSpan={2} style={{ padding: '0.65rem 0.75rem', textAlign: 'right' }}>
+                                  المجموع الكلي للنقط (Total) :
+                                </td>
+                                <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center', color: '#0284c7', fontSize: '0.95rem' }}>
+                                  {pointsTable.reduce((sum, row) => sum + (parseFloat(row.points) || 0), 0).toFixed(2)} pts
+                                </td>
+                                <td colSpan={2} style={{ padding: '0.65rem 0.75rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                  {Math.abs(pointsTable.reduce((sum, row) => sum + (parseFloat(row.points) || 0), 0) - totalPoints) < 0.01 ? (
+                                    <span style={{ color: '#10b981', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                                      <CheckCircle size={14} /> مطابق للإجمالي ({totalPoints} نقطة)
+                                    </span>
+                                  ) : (
+                                    <span style={{ color: '#f59e0b', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                                      <AlertTriangle size={14} /> تنبيه: مجموع النقط ({pointsTable.reduce((sum, row) => sum + (parseFloat(row.points) || 0), 0).toFixed(2)}) يختلف عن إجمالي الفرض ({totalPoints} نقطة)
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            </tfoot>
+                          )}
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Section 2: Course Contents */}
                 <div className="glass-panel" style={{ padding: '2rem' }}>

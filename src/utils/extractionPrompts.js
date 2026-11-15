@@ -207,10 +207,24 @@ Ton objectif UNIQUE est de produire un JSON structuré représentant FIDÈLEMENT
    • 'course' : (درس كامل / بطاقة درس - Fiche de cours)
    • 'concours' : (مباراة ولوج الكليات والمدارس العليا - Épreuve de Concours)
 
-3. EXTRACTION DU BARÈME DE NOTATION ET DES POINTS ("points" & "header.total_points") :
+3. EXTRACTION DU BARÈME DE NOTATION ET DES POINTS ("points", "header.total_points", "header.points_table") :
    - Si le document est un devoir / contrôle / examen ou s'il contient des mentions de points (ex: 2 pts, 1,5 ن) :
      • Dans le "header", indique "total_points": 20 (ou la somme totale des points calculée).
      • Pour CHAQUE exercice ou section : extrais le nombre numérique de points attribués dans le champ "points".
+     • EXTRACTION DU TABLEAU DE NOTATION ET DÉCHARGEMENT DES POINTS ("header.points_table") :
+       Dresse et décharge impérativement la grille complète de notation sous forme d'un tableau structuré :
+       "points_table": [
+         {
+           "exercise": "Exercice 1",
+           "title": "Thème ou intitulé",
+           "points": 5.0,
+           "subpoints": [
+             { "question": "1. a", "points": 1.5 },
+             { "question": "1. b", "points": 1.0 },
+             { "question": "2", "points": 2.5 }
+           ]
+         }
+       ]
 
 ════════════════════════════════════════════════════════════
 RÈGLE ABSOLUE DE LANGUE — CONSERVATION RIGOUREUSE DE LA LANGUE D'ORIGINE
@@ -253,7 +267,17 @@ SCHÉMA JSON OBLIGATOIRE
     "phone": "",
     "doc_type": "'course' | 'homework' | 'exercises' | 'concours' | 'summary' | 'national'",
     "detected_level": "'common_core_sci' | 'common_core_arts' | '1bac_sci' | '1bac_arts' | '2bac_sm' | '2bac_pc_svt' | '2bac_arts'",
-    "total_points": 20
+    "total_points": 20,
+    "points_table": [
+      {
+        "exercise": "Exercice 1",
+        "title": "Titre / Thème",
+        "points": 5,
+        "subpoints": [
+          { "question": "1. a", "points": 1.5 }
+        ]
+      }
+    ]
   },
   "sections": [
     {

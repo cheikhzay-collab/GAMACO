@@ -328,6 +328,23 @@ const initMySQL = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS tbl_grades (
+        id VARCHAR(64) PRIMARY KEY,
+        lesson_id VARCHAR(64),
+        exam_id VARCHAR(64),
+        class_id VARCHAR(64),
+        title TEXT,
+        doc_type VARCHAR(50) DEFAULT 'homework',
+        total_points DECIMAL(6,2) DEFAULT 20.00,
+        data LONGTEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_grades_lesson (lesson_id),
+        INDEX idx_grades_class (class_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
     // Run safe column migrations to upgrade existing tables without dropping data
     const safeAlters = [
       "ALTER TABLE tbl_lessons MODIFY COLUMN title TEXT",
@@ -342,7 +359,8 @@ const initMySQL = async () => {
       "ALTER TABLE tbl_users MODIFY COLUMN data LONGTEXT NOT NULL",
       "ALTER TABLE tbl_config MODIFY COLUMN key_name VARCHAR(128)",
       "ALTER TABLE tbl_config MODIFY COLUMN value LONGTEXT NOT NULL",
-      "ALTER TABLE tbl_assets MODIFY COLUMN data LONGTEXT NOT NULL"
+      "ALTER TABLE tbl_assets MODIFY COLUMN data LONGTEXT NOT NULL",
+      "ALTER TABLE tbl_grades MODIFY COLUMN data LONGTEXT NOT NULL"
     ];
     for (const alt of safeAlters) {
       await connection.query(alt).catch(() => {});
@@ -549,6 +567,53 @@ const initMySQL = async () => {
     const allUsersList = Array.from(consolidatedUsers.values());
     writeDataFile('users.json', allUsersList);
     console.log(`[Server] Synced ${allUsersList.length} users from MySQL database.`);
+
+    // 6. Synchronize Grades / Points Tables: smart reconciliation
+    const fileGrades = readDataFile('grades.json', []);
+    const [dbGradeRows] = await connection.query('SELECT id, updated_at, data FROM tbl_grades').catch(() => [[]]);
+    const dbGradeMap = new Map();
+    for (const row of dbGradeRows) {
+      const parsed = safeJsonParse(row.data, null);
+      if (parsed && row.id) {
+        dbGradeMap.set(row.id, {
+          updatedAt: new Date(row.updated_at || parsed.updatedAt || parsed.updated_at || 0).getTime(),
+          data: parsed
+        });
+      }
+    }
+
+    const consolidatedGrades = new Map();
+    for (const [id, entry] of dbGradeMap.entries()) {
+      consolidatedGrades.set(id, entry.data);
+    }
+
+    for (const g of fileGrades) {
+      if (!g || !g.id) continue;
+      const fileTime = new Date(g.updatedAt || g.updated_at || g.createdAt || 0).getTime();
+      const existingInDb = dbGradeMap.get(g.id);
+
+      if (!existingInDb) {
+        await connection.query(
+          'INSERT INTO tbl_grades (id, lesson_id, exam_id, class_id, title, doc_type, total_points, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          [g.id, g.lessonId || g.lesson_id || null, g.examId || g.exam_id || null, g.classId || g.class_id || null, g.title || '', g.docType || g.doc_type || 'homework', parseFloat(g.totalPoints || g.total_points) || 20, JSON.stringify(g)]
+        ).catch(() => {});
+        consolidatedGrades.set(g.id, g);
+      } else if (fileTime > existingInDb.updatedAt + 1000) {
+        await connection.query(
+          'UPDATE tbl_grades SET lesson_id = ?, exam_id = ?, class_id = ?, title = ?, doc_type = ?, total_points = ?, data = ?, updated_at = NOW() WHERE id = ?',
+          [g.lessonId || g.lesson_id || null, g.examId || g.exam_id || null, g.classId || g.class_id || null, g.title || '', g.docType || g.doc_type || 'homework', parseFloat(g.totalPoints || g.total_points) || 20, JSON.stringify(g), g.id]
+        ).catch(() => {});
+        consolidatedGrades.set(g.id, g);
+      }
+    }
+
+    const allGradesList = Array.from(consolidatedGrades.values()).sort((a, b) => {
+      const tA = new Date(a.updatedAt || a.updated_at || a.createdAt || 0).getTime();
+      const tB = new Date(b.updatedAt || b.updated_at || b.createdAt || 0).getTime();
+      return tB - tA;
+    });
+    writeDataFile('grades.json', allGradesList);
+    console.log(`[Server] Synced ${allGradesList.length} grade sheets from MySQL database.`);
 
     connection.release();
     isMySqlActive = true;
@@ -1056,6 +1121,109 @@ export const handleApiRequest = async (req, res, next) => {
     }
   }
 
+  // 5.5 Grades & Points Tables Endpoints
+  if (pathname === '/api/grades' || pathname.startsWith('/api/grades/')) {
+    const singleId = pathname.startsWith('/api/grades/') ? pathname.replace('/api/grades/', '').trim() : null;
+
+    if (req.method === 'GET') {
+      const lessonIdFilter = parsedUrl.searchParams.get('lesson_id') || parsedUrl.searchParams.get('lessonId');
+      const classIdFilter = parsedUrl.searchParams.get('class_id') || parsedUrl.searchParams.get('classId');
+
+      if (singleId) {
+        if (isMySqlActive) {
+          try {
+            const [rows] = await dbPool.query('SELECT data FROM tbl_grades WHERE id = ?', [singleId]);
+            if (rows.length > 0) {
+              const gr = safeJsonParse(rows[0].data, null);
+              if (gr) return sendJSON(res, 200, gr);
+            }
+          } catch (_) {}
+        }
+        const fileGrades = readDataFile('grades.json', []);
+        const found = fileGrades.find(g => g.id === singleId);
+        if (found) return sendJSON(res, 200, found);
+        return sendJSON(res, 404, { error: 'Grade sheet not found' });
+      }
+
+      if (isMySqlActive) {
+        try {
+          let query = 'SELECT data FROM tbl_grades';
+          const params = [];
+          const where = [];
+          if (lessonIdFilter) {
+            where.push('lesson_id = ?');
+            params.push(lessonIdFilter);
+          }
+          if (classIdFilter) {
+            where.push('class_id = ?');
+            params.push(classIdFilter);
+          }
+          if (where.length > 0) query += ' WHERE ' + where.join(' AND ');
+          query += ' ORDER BY updated_at DESC';
+
+          const [rows] = await dbPool.query(query, params);
+          const grades = rows.map(r => safeJsonParse(r.data, null)).filter(Boolean);
+          if (grades.length > 0) return sendJSON(res, 200, grades);
+        } catch (_) {}
+      }
+
+      let fileGrades = readDataFile('grades.json', []);
+      if (lessonIdFilter) {
+        fileGrades = fileGrades.filter(g => (g.lessonId === lessonIdFilter || g.lesson_id === lessonIdFilter));
+      }
+      if (classIdFilter) {
+        fileGrades = fileGrades.filter(g => (g.classId === classIdFilter || g.class_id === classIdFilter));
+      }
+      return sendJSON(res, 200, fileGrades);
+    }
+
+    if (req.method === 'POST') {
+      try {
+        const gradePayload = await getBody(req);
+        if (!gradePayload.id) {
+          gradePayload.id = gradePayload.lesson_id ? `GRADE-L-${gradePayload.lesson_id}` : ('GRADE-' + Math.random().toString(36).substring(2, 11).toUpperCase());
+        }
+        gradePayload.updatedAt = new Date().toISOString();
+        if (!gradePayload.createdAt) gradePayload.createdAt = new Date().toISOString();
+
+        const lessonId = gradePayload.lessonId || gradePayload.lesson_id || null;
+        const examId = gradePayload.examId || gradePayload.exam_id || null;
+        const classId = gradePayload.classId || gradePayload.class_id || null;
+        const title = gradePayload.title || '';
+        const docType = gradePayload.docType || gradePayload.doc_type || 'homework';
+        const totalPoints = parseFloat(gradePayload.totalPoints || gradePayload.total_points) || 20;
+
+        if (isMySqlActive) {
+          await dbPool.query(
+            'INSERT INTO tbl_grades (id, lesson_id, exam_id, class_id, title, doc_type, total_points, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE lesson_id = VALUES(lesson_id), exam_id = VALUES(exam_id), class_id = VALUES(class_id), title = VALUES(title), doc_type = VALUES(doc_type), total_points = VALUES(total_points), data = VALUES(data), updated_at = NOW()',
+            [gradePayload.id, lessonId, examId, classId, title, docType, totalPoints, JSON.stringify(gradePayload)]
+          );
+        }
+
+        const fileGrades = readDataFile('grades.json', []);
+        const idx = fileGrades.findIndex(g => g.id === gradePayload.id);
+        if (idx > -1) fileGrades[idx] = { ...fileGrades[idx], ...gradePayload };
+        else fileGrades.unshift(gradePayload);
+        writeDataFile('grades.json', fileGrades);
+
+        return sendJSON(res, 200, { success: true, grade: gradePayload });
+      } catch (err) {
+        return sendJSON(res, 500, { error: err.message });
+      }
+    }
+
+    if (req.method === 'DELETE') {
+      const id = singleId || parsedUrl.searchParams.get('id') || parsedUrl.searchParams.get('lesson_id');
+      if (isMySqlActive && id) {
+        await dbPool.query('DELETE FROM tbl_grades WHERE id = ? OR lesson_id = ?', [id, id]).catch(() => {});
+      }
+      let fileGrades = readDataFile('grades.json', []);
+      fileGrades = fileGrades.filter(g => g.id !== id && g.lessonId !== id && g.lesson_id !== id);
+      writeDataFile('grades.json', fileGrades);
+      return sendJSON(res, 200, { success: true, deleted: id });
+    }
+  }
+
   // 6. Users Endpoints
   if (pathname === '/api/users' || pathname.startsWith('/api/users/')) {
     const singleId = pathname.startsWith('/api/users/') ? pathname.replace('/api/users/', '').trim() : null;
@@ -1237,6 +1405,7 @@ export const handleApiRequest = async (req, res, next) => {
       let lessons = [];
       let classes = [];
       let users = [];
+      let grades = [];
       let config = {};
 
       if (isMySqlActive) {
@@ -1252,6 +1421,9 @@ export const handleApiRequest = async (req, res, next) => {
         const [userRows] = await dbPool.query('SELECT data FROM tbl_users');
         users = userRows.map(r => safeJsonParse(r.data, {}));
 
+        const [gradeRows] = await dbPool.query('SELECT data FROM tbl_grades').catch(() => [[]]);
+        grades = gradeRows.map(r => safeJsonParse(r.data, {}));
+
         const [configRows] = await dbPool.query('SELECT key_name, value FROM tbl_config');
         for (const row of configRows) {
           config[row.key_name] = safeJsonParse(row.value, row.value);
@@ -1261,6 +1433,7 @@ export const handleApiRequest = async (req, res, next) => {
         lessons = readDataFile('lessons.json', []);
         classes = readDataFile('classes.json', []);
         users = readDataFile('users.json', []);
+        grades = readDataFile('grades.json', []);
         config = readDataFile('config.json', {});
       }
 
@@ -1271,12 +1444,14 @@ export const handleApiRequest = async (req, res, next) => {
           examsCount: exams.length,
           lessonsCount: lessons.length,
           classesCount: classes.length,
-          usersCount: users.length
+          usersCount: users.length,
+          gradesCount: grades.length
         },
         exams,
         lessons,
         classes,
         users,
+        grades,
         config
       };
 
@@ -1289,7 +1464,7 @@ export const handleApiRequest = async (req, res, next) => {
   if (pathname === '/api/admin/restore-full' && req.method === 'POST') {
     try {
       const payload = await getBody(req);
-      const { exams = [], lessons = [], classes = [], users = [], config = {} } = payload || {};
+      const { exams = [], lessons = [], classes = [], users = [], grades = [], config = {} } = payload || {};
 
       if (isMySqlActive) {
         if (Array.isArray(exams) && exams.length > 0) {
@@ -1333,6 +1508,16 @@ export const handleApiRequest = async (req, res, next) => {
             }
           }
         }
+        if (Array.isArray(grades) && grades.length > 0) {
+          for (const g of grades) {
+            if (g.id) {
+              await dbPool.query(
+                'INSERT INTO tbl_grades (id, lesson_id, exam_id, class_id, title, doc_type, total_points, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE lesson_id = VALUES(lesson_id), exam_id = VALUES(exam_id), class_id = VALUES(class_id), title = VALUES(title), doc_type = VALUES(doc_type), total_points = VALUES(total_points), data = VALUES(data), updated_at = NOW()',
+                [g.id, g.lessonId || g.lesson_id || null, g.examId || g.exam_id || null, g.classId || g.class_id || null, g.title || '', g.docType || g.doc_type || 'homework', parseFloat(g.totalPoints || g.total_points) || 20, JSON.stringify(g)]
+              );
+            }
+          }
+        }
         if (config && typeof config === 'object') {
           for (const [k, v] of Object.entries(config)) {
             await dbPool.query(
@@ -1347,6 +1532,7 @@ export const handleApiRequest = async (req, res, next) => {
       if (Array.isArray(lessons)) writeDataFile('lessons.json', lessons);
       if (Array.isArray(classes)) writeDataFile('classes.json', classes);
       if (Array.isArray(users)) writeDataFile('users.json', users);
+      if (Array.isArray(grades)) writeDataFile('grades.json', grades);
       if (config && typeof config === 'object') {
         const curr = readDataFile('config.json', {});
         writeDataFile('config.json', { ...curr, ...config });
@@ -1358,7 +1544,8 @@ export const handleApiRequest = async (req, res, next) => {
           exams: exams.length,
           lessons: lessons.length,
           classes: classes.length,
-          users: users.length
+          users: users.length,
+          grades: grades.length
         }
       });
     } catch (err) {
@@ -1383,6 +1570,7 @@ export const handleApiRequest = async (req, res, next) => {
         await dbPool.query('DELETE FROM tbl_lessons');
         await dbPool.query('DELETE FROM tbl_classes');
         await dbPool.query('DELETE FROM tbl_users');
+        await dbPool.query('DELETE FROM tbl_grades');
         await dbPool.query('DELETE FROM tbl_assets');
         if (includeConfig) {
           await dbPool.query('DELETE FROM tbl_config');
@@ -1398,6 +1586,7 @@ export const handleApiRequest = async (req, res, next) => {
       writeDataFile('lessons.json', []);
       writeDataFile('classes.json', []);
       writeDataFile('users.json', []);
+      writeDataFile('grades.json', []);
       writeDataFile('extraction_tasks.json', []);
 
       if (includeConfig) {

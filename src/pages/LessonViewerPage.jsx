@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getLessonById, updateLesson } from '../services/lessonService';
+import { extractPointsTableFromSections } from '../services/gradeService';
 import { solveExerciseWithAI } from '../utils/aiExerciseSolver';
 import { Sparkles, Loader2 } from 'lucide-react';
 import { renderWithMath } from '../utils/mathRenderer';
@@ -714,6 +715,7 @@ export default function LessonViewerPage() {
   });
 
   const [showDetailedPedagogy, setShowDetailedPedagogy] = useState(false);
+  const [showGradesTable, setShowGradesTable] = useState(false);
 
   const handleSetSeriesColumns = (cols) => {
     setSeriesColumns(cols);
@@ -1347,6 +1349,16 @@ export default function LessonViewerPage() {
     header?.doc_type === 'homework' ||
     lesson?.isHomework ||
     /devoir|فرض|contr[ôo]le/i.test(lesson?.title || header?.fiche_title || header?.prep_title || '')
+  );
+
+  const activePointsTable = (
+    lesson?.content?.points_table && Array.isArray(lesson.content.points_table) && lesson.content.points_table.length > 0
+  ) ? lesson.content.points_table : (
+    header?.points_table && Array.isArray(header.points_table) && header.points_table.length > 0
+  ) ? header.points_table : (
+    lesson?.points_table && Array.isArray(lesson.points_table) && lesson.points_table.length > 0
+  ) ? lesson.points_table : (
+    isHomework ? extractPointsTableFromSections(sections, header?.total_points || 20) : []
   );
 
   return (
@@ -2827,6 +2839,32 @@ export default function LessonViewerPage() {
             </button>
           )}
 
+          {/* Grille / Barème des Points toggle button for homework */}
+          {(isHomework || activePointsTable.length > 0) && (
+            <button
+              type="button"
+              onClick={() => setShowGradesTable(!showGradesTable)}
+              className="btn-outline"
+              style={{
+                padding: '0.45rem 0.85rem',
+                borderRadius: '99px',
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                background: showGradesTable ? 'linear-gradient(135deg, #0ea5e9, #0284c7)' : 'transparent',
+                color: showGradesTable ? '#ffffff' : '#0284c7',
+                borderColor: showGradesTable ? '#0284c7' : 'rgba(14, 165, 233, 0.4)',
+                transition: 'all 0.15s ease',
+                cursor: 'pointer'
+              }}
+              title="Afficher la grille et le barème des points"
+            >
+              📊 سلم النقط ({activePointsTable.reduce((s, r) => s + (parseFloat(r.points) || 0), 0).toFixed(1)} / {header?.total_points || 20} pts)
+            </button>
+          )}
+
           {/* Option d'impression des solutions (Avec / Sans Solutions) */}
           <button 
             type="button"
@@ -3345,6 +3383,119 @@ export default function LessonViewerPage() {
               direction: lessonDir,
             }}>
               {renderWithMath(header.fiche_title || header.subject || "Fiche de Cours")}
+            </div>
+          )}
+
+          {/* Collapsible / Viewable Points Table for Homework */}
+          {(isHomework || (activePointsTable && activePointsTable.length > 0)) && activePointsTable.length > 0 && (
+            <div className="homework-points-table-card no-print" style={{
+              margin: '0 auto 1.5rem',
+              width: '100%',
+              borderRadius: '14px',
+              border: '1.5px solid rgba(0, 80, 134, 0.25)',
+              background: 'linear-gradient(135deg, rgba(0, 80, 134, 0.03) 0%, rgba(14, 165, 233, 0.03) 100%)',
+              padding: '1rem 1.25rem',
+              boxShadow: '0 2px 12px rgba(0, 80, 134, 0.05)'
+            }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                cursor: 'pointer',
+                userSelect: 'none'
+              }} onClick={() => setShowGradesTable(!showGradesTable)}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <span style={{ fontSize: '1.25rem' }}>📊</span>
+                  <div>
+                    <strong style={{ fontSize: '0.95rem', color: '#005086' }}>
+                      جدول النقط وسلّم التنقيط (Grille & Barème des Points)
+                    </strong>
+                    <span style={{
+                      marginRight: '0.6rem',
+                      marginLeft: '0.6rem',
+                      fontSize: '0.75rem',
+                      fontWeight: 800,
+                      padding: '0.15rem 0.55rem',
+                      borderRadius: '12px',
+                      background: 'rgba(0, 80, 134, 0.1)',
+                      color: '#005086'
+                    }}>
+                      المجموع : {activePointsTable.reduce((s, r) => s + (parseFloat(r.points) || 0), 0).toFixed(2)} / {header?.total_points || 20} pts
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#005086',
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {showGradesTable ? 'إخفاء الجدول ▲' : 'عرض سلم النقط ▼'}
+                </button>
+              </div>
+
+              {showGradesTable && (
+                <div style={{ marginTop: '0.85rem', overflowX: 'auto' }}>
+                  <table style={{
+                    width: '100%',
+                    borderCollapse: 'collapse',
+                    fontSize: '0.82rem',
+                    background: '#ffffff',
+                    borderRadius: '8px',
+                    overflow: 'hidden',
+                    border: '1px solid rgba(0, 80, 134, 0.15)'
+                  }}>
+                    <thead>
+                      <tr style={{ background: 'rgba(0, 80, 134, 0.08)', color: '#005086' }}>
+                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 800 }}>التمرين</th>
+                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 800 }}>الموضوع</th>
+                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'center', fontWeight: 800 }}>النقط</th>
+                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 800 }}>تفاصيل الأسئلة</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {activePointsTable.map((row, rIdx) => (
+                        <tr key={rIdx} style={{ borderBottom: '1px solid rgba(0, 80, 134, 0.08)' }}>
+                          <td style={{ padding: '0.45rem 0.75rem', fontWeight: 800, color: '#005086' }}>
+                            {row.exercise || `Exercice ${rIdx + 1}`}
+                          </td>
+                          <td style={{ padding: '0.45rem 0.75rem' }}>
+                            {row.title || '—'}
+                          </td>
+                          <td style={{ padding: '0.45rem 0.75rem', textAlign: 'center', fontWeight: 800, color: '#0284c7' }}>
+                            {row.points !== undefined ? `${row.points} pts` : '—'}
+                          </td>
+                          <td style={{ padding: '0.45rem 0.75rem' }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                              {(row.subpoints && row.subpoints.length > 0) ? (
+                                row.subpoints.map((sb, sbIdx) => (
+                                  <span key={sbIdx} style={{
+                                    fontSize: '0.72rem',
+                                    padding: '0.1rem 0.4rem',
+                                    borderRadius: '4px',
+                                    background: 'rgba(0, 80, 134, 0.06)',
+                                    color: '#005086',
+                                    border: '1px solid rgba(0, 80, 134, 0.15)'
+                                  }}>
+                                    <strong>{sb.question}:</strong> {sb.points} pt
+                                  </span>
+                                ))
+                              ) : (
+                                <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>—</span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
 
