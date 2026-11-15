@@ -308,6 +308,11 @@ const renderHomeworkBody = (text, isArabicMode, arabicFont, renderWithMath, secI
   });
   rawText = processedParts.join('');
 
+  // Heal split intervals (e.g. ]-\infty;$\n\n$$1[$$ -> ]-\infty; 1[$)
+  rawText = rawText.replace(/([\]\[\(][^$\n]*[;,])\s*\${1,2}\s*\n+\s*\${1,2}\s*([^$\n]*?[\]\[\)])\${1,2}/g, '$1 $2$');
+  rawText = rawText.replace(/([\]\[\(][^$\n]*)\s*\${1,2}\s*\n+\s*\${1,2}\s*([;,][^$\n]*?[\]\[\)])\${1,2}/g, '$1$2$');
+  rawText = rawText.replace(/\n{3,}/g, '\n\n');
+
   rawText = rawText
     .replace(/\r\n/g, '\n')
     .replace(/\r/g, '\n');
@@ -332,7 +337,7 @@ const renderHomeworkBody = (text, isArabicMode, arabicFont, renderWithMath, secI
 
   const pointsRegex = /\(\s*([\d.,]+)\s*(?:pts?|points?|\u0646|\u0646\u0642\u0637\u0629?|\u0646\u0642\u0637)\s*\)/i;
   const parenthesizedNumRegex = /^(\s*(?:\d+|[a-zA-Z])[.)]\s*)\(([\d.,]+)\)/;
-  const isSubQRegex = /^(\s*(?:\d+|[a-zA-Z])[.)]\s*)/;
+  const isQuestionRegex = /^(\s*(?:\*\*)?(?:\d+\s*[.)]\s*[a-zA-Z]|\d+|[a-zA-Z])[.)]\s*(?:\*\*)?)/;
 
   const parsedItems = [];
   mergedLines.forEach((line, idx) => {
@@ -362,7 +367,7 @@ const renderHomeworkBody = (text, isArabicMode, arabicFont, renderWithMath, secI
       displayPoints = displayPoints.slice(1, -1);
     }
 
-    const isSubQ = isSubQRegex.test(cleanLine);
+    const isSubQ = isQuestionRegex.test(cleanLine);
     parsedItems.push({
       idx,
       cleanLine,
@@ -376,25 +381,20 @@ const renderHomeworkBody = (text, isArabicMode, arabicFont, renderWithMath, secI
   let i = 0;
   while (i < parsedItems.length) {
     const item = parsedItems[i];
-    if (item.pointsStr || !item.isSubQ) {
+    if (item.pointsStr || item.isSubQ || blocks.length === 0) {
       const block = { headerItem: item, subItems: [] };
       i++;
-      while (i < parsedItems.length && parsedItems[i].isSubQ && !parsedItems[i].pointsStr) {
-        block.subItems.push(parsedItems[i]);
+      while (i < parsedItems.length && !parsedItems[i].pointsStr && !parsedItems[i].isSubQ) {
+        block.headerItem.cleanLine += '\n' + parsedItems[i].cleanLine;
         i++;
       }
       blocks.push(block);
     } else {
-      const block = { headerItem: null, subItems: [] };
-      while (i < parsedItems.length && parsedItems[i].isSubQ && !parsedItems[i].pointsStr) {
-        block.subItems.push(parsedItems[i]);
-        i++;
+      const lastBlock = blocks[blocks.length - 1];
+      if (lastBlock && lastBlock.headerItem) {
+        lastBlock.headerItem.cleanLine += '\n' + item.cleanLine;
       }
-      if (block.subItems.length === 0) {
-        block.subItems.push(item);
-        i++;
-      }
-      blocks.push(block);
+      i++;
     }
   }
 

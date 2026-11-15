@@ -340,18 +340,11 @@ const repairCorruptedLatex = (text) => {
     cleanBody = cleanBody.replace(/^\${1,2}/, '').replace(/\${1,2}$/, '').trim();
     return `\n\n$$${cleanBody}$$\n\n`;
   });
+  s = s.replace(/\n{3,}/g, '\n\n');
 
-  // 4. Split premise/quantifier clauses from formulas for optimal column wrap and containment
-  // e.g. (\forall x \in I) : f'(x) = ... -> (\forall x \in I) : on line 1, f'(x) = ... as display equation
-  s = s.replace(/(\2)\s*(\(?\\(?:forall|exists)\b.*?\)\s*[:;])\s*([^$\n]+?)\s*(\2)/g, (match, op1, quant, eq, op2) => {
-    return `$${quant.trim()}$\n\n$$${eq.trim()}$$`;
-  });
-  s = s.replace(/(^|\n|:\s*|[a-zA-ZÀ-ÿ\u0600-\u06FF]+\s*:\s*)(\(?\\(?:forall|exists)\b.*?\)\s*[:;])\s*([a-zA-Z0-9_'\(\)\\]+\s*[=<>≤≥].*)$/gm, (match, lead, quant, eq) => {
-    return `${lead}\n$${quant.trim()}$\n\n$$${eq.trim()}$$`;
-  });
-  s = s.replace(/(\2)\s*(\\forall\s+[a-zA-Z0-9,\s]+\s*\\in\s*[^:;,$\n]+?\s*[:;,])\s*([^$\n]+?)\s*(\2)/g, (match, op1, quant, eq, op2) => {
-    return `$${quant.trim()}$\n\n$$${eq.trim()}$$`;
-  });
+  // 4. Repair intervals that were split across math tags or newlines (e.g. ]-\infty;$\n\n$$1[$$ -> ]-\infty; 1[$)
+  s = s.replace(/([\]\[\(][^$\n]*[;,])\s*\${1,2}\s*\n+\s*\${1,2}\s*([^$\n]*?[\]\[\)])\${1,2}/g, '$1 $2$');
+  s = s.replace(/([\]\[\(][^$\n]*)\s*\${1,2}\s*\n+\s*\${1,2}\s*([;,][^$\n]*?[\]\[\)])\${1,2}/g, '$1$2$');
 
   return s;
 };
@@ -936,6 +929,11 @@ const renderHomeworkBody = (text, isArabicMode) => {
   });
   rawText = processedParts.join('');
 
+  // Heal split intervals (e.g. ]-\infty;$\n\n$$1[$$ -> ]-\infty; 1[$)
+  rawText = rawText.replace(/([\]\[\(][^$\n]*[;,])\s*\${1,2}\s*\n+\s*\${1,2}\s*([^$\n]*?[\]\[\)])\${1,2}/g, '$1 $2$');
+  rawText = rawText.replace(/([\]\[\(][^$\n]*)\s*\${1,2}\s*\n+\s*\${1,2}\s*([;,][^$\n]*?[\]\[\)])\${1,2}/g, '$1$2$');
+  rawText = rawText.replace(/\n{3,}/g, '\n\n');
+
   // Collapse colon followed by newline and math formula into a single line
   rawText = rawText.replace(/(:\s*)\n+\s*(\$\$|\$)/g, ' : $2');
 
@@ -959,7 +957,7 @@ const renderHomeworkBody = (text, isArabicMode) => {
 
   const pointsRegex = /\(\s*([\d.,]+)\s*(?:pts?|points?|\u0646|\u0646\u0642\u0637\u0629?|\u0646\u0642\u0637)\s*\)/i;
   const parenthesizedNumRegex = /^(\s*(?:\d+|[a-zA-Z])[.)]\s*)\(([\d.,]+)\)/;
-  const isSubQRegex = /^(\s*(?:\d+|[a-zA-Z])[.)]\s*)/;
+  const isQuestionRegex = /^(\s*(?:\*\*)?(?:\d+\s*[.)]\s*[a-zA-Z]|\d+|[a-zA-Z])[.)]\s*(?:\*\*)?)/;
 
   const parsedItems = [];
   mergedLines.forEach(line => {
@@ -988,7 +986,7 @@ const renderHomeworkBody = (text, isArabicMode) => {
 
     if (!cleanLine) return;
 
-    const isSubQ = isSubQRegex.test(cleanLine);
+    const isSubQ = isQuestionRegex.test(cleanLine);
     parsedItems.push({
       cleanLine,
       pointsStr,
@@ -1000,25 +998,20 @@ const renderHomeworkBody = (text, isArabicMode) => {
   let i = 0;
   while (i < parsedItems.length) {
     const item = parsedItems[i];
-    if (item.pointsStr || !item.isSubQ) {
+    if (item.pointsStr || item.isSubQ || blocks.length === 0) {
       const block = { headerItem: item, subItems: [] };
       i++;
-      while (i < parsedItems.length && parsedItems[i].isSubQ && !parsedItems[i].pointsStr) {
-        block.subItems.push(parsedItems[i]);
+      while (i < parsedItems.length && !parsedItems[i].pointsStr && !parsedItems[i].isSubQ) {
+        block.headerItem.cleanLine += '\n' + parsedItems[i].cleanLine;
         i++;
       }
       blocks.push(block);
     } else {
-      const block = { headerItem: null, subItems: [] };
-      while (i < parsedItems.length && parsedItems[i].isSubQ && !parsedItems[i].pointsStr) {
-        block.subItems.push(parsedItems[i]);
-        i++;
+      const lastBlock = blocks[blocks.length - 1];
+      if (lastBlock && lastBlock.headerItem) {
+        lastBlock.headerItem.cleanLine += '\n' + item.cleanLine;
       }
-      if (block.subItems.length === 0) {
-        block.subItems.push(item);
-        i++;
-      }
-      blocks.push(block);
+      i++;
     }
   }
 
