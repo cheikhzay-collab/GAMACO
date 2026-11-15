@@ -403,17 +403,21 @@ ${sectionsContentText}
       const matchesSearch = l.title?.toLowerCase().includes(searchTerm.toLowerCase()) || 
                             l.teacher?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesLevel = selectedLevelFilter === 'Tous' || normalizeLevel(l.level) === selectedLevelFilter;
+      const docTypeVal = l.docType || l.doc_type || 'course';
       const matchesDocType = selectedDocTypeFilter === 'Tous' || 
-                            l.docType === selectedDocTypeFilter ||
-                            (selectedDocTypeFilter === 'course' && (l.docType === 'summary' || !l.docType));
+                            docTypeVal === selectedDocTypeFilter ||
+                            (selectedDocTypeFilter === 'course' && (docTypeVal === 'summary' || !docTypeVal));
+      const isActiveVal = l.isActive !== undefined ? Boolean(l.isActive) : (l.is_active !== undefined ? Boolean(l.is_active) : true);
       const matchesStatus = statusFilter === 'all' || 
-                            (statusFilter === 'active' && l.isActive) || 
-                            (statusFilter === 'inactive' && !l.isActive);
+                            (statusFilter === 'active' && isActiveVal) || 
+                            (statusFilter === 'inactive' && !isActiveVal);
       return matchesSearch && matchesLevel && matchesDocType && matchesStatus;
     })
     .sort((a, b) => {
-      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      const timeA = a.updatedAt || a.updated_at || a.createdAt || a.created_at;
+      const timeB = b.updatedAt || b.updated_at || b.createdAt || b.created_at;
+      const dateA = timeA ? new Date(timeA).getTime() : 0;
+      const dateB = timeB ? new Date(timeB).getTime() : 0;
       return sortOrder === 'newest' ? dateB - dateA : dateA - dateB;
     });
 

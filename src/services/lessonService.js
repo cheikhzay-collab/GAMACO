@@ -177,23 +177,37 @@ export const getSingleLessonFromLocalStorage = (lessonId) => {
 const readRawLessons = () => getLocalStorageLessons() || [];
 
 // Helper to map lesson fields to DB columns
-const mapLessonToDB = (l) => ({
-  title: l.title,
-  subject: l.subject,
-  chapter_number: l.chapterNumber || l.chapter_number || null,
-  teacher: l.teacher || null,
-  phone: l.phone || null,
-  schools: l.schools || [],
-  level: l.level || l.content?.level || null,
-  doc_type: l.docType || l.doc_type || l.content?.doc_type || 'course',
-  content: {
-    ...(l.content || {}),
+const mapLessonToDB = (l) => {
+  const docType = l.docType || l.doc_type || l.content?.doc_type || 'course';
+  const isActive = l.isActive !== undefined ? Boolean(l.isActive) : (l.is_active !== undefined ? Boolean(l.is_active) : true);
+  const chapterNumber = l.chapterNumber !== undefined ? l.chapterNumber : (l.chapter_number !== undefined ? l.chapter_number : null);
+  const createdAt = l.createdAt || l.created_at || (l.content?.header?.date ? new Date(l.content.header.date).toISOString() : null) || new Date().toISOString();
+  const updatedAt = new Date().toISOString();
+
+  return {
+    title: l.title,
+    subject: l.subject,
+    chapter_number: chapterNumber,
+    chapterNumber,
+    teacher: l.teacher || null,
+    phone: l.phone || null,
+    schools: l.schools || [],
     level: l.level || l.content?.level || null,
-    doc_type: l.docType || l.doc_type || l.content?.doc_type || 'course'
-  },
-  is_active: l.isActive !== undefined ? l.isActive : true,
-  updated_at: new Date().toISOString(),
-});
+    doc_type: docType,
+    docType,
+    content: {
+      ...(l.content || {}),
+      level: l.level || l.content?.level || null,
+      doc_type: docType
+    },
+    is_active: isActive,
+    isActive,
+    created_at: createdAt,
+    createdAt,
+    updated_at: updatedAt,
+    updatedAt
+  };
+};
 
 const parseContent = (content) => {
   if (!content) return {};
@@ -224,21 +238,35 @@ const parseSchools = (schools) => {
 const mapDBToLesson = (row) => {
   if (!row) return null;
   const parsedContent = parseContent(row.content);
+  const docType = row.docType || row.doc_type || parsedContent?.doc_type || 'course';
+  const isActive = row.isActive !== undefined ? Boolean(row.isActive) : (row.is_active !== undefined ? Boolean(row.is_active) : true);
+  const isArchived = row.isArchived !== undefined ? Boolean(row.isArchived) : (row.is_archived !== undefined ? Boolean(row.is_archived) : false);
+  const chapterNumber = row.chapterNumber !== undefined ? row.chapterNumber : (row.chapter_number !== undefined ? row.chapter_number : '');
+  const createdAt = row.createdAt || row.created_at || (parsedContent?.header?.date ? new Date(parsedContent.header.date).toISOString() : null) || row.updatedAt || row.updated_at || new Date().toISOString();
+  const updatedAt = row.updatedAt || row.updated_at || createdAt;
+  const level = row.level || parsedContent?.level || null;
+
   return {
     id: row.id,
     title: row.title || parsedContent?.header?.fiche_title || 'Document',
     subject: row.subject || parsedContent?.header?.subject || '',
-    chapterNumber: row.chapter_number !== undefined ? row.chapter_number : (row.chapterNumber || ''),
+    chapterNumber,
+    chapter_number: chapterNumber,
     teacher: row.teacher || parsedContent?.header?.teacher || '',
     phone: row.phone || parsedContent?.header?.phone || '',
     schools: parseSchools(row.schools || parsedContent?.header?.schools),
     content: parsedContent,
-    level: row.level || parsedContent?.level || null,
-    docType: row.docType || row.doc_type || parsedContent?.doc_type || 'course',
-    isActive: row.is_active !== undefined ? row.is_active : (row.isActive !== undefined ? row.isActive : true),
-    isArchived: row.is_archived !== undefined ? row.is_archived : (row.isArchived !== undefined ? row.isArchived : false),
-    createdAt: row.created_at || row.createdAt,
-    updatedAt: row.updated_at || row.updatedAt,
+    level,
+    docType,
+    doc_type: docType,
+    isActive,
+    is_active: isActive,
+    isArchived,
+    is_archived: isArchived,
+    createdAt,
+    created_at: createdAt,
+    updatedAt,
+    updated_at: updatedAt,
   };
 };
 
@@ -472,17 +500,34 @@ export const updateLesson = async (lessonId, updates) => {
       ? { ...fallbackContent, ...updates.content }
       : fallbackContent;
 
+    const docType = updates.docType || updates.doc_type || updates.content?.doc_type || original.docType || original.doc_type || 'course';
+    const level = updates.level || updates.content?.level || original.level;
+    const isActive = updates.isActive !== undefined ? Boolean(updates.isActive) : (updates.is_active !== undefined ? Boolean(updates.is_active) : (original.isActive !== undefined ? Boolean(original.isActive) : true));
+    const isArchived = updates.isArchived !== undefined ? Boolean(updates.isArchived) : (updates.is_archived !== undefined ? Boolean(updates.is_archived) : (original.isArchived !== undefined ? Boolean(original.isArchived) : false));
+    const chapterNumber = updates.chapterNumber !== undefined ? updates.chapterNumber : (updates.chapter_number !== undefined ? updates.chapter_number : (original.chapterNumber || original.chapter_number || ''));
+    const createdAt = original.createdAt || original.created_at || updates.createdAt || updates.created_at || (original.content?.header?.date ? new Date(original.content.header.date).toISOString() : null) || now;
+
     updatedRecord = {
       ...original,
       ...updates,
       content: {
         ...mergedContent,
-        level: updates.level || updates.content?.level || original.level,
-        doc_type: updates.docType || updates.content?.doc_type || original.docType
+        level,
+        doc_type: docType
       },
-      level: updates.level || updates.content?.level || original.level,
-      docType: updates.docType || updates.content?.doc_type || original.docType,
-      updatedAt: now
+      level,
+      docType,
+      doc_type: docType,
+      isActive,
+      is_active: isActive,
+      isArchived,
+      is_archived: isArchived,
+      chapterNumber,
+      chapter_number: chapterNumber,
+      createdAt,
+      created_at: createdAt,
+      updatedAt: now,
+      updated_at: now
     };
     rawLessons[idx] = updatedRecord;
     saveLocalStorageLessons(rawLessons);
@@ -491,17 +536,34 @@ export const updateLesson = async (lessonId, updates) => {
       ? { ...fallbackContent, ...updates.content }
       : fallbackContent;
 
+    const docType = updates.docType || updates.doc_type || updates.content?.doc_type || 'course';
+    const level = updates.level || updates.content?.level;
+    const isActive = updates.isActive !== undefined ? Boolean(updates.isActive) : (updates.is_active !== undefined ? Boolean(updates.is_active) : true);
+    const isArchived = updates.isArchived !== undefined ? Boolean(updates.isArchived) : (updates.is_archived !== undefined ? Boolean(updates.is_archived) : false);
+    const chapterNumber = updates.chapterNumber !== undefined ? updates.chapterNumber : (updates.chapter_number !== undefined ? updates.chapter_number : '');
+    const createdAt = updates.createdAt || updates.created_at || now;
+
     updatedRecord = {
       id: lessonId,
       ...updates,
       content: {
         ...mergedContent,
-        level: updates.level || updates.content?.level,
-        doc_type: updates.docType || updates.content?.doc_type || 'course'
+        level,
+        doc_type: docType
       },
-      level: updates.level || updates.content?.level,
-      docType: updates.docType || updates.content?.doc_type || 'course',
-      updatedAt: now
+      level,
+      docType,
+      doc_type: docType,
+      isActive,
+      is_active: isActive,
+      isArchived,
+      is_archived: isArchived,
+      chapterNumber,
+      chapter_number: chapterNumber,
+      createdAt,
+      created_at: createdAt,
+      updatedAt: now,
+      updated_at: now
     };
     rawLessons.unshift(updatedRecord);
     saveLocalStorageLessons(rawLessons);
@@ -511,23 +573,71 @@ export const updateLesson = async (lessonId, updates) => {
     saveSingleLessonToLocalStorage(updatedRecord);
   }
 
-  // 2. Cache updates
+  // 2. Cache updates — Keep updatedRecord in cache (do not invalidate immediately!)
   queryCache.set(`lesson_detail_${lessonId}`, updatedRecord);
-  queryCache.invalidate(`lesson_detail_${lessonId}`);
-  queryCache.invalidate('lessons_all');
-  queryCache.invalidate('lessons_active');
+  
+  // Safely update 'lessons_all' and 'lessons_active' in cache so components don't see empty list
+  try {
+    const cachedAll = queryCache.get('lessons_all');
+    if (Array.isArray(cachedAll) && cachedAll.length > 0) {
+      const allIdx = cachedAll.findIndex(l => l.id === lessonId);
+      const nextAll = [...cachedAll];
+      if (allIdx > -1) {
+        nextAll[allIdx] = { ...nextAll[allIdx], ...updatedRecord };
+      } else {
+        nextAll.unshift(updatedRecord);
+      }
+      queryCache.set('lessons_all', nextAll);
+    } else {
+      queryCache.invalidate('lessons_all');
+    }
+  } catch (_) {
+    queryCache.invalidate('lessons_all');
+  }
+
+  try {
+    const cachedActive = queryCache.get('lessons_active');
+    if (Array.isArray(cachedActive) && cachedActive.length > 0) {
+      let nextActive;
+      if (updatedRecord.isActive) {
+        const actIdx = cachedActive.findIndex(l => l.id === lessonId);
+        if (actIdx > -1) {
+          nextActive = [...cachedActive];
+          nextActive[actIdx] = { ...nextActive[actIdx], ...updatedRecord };
+        } else {
+          nextActive = [updatedRecord, ...cachedActive];
+        }
+      } else {
+        nextActive = cachedActive.filter(l => l.id !== lessonId);
+      }
+      queryCache.set('lessons_active', nextActive);
+    } else {
+      queryCache.invalidate('lessons_active');
+    }
+  } catch (_) {
+    queryCache.invalidate('lessons_active');
+  }
 
   // 3. Build DB payload
   const dbUpdates = { updated_at: now };
   if (updates.title         !== undefined) dbUpdates.title          = updates.title;
   if (updates.subject       !== undefined) dbUpdates.subject        = updates.subject;
-  if (updates.chapterNumber !== undefined) dbUpdates.chapter_number = updates.chapterNumber;
+  if (updates.chapterNumber !== undefined) {
+    dbUpdates.chapter_number = updates.chapterNumber;
+    dbUpdates.chapterNumber  = updates.chapterNumber;
+  }
   if (updates.teacher       !== undefined) dbUpdates.teacher        = updates.teacher;
   if (updates.phone         !== undefined) dbUpdates.phone          = updates.phone;
   if (updates.schools       !== undefined) dbUpdates.schools        = updates.schools;
   if (updates.level         !== undefined) dbUpdates.level          = updates.level;
-  if (updates.docType       !== undefined) dbUpdates.doc_type       = updates.docType;
-  if (updates.isActive      !== undefined) dbUpdates.is_active      = updates.isActive;
+  if (updates.docType       !== undefined) {
+    dbUpdates.doc_type = updates.docType;
+    dbUpdates.docType  = updates.docType;
+  }
+  if (updates.isActive      !== undefined) {
+    dbUpdates.is_active = Boolean(updates.isActive);
+    dbUpdates.isActive  = Boolean(updates.isActive);
+  }
   if (updates.content !== undefined) {
     dbUpdates.content = {
       ...(updates.content || {}),
@@ -568,13 +678,22 @@ export const updateLesson = async (lessonId, updates) => {
     }
   }
 
-  // 5. Companion API
+  // 5. Companion API (Preserve both camelCase and snake_case in fullPayload)
   let localDbSuccess = false;
   try {
     const fullPayload = {
       id: lessonId,
+      ...(updatedRecord || {}),
       ...(updatedRecord ? mapLessonToDB(updatedRecord) : {}),
       ...dbUpdates,
+      docType: updatedRecord?.docType || updates.docType || 'course',
+      doc_type: updatedRecord?.docType || updates.docType || 'course',
+      isActive: updatedRecord?.isActive !== undefined ? Boolean(updatedRecord.isActive) : true,
+      is_active: updatedRecord?.isActive !== undefined ? Boolean(updatedRecord.isActive) : true,
+      createdAt: updatedRecord?.createdAt || now,
+      created_at: updatedRecord?.createdAt || now,
+      updatedAt: now,
+      updated_at: now
     };
     await localDb.post(`/lessons/${lessonId}`, fullPayload);
     localDbSuccess = true;

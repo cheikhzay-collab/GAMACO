@@ -242,7 +242,8 @@ export default function LevelsPage() {
       const matchesSearch = l.title?.toLowerCase().includes(searchTerm.toLowerCase()) || 
                             l.teacher?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesSubject = selectedSubject === 'Tous' || l.subject === selectedSubject || (l.isExam && ['Mathématiques', 'Physique', 'Chimie', 'Sciences'].includes(selectedSubject));
-      const matchesTab = activeTab === 'all' || l.docType === activeTab;
+      const docTypeVal = l.docType || l.doc_type || (l.content?.doc_type) || 'course';
+      const matchesTab = activeTab === 'all' || docTypeVal === activeTab;
       return matchesSearch && matchesSubject && matchesTab;
     });
   }, [branchLessons, searchTerm, selectedSubject, activeTab]);

@@ -861,24 +861,60 @@ export const handleApiRequest = async (req, res, next) => {
       if (singleId) {
         if (isMySqlActive) {
           try {
-            const [rows] = await dbPool.query('SELECT data FROM tbl_lessons WHERE id = ?', [singleId]);
+            const [rows] = await dbPool.query('SELECT data, created_at, updated_at FROM tbl_lessons WHERE id = ?', [singleId]);
             if (rows.length > 0) {
               const lesson = safeJsonParse(rows[0].data, null);
-              if (lesson) return sendJSON(res, 200, lesson);
+              if (lesson) {
+                const createdAt = lesson.createdAt || lesson.created_at || (rows[0].created_at ? new Date(rows[0].created_at).toISOString() : null) || lesson.updatedAt || lesson.updated_at || new Date().toISOString();
+                const updatedAt = lesson.updatedAt || lesson.updated_at || (rows[0].updated_at ? new Date(rows[0].updated_at).toISOString() : null) || createdAt;
+                const docType = lesson.docType || lesson.doc_type || lesson.content?.doc_type || 'course';
+                const isActive = lesson.isActive !== undefined ? Boolean(lesson.isActive) : (lesson.is_active !== undefined ? Boolean(lesson.is_active) : true);
+
+                lesson.createdAt = createdAt;
+                lesson.created_at = createdAt;
+                lesson.updatedAt = updatedAt;
+                lesson.updated_at = updatedAt;
+                lesson.docType = docType;
+                lesson.doc_type = docType;
+                lesson.isActive = isActive;
+                lesson.is_active = isActive;
+                return sendJSON(res, 200, lesson);
+              }
             }
           } catch (_) {}
         }
         const lessons = readDataFile('lessons.json', []);
         const found = lessons.find(l => l.id === singleId);
-        if (found) return sendJSON(res, 200, found);
+        if (found) {
+          const docType = found.docType || found.doc_type || found.content?.doc_type || 'course';
+          const isActive = found.isActive !== undefined ? Boolean(found.isActive) : (found.is_active !== undefined ? Boolean(found.is_active) : true);
+          return sendJSON(res, 200, { ...found, docType, doc_type: docType, isActive, is_active: isActive });
+        }
         return sendJSON(res, 404, { error: 'Lesson not found' });
       }
 
       const fileLessons = readDataFile('lessons.json', []);
       if (isMySqlActive) {
         try {
-          const [rows] = await dbPool.query('SELECT data FROM tbl_lessons ORDER BY updated_at DESC');
-          const lessons = rows.map(r => safeJsonParse(r.data, null)).filter(Boolean);
+          const [rows] = await dbPool.query('SELECT data, created_at, updated_at FROM tbl_lessons ORDER BY updated_at DESC');
+          const lessons = rows.map(r => {
+            const l = safeJsonParse(r.data, null);
+            if (!l) return null;
+            const createdAt = l.createdAt || l.created_at || (r.created_at ? new Date(r.created_at).toISOString() : null) || l.updatedAt || l.updated_at || new Date().toISOString();
+            const updatedAt = l.updatedAt || l.updated_at || (r.updated_at ? new Date(r.updated_at).toISOString() : null) || createdAt;
+            const docType = l.docType || l.doc_type || l.content?.doc_type || 'course';
+            const isActive = l.isActive !== undefined ? Boolean(l.isActive) : (l.is_active !== undefined ? Boolean(l.is_active) : true);
+
+            l.createdAt = createdAt;
+            l.created_at = createdAt;
+            l.updatedAt = updatedAt;
+            l.updated_at = updatedAt;
+            l.docType = docType;
+            l.doc_type = docType;
+            l.isActive = isActive;
+            l.is_active = isActive;
+            return l;
+          }).filter(Boolean);
           if (lessons.length > 0) return sendJSON(res, 200, lessons);
         } catch (_) {}
       }
@@ -890,7 +926,41 @@ export const handleApiRequest = async (req, res, next) => {
         const lesson = await getBody(req);
         const targetId = singleId || lesson.id || ('MOCK-L-' + Math.random().toString(36).substring(2, 11).toUpperCase());
         lesson.id = targetId;
-        lesson.updatedAt = new Date().toISOString();
+        const now = new Date().toISOString();
+        lesson.updatedAt = now;
+        lesson.updated_at = now;
+
+        // Preserve created_at from existing record if not provided
+        let existingCreatedAt = null;
+        if (isMySqlActive) {
+          try {
+            const [exRows] = await dbPool.query('SELECT created_at, data FROM tbl_lessons WHERE id = ?', [targetId]);
+            if (exRows.length > 0) {
+              existingCreatedAt = exRows[0].created_at ? new Date(exRows[0].created_at).toISOString() : null;
+              const parsedEx = safeJsonParse(exRows[0].data, {});
+              if (parsedEx?.createdAt) existingCreatedAt = parsedEx.createdAt;
+              else if (parsedEx?.created_at) existingCreatedAt = parsedEx.created_at;
+            }
+          } catch (_) {}
+        }
+        if (!existingCreatedAt) {
+          const fileLessons = readDataFile('lessons.json', []);
+          const existingFile = fileLessons.find(l => l.id === targetId);
+          if (existingFile?.createdAt) existingCreatedAt = existingFile.createdAt;
+          else if (existingFile?.created_at) existingCreatedAt = existingFile.created_at;
+        }
+
+        const createdAt = lesson.createdAt || lesson.created_at || existingCreatedAt || now;
+        lesson.createdAt = createdAt;
+        lesson.created_at = createdAt;
+
+        // Normalize docType and isActive
+        const docType = lesson.docType || lesson.doc_type || lesson.content?.doc_type || 'course';
+        lesson.docType = docType;
+        lesson.doc_type = docType;
+        const isActive = lesson.isActive !== undefined ? Boolean(lesson.isActive) : (lesson.is_active !== undefined ? Boolean(lesson.is_active) : true);
+        lesson.isActive = isActive;
+        lesson.is_active = isActive;
 
         if (isMySqlActive) {
           await dbPool.query(

@@ -673,18 +673,28 @@ export default function LessonViewerPage() {
         throw new Error(isArabic ? 'لم يتم توليد أي حل.' : 'Aucune solution n’a été générée.');
       }
 
-      const updatedSections = (lesson?.sections || []).map(s => {
+      const existingSections = (lesson?.sections && lesson.sections.length > 0)
+        ? lesson.sections
+        : (lesson?.content?.sections || []);
+      const updatedSections = existingSections.map(s => {
         if (s.id === secId) {
           return { ...s, solution: generated.trim() };
         }
         return s;
       });
 
-      setLesson(prev => ({ ...prev, sections: updatedSections }));
+      setLesson(prev => ({
+        ...prev,
+        sections: updatedSections,
+        content: prev?.content ? { ...prev.content, sections: updatedSections } : prev?.content
+      }));
       setVisibleSolutions(prev => ({ ...prev, [secId]: true }));
 
       if (lesson?.id) {
-        await updateLesson(lesson.id, { sections: updatedSections });
+        await updateLesson(lesson.id, {
+          sections: updatedSections,
+          content: { ...(lesson.content || {}), sections: updatedSections }
+        });
       }
     } catch (err) {
       console.error('[LessonViewer] AI Solution error:', err);
@@ -957,8 +967,10 @@ export default function LessonViewerPage() {
         chapterNumber: lesson.chapterNumber || lesson.content?.chapter_number || lesson.chapter_number,
         teacher: lesson.teacher || lesson.content?.header?.teacher,
         phone: lesson.phone || lesson.content?.header?.phone,
+        schools: lesson.schools || lesson.content?.header?.schools,
         level: lesson.level || lesson.content?.level,
-        docType: lesson.docType || lesson.content?.doc_type,
+        docType: lesson.docType || lesson.doc_type || lesson.content?.doc_type || 'course',
+        isActive: lesson.isActive !== undefined ? lesson.isActive : (lesson.is_active !== undefined ? lesson.is_active : true),
         content: lesson.content,
       };
       await updateLesson(id, updates);
