@@ -396,7 +396,10 @@ export default function CourseSummaryTemplate({ data, printable = false }) {
 
   const rawProf = meta.prof || header.teacher || (isArabic ? 'فيصل البطخيلي' : 'Fayssal el boutkhili');
   const profClean = rawProf.replace(/^(Prof\s*:|الأستاذ\s*:|ذ\.\s*:?)\s*/i, '').trim() || rawProf;
-  const academicYear = meta.academic_year || meta.year || header.year || '2025/2026';
+  const globalAcademicYear = (typeof window !== 'undefined' && window.localStorage)
+    ? (localStorage.getItem('profAcademicYear') || localStorage.getItem('academicYear') || '')
+    : '';
+  const academicYear = meta.academic_year || meta.year || header.year || header.academic_year || data?.academicYear || globalAcademicYear || '2025/2026';
   const website = meta.website || header.phone || header.contact || 'www.elboutkhili.jimdofree.com';
 
   // Dynamic Badge Text: "RÉSUMÉ DE COURS" / "SÉRIE D'EXERCICES" or "ملخص الدرس" / "سلسلة التمارين"

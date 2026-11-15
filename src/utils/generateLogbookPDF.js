@@ -435,6 +435,10 @@ const getTranslatedComponent = (comp, isAr) => {
 };
 
 const getAcademicYear = () => {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    const stored = localStorage.getItem('profAcademicYear') || localStorage.getItem('academicYear');
+    if (stored && stored.trim()) return stored.trim();
+  }
   const today = new Date();
   const year = today.getFullYear();
   const month = today.getMonth() + 1;

@@ -353,7 +353,10 @@ export default function EbookTemplate({
 
   const rawProf = meta.prof || header.teacher || data?.teacher || (isArabic ? 'ذ. فيصل البطخيلي' : 'Fayssal el boutkhili');
   const profClean = rawProf.replace(/^(Prof\s*:|الأستاذ\s*:|ذ\.\s*:?)\s*/i, '').trim() || rawProf;
-  const academicYear = meta.academic_year || meta.year || header.year || '2025/2026';
+  const globalAcademicYear = (typeof window !== 'undefined' && window.localStorage)
+    ? (localStorage.getItem('profAcademicYear') || localStorage.getItem('academicYear') || '')
+    : '';
+  const academicYear = meta.academic_year || meta.year || header.year || header.academic_year || data?.academicYear || globalAcademicYear || '2025/2026';
   const subjectName = header.subject || data?.subject || (isArabic ? 'الرياضيات' : 'Mathématiques');
   const website = meta.website || header.phone || header.contact || data?.phone || '';
 

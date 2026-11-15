@@ -1150,6 +1150,35 @@ export const generateLessonHTML = (lesson, settings = {}) => {
   const subject = header?.subject || '';
   const globalProfName = (typeof window !== 'undefined' && window.localStorage) ? localStorage.getItem('profName') || '' : '';
   const globalProfPhone = (typeof window !== 'undefined' && window.localStorage) ? localStorage.getItem('profPhone') || '' : '';
+  const globalAcademicYear = (typeof window !== 'undefined' && window.localStorage)
+    ? (localStorage.getItem('profAcademicYear') || localStorage.getItem('academicYear') || '')
+    : '';
+
+  let academicYear = settings?.academicYear ||
+                     settings?.profAcademicYear ||
+                     header?.academic_year ||
+                     header?.academicYear ||
+                     content?.metadata?.academic_year ||
+                     content?.metadata?.academicYear ||
+                     lesson?.academicYear ||
+                     lesson?.content?.academicYear ||
+                     globalAcademicYear;
+
+  if (!academicYear && typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const cached = localStorage.getItem('branding_config') || localStorage.getItem('config_branding');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        academicYear = parsed.profAcademicYear || parsed.academicYear || '';
+      }
+    } catch (_) {}
+  }
+
+  if (!academicYear) {
+    const y = new Date().getFullYear();
+    academicYear = `${y - 1}/${y}`;
+  }
+
   const teacher = header?.teacher || globalProfName || '';
   const phone = header?.phone || globalProfPhone || '';
   const prepTitle = header?.prep_title || '';
@@ -3647,7 +3676,7 @@ html[dir="rtl"] .homework-content-cell {
   <div class="fiche-header-modern-pro" style="${isModernPro ? 'display:grid;' : 'display:none;'} ${isArabic ? `font-family:${arabicFontFamily};` : ''}">
     <div class="modern-header-col modern-header-left">
       ${teacher ? `<div class="modern-header-row"><span class="modern-meta-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span class="modern-meta-label">${isArabic ? 'الأستاذ' : 'Prof'} :</span> <strong class="modern-meta-val">${esc(formatTeacherName(teacher))}</strong></div>` : ''}
-      <div class="modern-header-row"><span class="modern-meta-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span><span class="modern-meta-label">${isArabic ? 'السنة الدراسية' : 'A.S'} :</span> <span class="modern-meta-val">${new Date().getFullYear() - 1}/${new Date().getFullYear()}</span></div>
+      <div class="modern-header-row"><span class="modern-meta-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span><span class="modern-meta-label">${isArabic ? 'السنة الدراسية' : 'A.S'} :</span> <span class="modern-meta-val">${esc(academicYear)}</span></div>
       ${schools.length ? `<div class="modern-header-row"><span class="modern-meta-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l8-4 8 4v14"/><path d="M9 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4"/></svg></span><span class="modern-meta-label">${isArabic ? 'المؤسسة' : 'Établissement'} :</span> <span class="modern-meta-val">${esc(schools[0])}</span></div>` : ''}
     </div>
     <div class="modern-header-col modern-header-center">
@@ -3675,7 +3704,7 @@ html[dir="rtl"] .homework-content-cell {
   <div class="fiche-header" style="${!isModernPro ? 'display:flex;' : 'display:none;'} ${isArabic ? `font-family:${arabicFontFamily};` : ''}">
     <div class="hcell h-left">
       ${teacher ? `<div class="header-info-row"><span class="info-label">${isArabic ? 'الأستاذ' : 'Prof'} :</span><strong class="info-val">${esc(formatTeacherName(teacher))}</strong></div>` : ''}
-      <div class="header-info-row"><span class="info-label">${isArabic ? 'السنة الدراسية' : 'A.S'} :</span><span class="info-val">${new Date().getFullYear() - 1}/${new Date().getFullYear()}</span></div>
+      <div class="header-info-row"><span class="info-label">${isArabic ? 'السنة الدراسية' : 'A.S'} :</span><span class="info-val">${esc(academicYear)}</span></div>
       ${schools.length ? `<div class="header-info-row"><span class="info-label">${isArabic ? 'المؤسسة' : 'Établissement'} :</span><span class="info-val">${esc(schools[0])}</span></div>` : ''}
     </div>
     <div class="hcell h-center">

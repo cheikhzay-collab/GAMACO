@@ -1178,6 +1178,10 @@ export const generateSubjectHTML = async (examTitle, school, year, questions, se
   let profSchool = settings.profSchool || '';
   let profPhone = settings.profPhone || '';
   let profSite = settings.profSite || 'www.lconq.ma';
+  const globalAcademicYear = (typeof window !== 'undefined' && window.localStorage)
+    ? (localStorage.getItem('profAcademicYear') || localStorage.getItem('academicYear') || '')
+    : '';
+  const resolvedYear = year || settings.academicYear || settings.profAcademicYear || globalAcademicYear || '2025/2026';
   const showCover = settings.showCover !== undefined ? settings.showCover : true;
   const showPageNumbers = settings.showPageNumbers !== undefined ? settings.showPageNumbers : true;
   const startPage = settings.startPage !== undefined ? settings.startPage : 1;
@@ -2371,7 +2375,7 @@ ${settings.premiumOmr === true ? `
 <div class="anisse-header-frame">
   <div class="anisse-col col-left">
     <div>Prof : <strong>${profName || 'Professeur'}</strong></div>
-    <div>A.S : <strong>${year || '2025/2026'}</strong></div>
+    <div>A.S : <strong>${resolvedYear}</strong></div>
   </div>
   <div class="anisse-col col-center">
     <div class="main-title">${cleanTitle || 'Devoir Surveillé N° 1 (Semestre 1)'}${variantBadge ? `<span style="display:inline-block; margin-left:8px; vertical-align:middle; font-size:0.75rem; font-weight:800; padding:2px 8px; border-radius:4px; background:${variantBadge.includes('B') ? '#fef3c7' : '#e0f2fe'}; color:${variantBadge.includes('B') ? '#92400e' : '#0369a1'}; border:1px solid ${variantBadge.includes('B') ? '#f59e0b' : '#0284c7'}; letter-spacing:0.05em;">${variantBadge}</span>` : ''}</div>
@@ -2430,6 +2434,10 @@ printWhenReady();
   let profSchool = settings.profSchool || '';
   let profPhone = settings.profPhone || '';
   let profSite = settings.profSite || 'www.lconq.ma';
+  const globalAcademicYear = (typeof window !== 'undefined' && window.localStorage)
+    ? (localStorage.getItem('profAcademicYear') || localStorage.getItem('academicYear') || '')
+    : '';
+  const resolvedYear = year || settings.academicYear || settings.profAcademicYear || globalAcademicYear || '2025/2026';
   const showCover = settings.showCover !== undefined ? settings.showCover : true;
   const showPageNumbers = settings.showPageNumbers !== undefined ? settings.showPageNumbers : true;
   const startPage = settings.startPage !== undefined ? settings.startPage : 1;
@@ -3241,7 +3249,7 @@ ${coverHtml}
 <div class="anisse-header-frame">
   <div class="anisse-col col-left">
     <div>Prof : <strong>${profName || 'Professeur'}</strong></div>
-    <div>A.S : <strong>${year || '2025/2026'}</strong></div>
+    <div>A.S : <strong>${resolvedYear}</strong></div>
   </div>
   <div class="anisse-col col-center">
     <div class="main-title">${cleanTitle || 'Devoir Surveillé N° 1 (Semestre 1)'}${variantBadge ? `<span style="display:inline-block; margin-left:8px; vertical-align:middle; font-size:0.75rem; font-weight:800; padding:2px 8px; border-radius:4px; background:${variantBadge.includes('B') ? '#fef3c7' : '#e0f2fe'}; color:${variantBadge.includes('B') ? '#92400e' : '#0369a1'}; border:1px solid ${variantBadge.includes('B') ? '#f59e0b' : '#0284c7'}; letter-spacing:0.05em;">${variantBadge}</span>` : ''}</div>

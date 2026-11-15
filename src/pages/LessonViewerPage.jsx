@@ -569,7 +569,7 @@ export default function LessonViewerPage() {
   const { id } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, loading: authLoading, profName, profPhone, trackDownload } = useAuth();
+  const { user, loading: authLoading, profName, profPhone, profAcademicYear, trackDownload } = useAuth();
 
   // Smart back navigation: return to the page that opened this lesson
   const goBack = () => {
@@ -1207,7 +1207,7 @@ export default function LessonViewerPage() {
         lesson?.content?.header?.doc_type === 'ebook'
       );
       if (isEbookPdf && viewEbookMode) {
-        openEbookTemplatePrintWindow(lesson, { showSolutions: includeSolutionsInPdf, columnsCount: ebookColumns });
+        openEbookTemplatePrintWindow(lesson, { showSolutions: includeSolutionsInPdf, columnsCount: ebookColumns, academicYear: profAcademicYear });
         return;
       }
       const isHomeworkPdf = Boolean(
@@ -1237,7 +1237,13 @@ export default function LessonViewerPage() {
       } else {
         // Mode Standard actif -> Impression au format Standard (Strictement 1 colonne pour les devoirs)
         const effectiveCols = isHomeworkPdf ? 1 : seriesColumns;
-        openLessonPrintWindow(lesson, { showSolutions: includeSolutionsInPdf, layoutMode: 'standard', forceStandard: true, columnsCount: effectiveCols });
+        openLessonPrintWindow(lesson, {
+          showSolutions: includeSolutionsInPdf,
+          layoutMode: 'standard',
+          forceStandard: true,
+          columnsCount: effectiveCols,
+          academicYear: profAcademicYear
+        });
       }
     } catch (err) {
       console.error('[PDF Export] Error:', err);
