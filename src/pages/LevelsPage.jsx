@@ -641,6 +641,7 @@ export default function LevelsPage() {
               { id: 'ebook', label: '📚 E-Book' },
               { id: 'exercises', label: '📝 Séries d\'exercices' },
               { id: 'homework', label: '📑 Devoirs Surveillés' },
+              { id: 'devoir_prime', label: '⭐ DEVOIR PRIME' },
               { id: 'concours', label: '🏆 Concours' }
             ].map(tab => (
               <button
@@ -923,9 +924,9 @@ export default function LevelsPage() {
                   <tbody>
                     {filteredLessons.map((l) => {
                       const accent = selectedParent?.textColor || 'var(--violet)';
-                      const docTypeColor = l.docType === 'homework' ? 'var(--danger)' : l.docType === 'exercises' ? 'var(--warning)' : l.docType === 'concours' ? 'var(--emerald)' : l.docType === 'ebook' ? '#0284c7' : '#3B82F6';
-                      const docTypeBg = l.docType === 'homework' ? 'rgba(239,68,68,0.09)' : l.docType === 'exercises' ? 'rgba(245,158,11,0.09)' : l.docType === 'concours' ? 'rgba(16,185,129,0.09)' : l.docType === 'ebook' ? 'rgba(2,132,199,0.12)' : 'rgba(59,130,246,0.09)';
-                      const docTypeLabel = l.docType === 'homework' ? 'Devoir surveillé' : l.docType === 'exercises' ? "Série d'exercices" : l.docType === 'concours' ? 'Concours' : l.docType === 'ebook' ? 'E-Book' : 'Cours';
+                      const docTypeColor = l.docType === 'devoir_prime' ? '#d97706' : l.docType === 'homework' ? 'var(--danger)' : l.docType === 'exercises' ? 'var(--warning)' : l.docType === 'concours' ? 'var(--emerald)' : l.docType === 'ebook' ? '#0284c7' : '#3B82F6';
+                      const docTypeBg = l.docType === 'devoir_prime' ? 'rgba(245,158,11,0.14)' : l.docType === 'homework' ? 'rgba(239,68,68,0.09)' : l.docType === 'exercises' ? 'rgba(245,158,11,0.09)' : l.docType === 'concours' ? 'rgba(16,185,129,0.09)' : l.docType === 'ebook' ? 'rgba(2,132,199,0.12)' : 'rgba(59,130,246,0.09)';
+                      const docTypeLabel = l.docType === 'devoir_prime' ? '⭐ DEVOIR PRIME' : l.docType === 'homework' ? 'Devoir surveillé' : l.docType === 'exercises' ? "Série d'exercices" : l.docType === 'concours' ? 'Concours' : l.docType === 'ebook' ? 'E-Book' : 'Cours';
                       const createdAt = l.createdAt ? new Date(l.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : null;
                       return (
                         <tr
@@ -1025,11 +1026,11 @@ export default function LevelsPage() {
                         </span>
 
                         <span style={{ 
-                          background: l.docType === 'homework' ? 'rgba(239, 68, 68, 0.08)' : l.docType === 'exercises' ? 'rgba(245, 158, 11, 0.08)' : l.docType === 'concours' ? 'rgba(16, 185, 129, 0.08)' : l.docType === 'ebook' ? 'rgba(2, 132, 199, 0.12)' : 'rgba(59, 130, 246, 0.08)',
-                          color: l.docType === 'homework' ? 'var(--danger)' : l.docType === 'exercises' ? 'var(--warning)' : l.docType === 'concours' ? 'var(--emerald)' : l.docType === 'ebook' ? '#0284c7' : '#3B82F6',
+                          background: l.docType === 'devoir_prime' ? 'rgba(245, 158, 11, 0.14)' : l.docType === 'homework' ? 'rgba(239, 68, 68, 0.08)' : l.docType === 'exercises' ? 'rgba(245, 158, 11, 0.08)' : l.docType === 'concours' ? 'rgba(16, 185, 129, 0.08)' : l.docType === 'ebook' ? 'rgba(2, 132, 199, 0.12)' : 'rgba(59, 130, 246, 0.08)',
+                          color: l.docType === 'devoir_prime' ? '#d97706' : l.docType === 'homework' ? 'var(--danger)' : l.docType === 'exercises' ? 'var(--warning)' : l.docType === 'concours' ? 'var(--emerald)' : l.docType === 'ebook' ? '#0284c7' : '#3B82F6',
                           padding: '0.25rem 0.65rem', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 800
                         }}>
-                          {l.docType === 'homework' ? 'Devoir surveillé' : l.docType === 'exercises' ? 'Série d\'exercices' : l.docType === 'concours' ? 'Concours' : l.docType === 'ebook' ? 'E-Book' : 'Cours'}
+                          {l.docType === 'devoir_prime' ? '⭐ DEVOIR PRIME' : l.docType === 'homework' ? 'Devoir surveillé' : l.docType === 'exercises' ? 'Série d\'exercices' : l.docType === 'concours' ? 'Concours' : l.docType === 'ebook' ? 'E-Book' : 'Cours'}
                         </span>
                       </div>
                       

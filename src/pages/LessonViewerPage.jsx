@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getLessonById, updateLesson } from '../services/lessonService';
-import { extractPointsTableFromSections } from '../services/gradeService';
+import { extractPointsTableFromSections, saveGrade, calculateTotalPointsFromTable } from '../services/gradeService';
 import { solveExerciseWithAI } from '../utils/aiExerciseSolver';
 import { Sparkles, Loader2 } from 'lucide-react';
 import { renderWithMath } from '../utils/mathRenderer';
@@ -17,9 +17,12 @@ import { openLessonPrintWindow } from '../utils/generateLessonPDF';
 import NationalExamTemplate from '../components/NationalExamTemplate';
 import CourseSummaryTemplate from '../components/CourseSummaryTemplate';
 import EbookTemplate from '../components/EbookTemplate';
+import DevoirPrimeTemplate from '../components/DevoirPrimeTemplate';
 import { openNationalExamPrintWindow } from '../utils/generateNationalExamPDF';
 import { openCourseSummaryPrintWindow } from '../utils/generateCourseSummaryPDF';
 import { openEbookTemplatePrintWindow } from '../utils/generateEbookTemplatePDF';
+import { openDevoirPrimePrintWindow } from '../utils/generateDevoirPrimePDF';
+import { buildPointsTableFromPrimeExercises } from '../utils/devoirPrimeHelpers';
 
 /**
  * Convert **bold** markdown to <strong> inline spans, keeping the rest as plain text.
@@ -646,6 +649,7 @@ export default function LessonViewerPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [viewSummaryMode, setViewSummaryMode] = useState(false);
   const [viewEbookMode, setViewEbookMode] = useState(false);
+  const [viewDevoirPrimeMode, setViewDevoirPrimeMode] = useState(false);
   const [ebookColumns, setEbookColumns] = useState(3);
   const [solvingSecId, setSolvingSecId] = useState(null);
 
@@ -749,19 +753,32 @@ export default function LessonViewerPage() {
           if ([1, 2, 3].includes(prefDocCols)) {
             setSeriesColumns(prefDocCols);
           }
-          const isEb = Boolean(
+          const isPrime = Boolean(
+            data.docType === 'devoir_prime' ||
+            data.type === 'devoir_prime' ||
+            data.content?.doc_type === 'devoir_prime' ||
+            data.content?.type === 'devoir_prime' ||
+            data.content?.header?.doc_type === 'devoir_prime'
+          );
+          const isEb = !isPrime && Boolean(
             data.docType === 'ebook' ||
             data.type === 'ebook' ||
             data.content?.doc_type === 'ebook' ||
             data.content?.type === 'ebook' ||
             data.content?.header?.doc_type === 'ebook'
           );
-          if (isEb) {
+          if (isPrime) {
+            setViewDevoirPrimeMode(true);
+            setViewEbookMode(false);
+            setViewSummaryMode(false);
+          } else if (isEb) {
+            setViewDevoirPrimeMode(false);
             setViewEbookMode(true);
             setViewSummaryMode(false);
             const prefCols = Number(data.content?.columns_count || data.columns_count || 3);
             setEbookColumns([1, 2, 3].includes(prefCols) ? prefCols : 3);
           } else {
+            setViewDevoirPrimeMode(false);
             setViewEbookMode(false);
             const isSum = Boolean(
               data.docType === 'summary' ||
@@ -1201,6 +1218,10 @@ export default function LessonViewerPage() {
       if (typeof trackDownload === 'function') {
         trackDownload({ type: 'lesson', id: lesson.id, title: lesson.content?.header?.fiche_title || lesson.title || 'Fiche de Cours' });
       }
+      if (viewDevoirPrimeMode || lesson?.docType === 'devoir_prime' || lesson?.content?.doc_type === 'devoir_prime') {
+        openDevoirPrimePrintWindow(lesson, { showSolutions: includeSolutionsInPdf });
+        return;
+      }
       const isEbookPdf = Boolean(
         lesson?.docType === 'ebook' ||
         lesson?.type === 'ebook' ||
@@ -1331,8 +1352,17 @@ export default function LessonViewerPage() {
   const lessonDir = isArabic ? 'rtl' : 'ltr';
   const arabicFont = isArabic ? "'UKIJ Merdane', 'UKIJMerdane', 'UKIJMerdaneRegular', 'Cairo', 'Amiri', 'Noto Naskh Arabic', Arial, sans-serif" : 'inherit';
   
+  // DEVOIR PRIME detection
+  const isDevoirPrime = Boolean(
+    lesson?.docType === 'devoir_prime' ||
+    lesson?.type === 'devoir_prime' ||
+    content?.doc_type === 'devoir_prime' ||
+    content?.type === 'devoir_prime' ||
+    header?.doc_type === 'devoir_prime'
+  );
+
   // E-Book detection
-  const isEbook = Boolean(
+  const isEbook = !isDevoirPrime && Boolean(
     lesson?.docType === 'ebook' ||
     lesson?.type === 'ebook' ||
     content?.doc_type === 'ebook' ||
@@ -1342,6 +1372,7 @@ export default function LessonViewerPage() {
 
   // Devoir Surveillé detection
   const isHomework = !isEbook && Boolean(
+    isDevoirPrime ||
     lesson?.docType === 'homework' ||
     lesson?.type === 'homework' ||
     content?.doc_type === 'homework' ||
@@ -1350,6 +1381,62 @@ export default function LessonViewerPage() {
     lesson?.isHomework ||
     /devoir|فرض|contr[ôo]le/i.test(lesson?.title || header?.fiche_title || header?.prep_title || '')
   );
+
+  const handleSaveDevoirPrime = async (primeMeta, primeExercises, convertToPrime = false) => {
+    if (!lesson?.id) return;
+    const nextDocType = (convertToPrime || isDevoirPrime) ? 'devoir_prime' : (lesson.docType || content?.doc_type || 'homework');
+    const primePointsTable = buildPointsTableFromPrimeExercises(primeExercises);
+    const primeTotalPts = calculateTotalPointsFromTable(primePointsTable) || 20;
+
+    const updatedContent = {
+      ...(lesson.content || {}),
+      doc_type: nextDocType,
+      devoir_prime_meta: primeMeta,
+      devoir_prime_exercises: primeExercises,
+      points_table: primePointsTable,
+      total_points: primeTotalPts,
+      header: {
+        ...(lesson.content?.header || {}),
+        doc_type: nextDocType,
+        fiche_title: primeMeta?.title || lesson.title,
+        points_table: primePointsTable,
+        total_points: primeTotalPts,
+      }
+    };
+
+    await updateLesson(lesson.id, {
+      title: primeMeta?.title || lesson.title,
+      docType: nextDocType,
+      content: updatedContent,
+    });
+
+    if (primePointsTable.length > 0) {
+      try {
+        await saveGrade({
+          id: `grade-${lesson.id}`,
+          lesson_id: lesson.id,
+          title: primeMeta?.title || lesson.title,
+          doc_type: nextDocType,
+          total_points: primeTotalPts,
+          data: {
+            points_table: primePointsTable,
+            total_points: primeTotalPts,
+            title: primeMeta?.title || lesson.title,
+            level: lesson.level || primeMeta?.level || '2bac_pc_svt',
+          }
+        });
+      } catch (e) {
+        console.warn('[DEVOIR PRIME] Grade sync warning:', e);
+      }
+    }
+
+    setLesson(prev => ({
+      ...prev,
+      title: primeMeta?.title || prev.title,
+      docType: nextDocType,
+      content: updatedContent,
+    }));
+  };
 
   const activePointsTable = (
     lesson?.content?.points_table && Array.isArray(lesson.content.points_table) && lesson.content.points_table.length > 0
@@ -2839,6 +2926,39 @@ export default function LessonViewerPage() {
             </button>
           )}
 
+          {/* DEVOIR PRIME toggle / converter button (for DEVOIR PRIME and all previous homeworks) */}
+          {(isDevoirPrime || isHomework) && (
+            <button
+              type="button"
+              onClick={() => {
+                const next = !viewDevoirPrimeMode;
+                setViewDevoirPrimeMode(next);
+                if (next) {
+                  setViewSummaryMode(false);
+                  setViewEbookMode(false);
+                }
+              }}
+              className="btn-outline"
+              style={{
+                padding: '0.45rem 0.9rem',
+                borderRadius: '99px',
+                fontSize: '0.78rem',
+                fontWeight: 800,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                background: viewDevoirPrimeMode ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'rgba(245, 158, 11, 0.1)',
+                color: viewDevoirPrimeMode ? '#ffffff' : '#d97706',
+                borderColor: '#f59e0b',
+                transition: 'all 0.15s ease',
+                cursor: 'pointer'
+              }}
+              title="عرض أو تحويل الفرض إلى نظام DEVOIR PRIME (نقط + حل مختصر + طباعة مزدوجة)"
+            >
+              {viewDevoirPrimeMode ? '📄 Vue Classique' : '⭐ DEVOIR PRIME'}
+            </button>
+          )}
+
           {/* Grille / Barème des Points toggle button for homework */}
           {(isHomework || activePointsTable.length > 0) && (
             <button
@@ -2938,8 +3058,17 @@ export default function LessonViewerPage() {
         </div>
       </div>
 
-      {/* ── E-BOOK TEMPLATE VIEW MODE ── */}
-      {isEbook && viewEbookMode ? (
+      {/* ── DEVOIR PRIME TEMPLATE VIEW MODE ── */}
+      {viewDevoirPrimeMode ? (
+        <div style={{ marginBottom: '2rem' }}>
+          <DevoirPrimeTemplate
+            lesson={lesson}
+            editable={user?.role === 'admin'}
+            isConvertedPreview={!isDevoirPrime}
+            onSave={user?.role === 'admin' ? handleSaveDevoirPrime : null}
+          />
+        </div>
+      ) : isEbook && viewEbookMode ? (
         <div style={{
           background: '#ffffff',
           borderRadius: '12px',

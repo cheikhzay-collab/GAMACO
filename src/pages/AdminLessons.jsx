@@ -20,6 +20,7 @@ import { renderWithMath } from '../utils/mathRenderer';
 import { normalizeLevel } from '../utils/levelHelpers';
 import { openLessonPrintWindow } from '../utils/generateLessonPDF';
 import { openEbookTemplatePrintWindow } from '../utils/generateEbookTemplatePDF';
+import { openDevoirPrimePrintWindow } from '../utils/generateDevoirPrimePDF';
 
 const getLevelLabel = (rawLevel) => {
   const level = normalizeLevel(rawLevel);
@@ -586,7 +587,9 @@ ${sectionsContentText}
     setShowBulkDownloadModal(false);
 
     const printItem = (item) => {
-      if (item?.docType === 'ebook' || item?.content?.doc_type === 'ebook') {
+      if (item?.docType === 'devoir_prime' || item?.content?.doc_type === 'devoir_prime') {
+        openDevoirPrimePrintWindow(item, { showSolutions: true });
+      } else if (item?.docType === 'ebook' || item?.content?.doc_type === 'ebook') {
         openEbookTemplatePrintWindow(item, { columnsCount: 3, showSolutions: true });
       } else {
         openLessonPrintWindow(item, { layoutMode: 'standard', forceStandard: true });
@@ -921,6 +924,7 @@ ${sectionsContentText}
             <option value="ebook">E-Book (كتاب إلكتروني)</option>
             <option value="exercises">Exercices (تمارين)</option>
             <option value="homework">Devoirs (فرض محروس)</option>
+            <option value="devoir_prime">DEVOIR PRIME ⭐ (فرض مصحح بالنقط)</option>
             <option value="national">Examen National (امتحان وطني)</option>
             <option value="concours">Concours (مباراة)</option>
           </select>
@@ -975,9 +979,9 @@ ${sectionsContentText}
             }}>
               {filteredLessons.map((l) => {
                 const isSelected = selectedLessonIds.includes(l.id);
-                const docTypeColor = l.docType === 'homework' ? 'var(--danger)' : l.docType === 'exercises' ? 'var(--warning)' : l.docType === 'concours' ? 'var(--emerald)' : l.docType === 'national' ? '#a855f7' : l.docType === 'ebook' ? '#0284c7' : '#3B82F6';
-                const docTypeBg = l.docType === 'homework' ? 'rgba(239,68,68,0.09)' : l.docType === 'exercises' ? 'rgba(245,158,11,0.09)' : l.docType === 'concours' ? 'rgba(16,185,129,0.09)' : l.docType === 'national' ? 'rgba(168,85,247,0.09)' : l.docType === 'ebook' ? 'rgba(2,132,199,0.12)' : 'rgba(59,130,246,0.09)';
-                const docTypeLabel = l.docType === 'homework' ? 'Devoir surveillé' : l.docType === 'exercises' ? "Série d'exercices" : l.docType === 'concours' ? 'Concours' : l.docType === 'national' ? 'Examen National' : l.docType === 'ebook' ? 'E-Book' : 'Cours';
+                const docTypeColor = l.docType === 'devoir_prime' ? '#d97706' : l.docType === 'homework' ? 'var(--danger)' : l.docType === 'exercises' ? 'var(--warning)' : l.docType === 'concours' ? 'var(--emerald)' : l.docType === 'national' ? '#a855f7' : l.docType === 'ebook' ? '#0284c7' : '#3B82F6';
+                const docTypeBg = l.docType === 'devoir_prime' ? 'rgba(245,158,11,0.14)' : l.docType === 'homework' ? 'rgba(239,68,68,0.09)' : l.docType === 'exercises' ? 'rgba(245,158,11,0.09)' : l.docType === 'concours' ? 'rgba(16,185,129,0.09)' : l.docType === 'national' ? 'rgba(168,85,247,0.09)' : l.docType === 'ebook' ? 'rgba(2,132,199,0.12)' : 'rgba(59,130,246,0.09)';
+                const docTypeLabel = l.docType === 'devoir_prime' ? '⭐ DEVOIR PRIME' : l.docType === 'homework' ? 'Devoir surveillé' : l.docType === 'exercises' ? "Série d'exercices" : l.docType === 'concours' ? 'Concours' : l.docType === 'national' ? 'Examen National' : l.docType === 'ebook' ? 'E-Book' : 'Cours';
                 return (
                   <div
                     key={l.id}
@@ -1262,12 +1266,12 @@ ${sectionsContentText}
                         {/* Type */}
                         <td style={{ padding: '1rem 1rem' }}>
                           <span style={{ 
-                            background: l.docType === 'homework' ? 'rgba(239,68,68,0.09)' : l.docType === 'exercises' ? 'rgba(245,158,11,0.09)' : l.docType === 'concours' ? 'rgba(16,185,129,0.09)' : l.docType === 'national' ? 'rgba(168,85,247,0.09)' : l.docType === 'ebook' ? 'rgba(2,132,199,0.12)' : 'rgba(59,130,246,0.09)',
-                            color: l.docType === 'homework' ? 'var(--danger)' : l.docType === 'exercises' ? 'var(--warning)' : l.docType === 'concours' ? 'var(--emerald)' : l.docType === 'national' ? '#a855f7' : l.docType === 'ebook' ? '#0284c7' : '#3B82F6',
+                            background: l.docType === 'devoir_prime' ? 'rgba(245,158,11,0.14)' : l.docType === 'homework' ? 'rgba(239,68,68,0.09)' : l.docType === 'exercises' ? 'rgba(245,158,11,0.09)' : l.docType === 'concours' ? 'rgba(16,185,129,0.09)' : l.docType === 'national' ? 'rgba(168,85,247,0.09)' : l.docType === 'ebook' ? 'rgba(2,132,199,0.12)' : 'rgba(59,130,246,0.09)',
+                            color: l.docType === 'devoir_prime' ? '#d97706' : l.docType === 'homework' ? 'var(--danger)' : l.docType === 'exercises' ? 'var(--warning)' : l.docType === 'concours' ? 'var(--emerald)' : l.docType === 'national' ? '#a855f7' : l.docType === 'ebook' ? '#0284c7' : '#3B82F6',
                             padding: '0.28rem 0.7rem', borderRadius: '20px', fontSize: '0.73rem', fontWeight: 700,
                             letterSpacing: '0.01em', whiteSpace: 'nowrap', lineHeight: 1.4
                           }}>
-                            {l.docType === 'homework' ? 'Devoir surveillé' : l.docType === 'exercises' ? "Série d'exercices" : l.docType === 'concours' ? 'Concours' : l.docType === 'national' ? 'Examen National' : l.docType === 'ebook' ? 'E-Book' : 'Cours'}
+                            {l.docType === 'devoir_prime' ? '⭐ DEVOIR PRIME' : l.docType === 'homework' ? 'Devoir surveillé' : l.docType === 'exercises' ? "Série d'exercices" : l.docType === 'concours' ? 'Concours' : l.docType === 'national' ? 'Examen National' : l.docType === 'ebook' ? 'E-Book' : 'Cours'}
                           </span>
                         </td>
 

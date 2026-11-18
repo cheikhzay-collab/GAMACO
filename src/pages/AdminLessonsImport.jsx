@@ -25,10 +25,13 @@ import SmartTableRenderer, { parseMarkdownTable } from '../components/SmartTable
 import NationalExamTemplate from '../components/NationalExamTemplate';
 import CourseSummaryTemplate from '../components/CourseSummaryTemplate';
 import EbookTemplate from '../components/EbookTemplate';
+import DevoirPrimeTemplate from '../components/DevoirPrimeTemplate';
 import PdfFigureCropperModal from '../components/PdfFigureCropperModal';
 import { openNationalExamPrintWindow } from '../utils/generateNationalExamPDF';
 import { openCourseSummaryPrintWindow } from '../utils/generateCourseSummaryPDF';
 import { openEbookTemplatePrintWindow } from '../utils/generateEbookTemplatePDF';
+import { openDevoirPrimePrintWindow } from '../utils/generateDevoirPrimePDF';
+import { buildPointsTableFromPrimeExercises } from '../utils/devoirPrimeHelpers';
 import { openLessonPrintWindow } from '../utils/generateLessonPDF';
 import { loadPdfDocument, renderPdfPageToCanvas, cropPdfRegion } from '../utils/pdfFigureExtractor';
 import { buildPageSnapshotsMap, attachImagesToSections } from '../utils/pdfImageExtractor';
@@ -875,6 +878,9 @@ export default function AdminLessonsImport({ onBack }) {
   const [summaryMeta, setSummaryMeta] = useState(null);
   const [viewSummaryTemplate, setViewSummaryTemplate] = useState(false);
   const [viewEbookTemplate, setViewEbookTemplate] = useState(false);
+  const [viewDevoirPrimeTemplate, setViewDevoirPrimeTemplate] = useState(false);
+  const [devoirPrimeMeta, setDevoirPrimeMeta] = useState(null);
+  const [devoirPrimeExercises, setDevoirPrimeExercises] = useState(null);
   const [subject, setSubject] = useState('Algèbre');
   const [chapterNumber, setChapterNumber] = useState('');
   const [teacher, setTeacher] = useState('');
@@ -2657,8 +2663,8 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
     setError('');
 
     try {
-      const effectiveDocType = isNationalExam ? 'national' : (docType === 'ebook' ? 'ebook' : (isSummarySheet ? 'summary' : docType));
-      const effectiveIsSummary = isSummarySheet && effectiveDocType !== 'ebook';
+      const effectiveDocType = isNationalExam ? 'national' : (docType === 'devoir_prime' ? 'devoir_prime' : (docType === 'ebook' ? 'ebook' : (isSummarySheet ? 'summary' : docType)));
+      const effectiveIsSummary = isSummarySheet && effectiveDocType !== 'ebook' && effectiveDocType !== 'devoir_prime';
       const effectiveSummaryMeta = effectiveIsSummary ? (summaryMeta || {
         prof: teacher,
         website: phone,
@@ -2667,8 +2673,15 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
         school: schools?.[0] || 'Lycée ABDE EL MOUMENE'
       }) : null;
 
+      const effectivePointsTable = (effectiveDocType === 'devoir_prime' && Array.isArray(devoirPrimeExercises) && devoirPrimeExercises.length > 0)
+        ? buildPointsTableFromPrimeExercises(devoirPrimeExercises)
+        : pointsTable;
+      const effectiveTotalPoints = effectivePointsTable.length > 0
+        ? (calculateTotalPointsFromTable(effectivePointsTable) || totalPoints)
+        : totalPoints;
+
       const lessonData = {
-        title: ficheTitle,
+        title: (effectiveDocType === 'devoir_prime' && devoirPrimeMeta?.title) ? devoirPrimeMeta.title : ficheTitle,
         subject,
         chapterNumber,
         teacher,
@@ -2686,8 +2699,10 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
           national_exam_meta: isNationalExam ? nationalExamMeta : null,
           is_summary: effectiveIsSummary,
           summary_meta: effectiveSummaryMeta,
-          points_table: pointsTable,
-          total_points: totalPoints,
+          devoir_prime_meta: effectiveDocType === 'devoir_prime' ? devoirPrimeMeta : null,
+          devoir_prime_exercises: effectiveDocType === 'devoir_prime' ? devoirPrimeExercises : null,
+          points_table: effectivePointsTable,
+          total_points: effectiveTotalPoints,
           metadata: {
             language: docLanguage
           },
@@ -2695,7 +2710,7 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
             prep_title: prepTitle,
             schools: [],
             subject,
-            fiche_title: ficheTitle,
+            fiche_title: (effectiveDocType === 'devoir_prime' && devoirPrimeMeta?.title) ? devoirPrimeMeta.title : ficheTitle,
             teacher,
             phone,
             doc_type: effectiveDocType,
@@ -2703,8 +2718,8 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
             national_exam_meta: isNationalExam ? nationalExamMeta : null,
             is_summary: effectiveIsSummary,
             summary_meta: effectiveSummaryMeta,
-            points_table: pointsTable,
-            total_points: totalPoints
+            points_table: effectivePointsTable,
+            total_points: effectiveTotalPoints
           },
           sections
         },
@@ -2714,18 +2729,18 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
       const savedLessonId = await addLesson(lessonData);
 
       // Save structured points table in tbl_grades
-      if (pointsTable && pointsTable.length > 0) {
+      if (effectivePointsTable && effectivePointsTable.length > 0) {
         try {
           await saveGrade({
             id: `grade-${savedLessonId || ('l_' + Date.now())}`,
             lesson_id: savedLessonId,
-            title: ficheTitle,
+            title: lessonData.title,
             doc_type: effectiveDocType,
-            total_points: totalPoints,
+            total_points: effectiveTotalPoints,
             data: {
-              points_table: pointsTable,
-              total_points: totalPoints,
-              title: ficheTitle,
+              points_table: effectivePointsTable,
+              total_points: effectiveTotalPoints,
+              title: lessonData.title,
               level: selectedLevel
             }
           });
@@ -4301,6 +4316,33 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                 </>
               )}
 
+              {/* DEVOIR PRIME Template Toggle */}
+              {(docType === 'devoir_prime' || docType === 'homework') && (
+                <button
+                  type="button"
+                  className="btn-outline"
+                  onClick={() => {
+                    const next = !viewDevoirPrimeTemplate;
+                    setViewDevoirPrimeTemplate(next);
+                    if (next) {
+                      setDocType('devoir_prime');
+                      setViewNationalTemplate(false);
+                      setViewSummaryTemplate(false);
+                      setViewEbookTemplate(false);
+                    }
+                  }}
+                  style={{
+                    background: viewDevoirPrimeTemplate ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'rgba(245,158,11,0.1)',
+                    color: viewDevoirPrimeTemplate ? '#fff' : '#d97706',
+                    fontWeight: 800,
+                    fontSize: '0.85rem',
+                    borderColor: '#f59e0b'
+                  }}
+                >
+                  {viewDevoirPrimeTemplate ? '✏️ Mode édition classique' : '⭐ Aperçu DEVOIR PRIME'}
+                </button>
+              )}
+
               {/* E-Book Template Toggle when docType === 'ebook' */}
               {docType === 'ebook' && (
                 <button
@@ -4375,7 +4417,13 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                       sections
                     }
                   };
-                  if (docType === 'ebook' && viewEbookTemplate) {
+                  if (docType === 'devoir_prime' || viewDevoirPrimeTemplate) {
+                    openDevoirPrimePrintWindow(lessonPayload, {
+                      showSolutions: true,
+                      metaOverride: devoirPrimeMeta || undefined,
+                      exercisesOverride: devoirPrimeExercises || undefined,
+                    });
+                  } else if (docType === 'ebook' && viewEbookTemplate) {
                     openEbookTemplatePrintWindow(lessonPayload, { columnsCount: 3, showSolutions: true });
                   } else if (viewSummaryTemplate) {
                     openCourseSummaryPrintWindow(lessonPayload.content);
@@ -4386,20 +4434,47 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                   }
                 }}
                 style={{
-                  background: (viewSummaryTemplate || docType === 'ebook') ? 'linear-gradient(135deg, #0284c7, #0070ba)' : 'linear-gradient(135deg, #005086, #007cc6)',
+                  background: (docType === 'devoir_prime' || viewDevoirPrimeTemplate)
+                    ? 'linear-gradient(135deg, #f59e0b, #d97706)'
+                    : ((viewSummaryTemplate || docType === 'ebook') ? 'linear-gradient(135deg, #0284c7, #0070ba)' : 'linear-gradient(135deg, #005086, #007cc6)'),
                   color: '#fff',
                   fontWeight: 700,
                   fontSize: '0.85rem'
                 }}
-                title={docType === 'ebook' ? 'Imprimer / Télécharger E-Book (3 Colonnes)' : (viewSummaryTemplate ? 'Imprimer / Télécharger au format Résumé (3 Colonnes)' : 'Imprimer / Télécharger au format Fiche Standard')}
+                title={docType === 'devoir_prime' ? 'Imprimer DEVOIR PRIME (PDF)' : (docType === 'ebook' ? 'Imprimer / Télécharger E-Book (3 Colonnes)' : (viewSummaryTemplate ? 'Imprimer / Télécharger au format Résumé (3 Colonnes)' : 'Imprimer / Télécharger au format Fiche Standard'))}
               >
-                {docType === 'ebook' ? '🖨️ Imprimer E-Book (3 Colonnes)' : (viewSummaryTemplate ? '🖨️ Imprimer Résumé (3 Colonnes)' : '🖨️ Imprimer Format Standard')}
+                {docType === 'devoir_prime' ? '🖨️ Imprimer DEVOIR PRIME' : (docType === 'ebook' ? '🖨️ Imprimer E-Book (3 Colonnes)' : (viewSummaryTemplate ? '🖨️ Imprimer Résumé (3 Colonnes)' : '🖨️ Imprimer Format Standard'))}
               </button>
             </div>
           </div>
 
-          {/* E-Book Template View Mode */}
-          {docType === 'ebook' && viewEbookTemplate ? (
+          {/* DEVOIR PRIME Template View Mode */}
+          {viewDevoirPrimeTemplate ? (
+            <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: '16px', border: '1px solid var(--border)', overflowX: 'auto' }}>
+              <DevoirPrimeTemplate
+                lesson={{
+                  title: ficheTitle,
+                  subject,
+                  level: selectedLevel,
+                  docType: 'devoir_prime',
+                  teacher,
+                  phone,
+                  content: {
+                    doc_type: 'devoir_prime',
+                    devoir_prime_meta: devoirPrimeMeta,
+                    devoir_prime_exercises: devoirPrimeExercises,
+                    header: { fiche_title: ficheTitle, subject, level: selectedLevel, teacher, phone },
+                    sections
+                  }
+                }}
+                editable={true}
+                onChange={(m, exs) => {
+                  setDevoirPrimeMeta(m);
+                  setDevoirPrimeExercises(exs);
+                }}
+              />
+            </div>
+          ) : docType === 'ebook' && viewEbookTemplate ? (
             <div className="glass-panel" style={{ padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--border)', background: '#ffffff', overflowX: 'auto' }}>
               <EbookTemplate
                 data={{
@@ -4666,6 +4741,7 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                         { id: 'course', label: 'Cours théorique', icon: BookOpen },
                         { id: 'ebook', label: 'E-Book (3 Colonnes)', icon: BookOpen },
                         { id: 'homework', label: 'Devoir surveillé', icon: FileText },
+                        { id: 'devoir_prime', label: 'DEVOIR PRIME ⭐', icon: Sparkles },
                         { id: 'national', label: 'Examen National', icon: Award },
                         { id: 'concours', label: "Concours d'accès", icon: Target },
                       ].map(t => {
@@ -4681,6 +4757,7 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                                 setDocType('national');
                                 setViewNationalTemplate(true);
                                 setViewEbookTemplate(false);
+                                setViewDevoirPrimeTemplate(false);
                               } else if (t.id === 'ebook') {
                                 setIsNationalExam(false);
                                 setIsSummarySheet(false);
@@ -4688,11 +4765,21 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                                 setViewNationalTemplate(false);
                                 setViewSummaryTemplate(false);
                                 setViewEbookTemplate(true);
+                                setViewDevoirPrimeTemplate(false);
+                              } else if (t.id === 'devoir_prime') {
+                                setIsNationalExam(false);
+                                setIsSummarySheet(false);
+                                setDocType('devoir_prime');
+                                setViewNationalTemplate(false);
+                                setViewSummaryTemplate(false);
+                                setViewEbookTemplate(false);
+                                setViewDevoirPrimeTemplate(true);
                               } else {
                                 setIsNationalExam(false);
                                 setDocType(t.id);
                                 setViewNationalTemplate(false);
                                 setViewEbookTemplate(false);
+                                setViewDevoirPrimeTemplate(false);
                               }
                             }}
                             style={{

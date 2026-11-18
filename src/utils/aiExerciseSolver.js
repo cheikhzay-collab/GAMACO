@@ -641,3 +641,282 @@ ${customInstructions ? `Instructions supplémentaires : ${customInstructions}\n\
 
   throw lastError || new Error('Impossible de résoudre l’exercice avec l’IA. Vérifiez votre connexion et vos clés API.');
 }
+
+/**
+ * Parses JSON response robustly from AI output (strips markdown fences and finds the JSON array).
+ */
+function parsePrimeJsonArray(rawText) {
+  if (!rawText || typeof rawText !== 'string') return [];
+  let cleaned = rawText.trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/```\s*$/i, '')
+    .trim();
+
+  const firstBracket = cleaned.indexOf('[');
+  const lastBracket = cleaned.lastIndexOf(']');
+  if (firstBracket !== -1 && lastBracket > firstBracket) {
+    cleaned = cleaned.slice(firstBracket, lastBracket + 1);
+  }
+
+  try {
+    return JSON.parse(cleaned);
+  } catch (e) {
+    // Attempt fixing single-escaped LaTeX backslashes inside JSON strings
+    try {
+      const fixed = cleaned.replace(/\\(?!["\\/bfnrtu])/g, '\\\\');
+      return JSON.parse(fixed);
+    } catch (e2) {
+      console.warn('[DEVOIR PRIME Solver] Failed to parse AI JSON:', e2.message);
+      return [];
+    }
+  }
+}
+
+/**
+ * Résout un exercice DEVOIR PRIME (ou une seule question) dans le style CONCIS d'un Professeur Marocain :
+ * - Réponses directes, structurées, sans bavardage (On a :, Donc, Or, Comme, Puisque, D'où...)
+ * - Résultat final isolé dans `finalBox` (affiché dans l'encadré jaune bordé de bleu)
+ * - Détection automatique du format 2 colonnes (`two_columns`) pour les études symétriques (à droite / à gauche)
+ * - Respect absolu des Orientations Pédagogiques Marocaines (interdiction de L'Hôpital, etc.)
+ */
+export async function solveDevoirPrimeWithAI(exercise, metadata = {}) {
+  const {
+    level = '2bac_pc_svt',
+    language = 'fr',
+    targetQuestionId = null,
+    docTitle = 'Devoir Surveillé',
+  } = metadata;
+
+  const normLevel = normalizeLevel(level);
+  const questionsList = Array.isArray(exercise?.questions) ? exercise.questions : [];
+  const questionsToSolve = targetQuestionId
+    ? questionsList.filter(q => q.id === targetQuestionId)
+    : questionsList;
+
+  if (questionsToSolve.length === 0) return [];
+
+  const isAr = language === 'ar' || (
+    /[\u0600-\u06FF]/.test(questionsToSolve.map(q => q.text).join(' ')) &&
+    !/montrer|calculer|d[ée]terminer|r[ée]soudre|[ée]tudier|soit/i.test(questionsToSolve.map(q => q.text).join(' '))
+  );
+
+  const combinedText = `${exercise?.title || ''} ${exercise?.preamble || ''} ${questionsToSolve.map(q => q.text).join(' ')}`;
+  const domain = detectLessonDomain(combinedText, { ...metadata, docTitle });
+  const pedagogyBlock = getMoroccanPedagogicalDirectives(normLevel, domain, isAr);
+
+  const systemPrompt = isAr
+    ? `أنت أستاذ مبرز للرياضيات بالتعليم الثانوي التأهيلي المغربي تقوم بتحرير تصحيح نموذجي مختصر بأسلوب "DEVOIR PRIME" (تصحيح مباشر ومختصر يُكتب فوق سطور النقط داخل ورقة الفرض).
+
+${pedagogyBlock}
+
+قواعد أسلوب التصحيح المختصر الإلزامية:
+1. ادخل مباشرة في الحل دون أي مقدمات أو نصائح أو شرح نظري زائد.
+2. استعمل الروابط الرياضية المدرسية المعتادة: "لدينا :"، "ومنه"، "إذن"، "وبما أن"، "نضع ..." مع سلاسل المساويات ($= ... = ...$) والتكافؤات ($\\iff$).
+3. ضع النتيجة النهائية أو الاستنتاج النهائي حصراً في الحقل "finalBox" ليتم تأطيره بالمربع الأصفر.
+4. إذا كان السؤال يدرس حالتين متوازيتين (مثل الاتصال أو الاشتقاق على اليمين وعلى اليسار)، اجعل "layout": "two_columns" وضع خطوات اليمين في "leftSteps" و"leftConclusion"، وخطوات اليسار في "rightSteps" و"rightConclusion"، والاستنتاج النهائي في "finalBox".
+5. استعمل LaTeX دقيقاً داخل $...$ مع مضاعفة الشرطة المائلة داخل JSON (\\\\frac، \\\\sqrt، \\\\lim، \\\\mathbb{R}).
+6. أرجع مصفوفة JSON صالحة فقط بدون أي نص خارجي.`
+    : `Tu es un Professeur de Mathématiques au lycée marocain (Option Française / BIOF) qui rédige un corrigé modèle CONCIS au style "DEVOIR PRIME" (corrigé direct, compact, calibré pour tenir sur les lignes pointillées de la copie d'examen).
+
+${pedagogyBlock}
+
+RÈGLES STRICTES DU STYLE CONCIS MAROCAIN (DEVOIR PRIME) :
+1. ZÉRO bavardage, ZÉRO introduction longue, ZÉRO rappel de cours superflu. Va droit au calcul et au raisonnement qui rapporte la note complète.
+2. Utilise exactement les connecteurs scolaires marocains : "On a :", "Donc", "Or", "Comme", "Puisque", "D'où", "On pose ...", "Soit $x \\in ...$".
+3. Enchaîne proprement les égalités ($= \\dots = \\dots$) ou équivalences ($\\iff \\dots$) ligne par ligne. Chaque élément du tableau "steps" correspond à UNE ligne concise.
+4. Isole TOUJOURS le résultat final ou la conclusion clé dans le champ "finalBox" (ex: "$= 1$", "$a = c < b$", "$S = \\{8 ; 125\\}$", "D'où la fonction $f$ est continue en $-1$."). Il sera mis en évidence dans un encadré jaune bordé de bleu.
+5. UTILISATION DU MODE 2 COLONNES ("layout": "two_columns") :
+   - Si une question étudie DEUX cas symétriques (ex: limite ou dérivabilité à droite $x \\to x_0^+$ et à gauche $x \\to x_0^-$), mets "layout": "two_columns" avec :
+     • "leftSteps" (calcul à droite), "leftConclusion" (conclusion + interprétation géométrique à droite)
+     • "rightSteps" (calcul à gauche), "rightConclusion" (conclusion + interprétation géométrique à gauche)
+     • "finalBox" (conclusion globale finale en dessous, ex: "D'où $f$ n'est pas dérivable en $-1$.")
+   - Sinon mets "layout": "single".
+6. Estime "recommendedLines" (entier entre 4 et 12) correspondant au nombre optimal de lignes pointillées nécessaires pour rédiger cette réponse proprement.
+7. Écris toutes les formules mathématiques en LaTeX strict avec $...$ et double-échappement JSON obligatoire (\\\\frac, \\\\sqrt, \\\\lim, \\\\mathbb{R}, \\\\iff, \\\\to).
+8. RETOURNE UNIQUEMENT UN TABLEAU JSON VALIDE sans aucun texte avant ni après.`;
+
+  const qPayload = questionsToSolve.map(q => ({
+    id: q.id,
+    number: q.number,
+    points: q.points,
+    text: q.text
+  }));
+
+  const userPrompt = `Résous de manière CONCISE (style professeur marocain DEVOIR PRIME) les questions suivantes.
+
+Exercice : ${exercise?.title || 'Exercice'}
+Données / Préambule : ${exercise?.preamble || '(Aucun préambule)'}
+
+Questions à résoudre :
+${JSON.stringify(qPayload, null, 2)}
+
+Format JSON EXACT attendu (tableau d'objets) :
+[
+  {
+    "id": "dp-ex1-q1",
+    "layout": "single",
+    "steps": [
+      "On a : $... = ...$",
+      "$= ...$"
+    ],
+    "finalBox": "$= 1$",
+    "leftTitle": "",
+    "leftSteps": [],
+    "leftConclusion": "",
+    "rightTitle": "",
+    "rightSteps": [],
+    "rightConclusion": "",
+    "recommendedLines": 5
+  }
+]`;
+
+  const provider = localStorage.getItem('aiImportProvider') || 'deepseek';
+  const deepseekKey = localStorage.getItem('deepseekApiKey') || 'sk-12a7032f07d740348c607ef947a0a9f7';
+  const deepseekUrl = (localStorage.getItem('deepseekApiUrl') || 'https://api.deepseek.com').replace(/\/$/, '');
+  const geminiKey = localStorage.getItem('geminiApiKey') || '';
+  const claudeKey = localStorage.getItem('claudeApiKey') || '';
+
+  let rawResponseText = '';
+
+  // 1. Try backend /api/ai/solve proxy first
+  try {
+    const res = await fetch('/api/ai/solve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        exerciseContent: combinedText,
+        level,
+        subject: 'Mathématiques',
+        language: isAr ? 'ar' : 'fr',
+        docTitle,
+        docType: 'devoir_prime',
+        userPrompt,
+        systemPrompt,
+        apiKey: geminiKey || undefined,
+        deepseekKey: deepseekKey || undefined,
+        claudeKey: claudeKey || undefined,
+      }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.success && data?.solution) {
+        rawResponseText = data.solution;
+      }
+    }
+  } catch (err) {
+    console.warn('[DEVOIR PRIME Solver] Backend proxy fallback:', err.message);
+  }
+
+  // 2. Direct engine fallback if backend didn't return content
+  const engines = [];
+  if (provider === 'gemini' && geminiKey) engines.push('gemini');
+  if (deepseekKey) engines.push('deepseek');
+  if (geminiKey && !engines.includes('gemini')) engines.push('gemini');
+  if (claudeKey) engines.push('claude');
+
+  for (const engine of engines) {
+    if (rawResponseText) break;
+    try {
+      if (engine === 'deepseek') {
+        const resp = await fetch(`${deepseekUrl}/v1/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${deepseekKey}`,
+          },
+          body: JSON.stringify({
+            model: 'deepseek-chat',
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userPrompt },
+            ],
+            temperature: 0.15,
+            max_tokens: 6000,
+          }),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          rawResponseText = data?.choices?.[0]?.message?.content || '';
+        }
+      } else if (engine === 'gemini') {
+        const storedModel = (localStorage.getItem('geminiModel') || 'gemini-2.5-flash').trim();
+        const model = ['gemini-3.5-flash-lite', 'gemini-3.5-flash'].includes(storedModel) ? 'gemini-2.5-flash' : storedModel;
+        const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey.trim()}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: userPrompt }] }],
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            generationConfig: { temperature: 0.15, maxOutputTokens: 8192 },
+          }),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          rawResponseText = (data.candidates?.[0]?.content?.parts || []).filter(p => !p.thought).map(p => p.text || '').join('');
+        }
+      } else if (engine === 'claude') {
+        const resp = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': claudeKey,
+            'anthropic-version': '2023-06-01',
+            'dangerously-allow-browser': 'true',
+          },
+          body: JSON.stringify({
+            model: 'claude-3-5-sonnet-20241022',
+            system: systemPrompt,
+            messages: [{ role: 'user', content: userPrompt }],
+            max_tokens: 6000,
+            temperature: 0.15,
+          }),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          rawResponseText = data?.content?.[0]?.text || '';
+        }
+      }
+    } catch (e) {
+      console.warn(`[DEVOIR PRIME Solver] Engine ${engine} failed:`, e.message);
+    }
+  }
+
+  if (!rawResponseText) {
+    throw new Error("Impossible de générer le corrigé DEVOIR PRIME. Vérifiez votre connexion ou vos clés API IA.");
+  }
+
+  const parsed = parsePrimeJsonArray(rawResponseText);
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    // Graceful single-question fallback if AI returned plain text
+    if (questionsToSolve.length === 1) {
+      return [{
+        id: questionsToSolve[0].id,
+        layout: 'single',
+        steps: rawResponseText.split('\n').map(l => l.trim()).filter(Boolean),
+        finalBox: '',
+        leftTitle: '',
+        leftSteps: [],
+        leftConclusion: '',
+        rightTitle: '',
+        rightSteps: [],
+        rightConclusion: '',
+        recommendedLines: questionsToSolve[0].linesCount || 6,
+      }];
+    }
+    throw new Error("Le format de réponse de l'IA n'a pas pu être structuré par question. Veuillez réessayer.");
+  }
+
+  return parsed.map((item, idx) => ({
+    id: item.id || questionsToSolve[idx]?.id,
+    layout: item.layout === 'two_columns' ? 'two_columns' : 'single',
+    steps: Array.isArray(item.steps) ? item.steps : [],
+    finalBox: item.finalBox || item.final_box || '',
+    leftTitle: item.leftTitle || '',
+    leftSteps: Array.isArray(item.leftSteps) ? item.leftSteps : [],
+    leftConclusion: item.leftConclusion || '',
+    rightTitle: item.rightTitle || '',
+    rightSteps: Array.isArray(item.rightSteps) ? item.rightSteps : [],
+    rightConclusion: item.rightConclusion || '',
+    recommendedLines: Math.max(3, Math.min(14, Number(item.recommendedLines || item.recommended_lines) || questionsToSolve[idx]?.linesCount || 6)),
+  }));
+}
