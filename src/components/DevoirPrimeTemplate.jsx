@@ -13,9 +13,12 @@ import {
   normalizeToDevoirPrimeExercises,
   buildQuestionQrPayload,
   parseNumericPoints,
+  ensureMathDelimiters,
 } from '../utils/devoirPrimeHelpers';
 import { solveDevoirPrimeWithAI } from '../utils/aiExerciseSolver';
 import { openDevoirPrimePrintWindow } from '../utils/generateDevoirPrimePDF';
+
+const renderPrimeMath = (txt) => renderWithMath(ensureMathDelimiters(txt || ''));
 
 const MOROCCO_EMBLEM = (
   <svg width="38" height="38" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -741,7 +744,7 @@ export default function DevoirPrimeTemplate({
 
               {ex.preamble && (
                 <div style={{ fontSize: '13.5px', marginBottom: '8px', lineHeight: 1.5 }}>
-                  {renderWithMath(ex.preamble)}
+                  {renderPrimeMath(ex.preamble)}
                 </div>
               )}
 
@@ -794,9 +797,8 @@ export default function DevoirPrimeTemplate({
 
                       {/* Center Question Statement */}
                       <div style={{ flex: 1, padding: '8px 12px', display: 'flex', flexDirection: 'column', justifyContent: 'center', fontSize: '13.5px' }}>
-                        <div>
-                          <strong style={{ marginRight: '5px' }}>{q.number}</strong>
-                          {renderWithMath(q.text)}
+                        <div style={{ lineHeight: 1.5 }}>
+                          {renderPrimeMath(`${q.number ? `**${String(q.number).trim()}** ` : ''}${String(q.text || '').replace(/^\s+/, '')}`)}
                         </div>
                       </div>
 
@@ -856,24 +858,24 @@ export default function DevoirPrimeTemplate({
                             <>
                               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', marginBottom: '6px' }}>
                                 <div style={{ padding: '2px 8px', borderRight: '1.4px solid #0f172a' }}>
-                                  {q.leftTitle && <div style={{ fontWeight: 700, textDecoration: 'underline' }}>{renderWithMath(q.leftTitle)}</div>}
+                                  {q.leftTitle && <div style={{ fontWeight: 700, textDecoration: 'underline' }}>{renderPrimeMath(q.leftTitle)}</div>}
                                   {(q.leftSteps || []).map((st, sIdx) => (
-                                    <div key={sIdx}>{renderWithMath(st)}</div>
+                                    <div key={sIdx}>{renderPrimeMath(st)}</div>
                                   ))}
                                   {q.leftConclusion && (
                                     <div style={{ marginTop: '4px', padding: '3px 6px', background: 'rgba(254, 240, 138, 0.85)', borderRadius: '3px', fontWeight: 700, lineHeight: 1.35 }}>
-                                      {renderWithMath(q.leftConclusion)}
+                                      {renderPrimeMath(q.leftConclusion)}
                                     </div>
                                   )}
                                 </div>
                                 <div style={{ padding: '2px 8px' }}>
-                                  {q.rightTitle && <div style={{ fontWeight: 700, textDecoration: 'underline' }}>{renderWithMath(q.rightTitle)}</div>}
+                                  {q.rightTitle && <div style={{ fontWeight: 700, textDecoration: 'underline' }}>{renderPrimeMath(q.rightTitle)}</div>}
                                   {(q.rightSteps || []).map((st, sIdx) => (
-                                    <div key={sIdx}>{renderWithMath(st)}</div>
+                                    <div key={sIdx}>{renderPrimeMath(st)}</div>
                                   ))}
                                   {q.rightConclusion && (
                                     <div style={{ marginTop: '4px', padding: '3px 6px', background: 'rgba(254, 240, 138, 0.85)', borderRadius: '3px', fontWeight: 700, lineHeight: 1.35 }}>
-                                      {renderWithMath(q.rightConclusion)}
+                                      {renderPrimeMath(q.rightConclusion)}
                                     </div>
                                   )}
                                 </div>
@@ -889,7 +891,7 @@ export default function DevoirPrimeTemplate({
                                     fontWeight: 700,
                                     lineHeight: 1.4,
                                   }}>
-                                    {renderWithMath(q.finalBox)}
+                                    {renderPrimeMath(q.finalBox)}
                                   </span>
                                 </div>
                               )}
@@ -897,7 +899,7 @@ export default function DevoirPrimeTemplate({
                           ) : (
                             <>
                               {(q.steps || []).map((st, sIdx) => (
-                                <div key={sIdx}>{renderWithMath(st)}</div>
+                                <div key={sIdx}>{renderPrimeMath(st)}</div>
                               ))}
                               {q.finalBox && (
                                 <div style={{ display: 'flex', justifyContent: 'center', marginTop: '4px' }}>
@@ -910,7 +912,7 @@ export default function DevoirPrimeTemplate({
                                     fontWeight: 700,
                                     lineHeight: 1.4,
                                   }}>
-                                    {renderWithMath(q.finalBox)}
+                                    {renderPrimeMath(q.finalBox)}
                                   </span>
                                 </div>
                               )}

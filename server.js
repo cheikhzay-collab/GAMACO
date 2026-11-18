@@ -345,11 +345,32 @@ const initMySQL = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS tbl_devoir_prime (
+        id VARCHAR(64) PRIMARY KEY,
+        lesson_id VARCHAR(64) NOT NULL,
+        title TEXT,
+        level VARCHAR(100),
+        semester VARCHAR(100),
+        academic_year VARCHAR(50),
+        teacher VARCHAR(255),
+        total_points DECIMAL(6,2) DEFAULT 20.00,
+        meta_json LONGTEXT,
+        exercises_json LONGTEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_dp_lesson (lesson_id),
+        INDEX idx_dp_level (level)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
     // Run safe column migrations to upgrade existing tables without dropping data
     const safeAlters = [
       "ALTER TABLE tbl_lessons MODIFY COLUMN title TEXT",
       "ALTER TABLE tbl_lessons MODIFY COLUMN subject VARCHAR(255)",
       "ALTER TABLE tbl_lessons MODIFY COLUMN level VARCHAR(100)",
+      "ALTER TABLE tbl_lessons ADD COLUMN doc_type VARCHAR(64) DEFAULT 'course'",
+      "ALTER TABLE tbl_lessons ADD INDEX idx_lessons_doctype (doc_type)",
       "ALTER TABLE tbl_lessons MODIFY COLUMN data LONGTEXT NOT NULL",
       "ALTER TABLE tbl_classes MODIFY COLUMN name TEXT",
       "ALTER TABLE tbl_classes MODIFY COLUMN data LONGTEXT NOT NULL",
@@ -360,7 +381,10 @@ const initMySQL = async () => {
       "ALTER TABLE tbl_config MODIFY COLUMN key_name VARCHAR(128)",
       "ALTER TABLE tbl_config MODIFY COLUMN value LONGTEXT NOT NULL",
       "ALTER TABLE tbl_assets MODIFY COLUMN data LONGTEXT NOT NULL",
-      "ALTER TABLE tbl_grades MODIFY COLUMN data LONGTEXT NOT NULL"
+      "ALTER TABLE tbl_grades MODIFY COLUMN doc_type VARCHAR(64) DEFAULT 'homework'",
+      "ALTER TABLE tbl_grades MODIFY COLUMN data LONGTEXT NOT NULL",
+      "ALTER TABLE tbl_devoir_prime MODIFY COLUMN meta_json LONGTEXT",
+      "ALTER TABLE tbl_devoir_prime MODIFY COLUMN exercises_json LONGTEXT NOT NULL"
     ];
     for (const alt of safeAlters) {
       await connection.query(alt).catch(() => {});
@@ -614,6 +638,44 @@ const initMySQL = async () => {
     });
     writeDataFile('grades.json', allGradesList);
     console.log(`[Server] Synced ${allGradesList.length} grade sheets from MySQL database.`);
+
+    // 7. Backfill doc_type on tbl_lessons and sync DEVOIR PRIME records into tbl_devoir_prime
+    try {
+      const [allLessonRows] = await connection.query('SELECT id, doc_type, data FROM tbl_lessons').catch(() => [[]]);
+      let dpSyncedCount = 0;
+      for (const lr of allLessonRows) {
+        const parsed = safeJsonParse(lr.data, null);
+        if (!parsed) continue;
+        const resolvedDocType = parsed.docType || parsed.doc_type || parsed.content?.doc_type || 'course';
+        if (!lr.doc_type || lr.doc_type !== resolvedDocType) {
+          await connection.query('UPDATE tbl_lessons SET doc_type = ? WHERE id = ?', [resolvedDocType, lr.id]).catch(() => {});
+        }
+        if (resolvedDocType === 'devoir_prime' || parsed.content?.devoir_prime_exercises) {
+          const dpMeta = parsed.content?.devoir_prime_meta || {};
+          const dpExercises = parsed.content?.devoir_prime_exercises || [];
+          const totalPts = parseFloat(parsed.content?.total_points || parsed.total_points) || 20;
+          await connection.query(
+            `INSERT INTO tbl_devoir_prime (id, lesson_id, title, level, semester, academic_year, teacher, total_points, meta_json, exercises_json)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE title = VALUES(title), level = VALUES(level), semester = VALUES(semester), academic_year = VALUES(academic_year), teacher = VALUES(teacher), total_points = VALUES(total_points), meta_json = VALUES(meta_json), exercises_json = VALUES(exercises_json), updated_at = NOW()`,
+            [
+              `dp-${lr.id}`,
+              lr.id,
+              dpMeta.title || parsed.title || '',
+              dpMeta.level || parsed.level || '',
+              dpMeta.semester || '',
+              dpMeta.academicYear || '',
+              dpMeta.teacher || parsed.teacher || '',
+              totalPts,
+              JSON.stringify(dpMeta),
+              JSON.stringify(dpExercises)
+            ]
+          ).catch(() => {});
+          dpSyncedCount++;
+        }
+      }
+      console.log(`[Server] Verified tbl_lessons.doc_type and synced ${dpSyncedCount} DEVOIR PRIME sheets.`);
+    } catch (_) {}
 
     connection.release();
     isMySqlActive = true;
@@ -1029,9 +1091,33 @@ export const handleApiRequest = async (req, res, next) => {
 
         if (isMySqlActive) {
           await dbPool.query(
-            'INSERT INTO tbl_lessons (id, title, subject, level, data) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE title = VALUES(title), subject = VALUES(subject), level = VALUES(level), data = VALUES(data), updated_at = NOW()',
-            [targetId, lesson.title || '', lesson.subject || '', lesson.level || '', JSON.stringify(lesson)]
+            'INSERT INTO tbl_lessons (id, title, subject, level, doc_type, data) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE title = VALUES(title), subject = VALUES(subject), level = VALUES(level), doc_type = VALUES(doc_type), data = VALUES(data), updated_at = NOW()',
+            [targetId, lesson.title || '', lesson.subject || '', lesson.level || '', docType, JSON.stringify(lesson)]
           );
+
+          // Auto-sync DEVOIR PRIME documents into dedicated tbl_devoir_prime table
+          if (docType === 'devoir_prime' || lesson.content?.devoir_prime_exercises) {
+            const dpMeta = lesson.content?.devoir_prime_meta || {};
+            const dpExercises = lesson.content?.devoir_prime_exercises || [];
+            const totalPts = parseFloat(lesson.content?.total_points || lesson.total_points) || 20;
+            await dbPool.query(
+              `INSERT INTO tbl_devoir_prime (id, lesson_id, title, level, semester, academic_year, teacher, total_points, meta_json, exercises_json)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON DUPLICATE KEY UPDATE title = VALUES(title), level = VALUES(level), semester = VALUES(semester), academic_year = VALUES(academic_year), teacher = VALUES(teacher), total_points = VALUES(total_points), meta_json = VALUES(meta_json), exercises_json = VALUES(exercises_json), updated_at = NOW()`,
+              [
+                `dp-${targetId}`,
+                targetId,
+                dpMeta.title || lesson.title || '',
+                dpMeta.level || lesson.level || '',
+                dpMeta.semester || '',
+                dpMeta.academicYear || '',
+                dpMeta.teacher || lesson.teacher || '',
+                totalPts,
+                JSON.stringify(dpMeta),
+                JSON.stringify(dpExercises)
+              ]
+            ).catch(() => {});
+          }
         }
         const lessons = readDataFile('lessons.json', []);
         const idx = lessons.findIndex(l => l.id === targetId);
@@ -1048,6 +1134,8 @@ export const handleApiRequest = async (req, res, next) => {
       const id = singleId || parsedUrl.searchParams.get('id');
       if (isMySqlActive) {
         await dbPool.query('DELETE FROM tbl_lessons WHERE id = ?', [id]);
+        await dbPool.query('DELETE FROM tbl_devoir_prime WHERE lesson_id = ?', [id]).catch(() => {});
+        await dbPool.query('DELETE FROM tbl_grades WHERE lesson_id = ?', [id]).catch(() => {});
       }
       const lessons = readDataFile('lessons.json', []).filter(l => l.id !== id);
       writeDataFile('lessons.json', lessons);
@@ -1553,6 +1641,77 @@ export const handleApiRequest = async (req, res, next) => {
     }
   }
 
+  // DEVOIR PRIME Dedicated Endpoint
+  if (pathname === '/api/devoir-prime' || pathname.startsWith('/api/devoir-prime/')) {
+    const lessonIdParam = pathname.startsWith('/api/devoir-prime/') ? pathname.replace('/api/devoir-prime/', '').trim() : parsedUrl.searchParams.get('lesson_id');
+    if (req.method === 'GET') {
+      try {
+        if (isMySqlActive) {
+          if (lessonIdParam) {
+            const [rows] = await dbPool.query('SELECT * FROM tbl_devoir_prime WHERE lesson_id = ? OR id = ?', [lessonIdParam, lessonIdParam]);
+            if (rows.length > 0) {
+              const r = rows[0];
+              return sendJSON(res, 200, {
+                ...r,
+                meta: safeJsonParse(r.meta_json, {}),
+                exercises: safeJsonParse(r.exercises_json, [])
+              });
+            }
+            return sendJSON(res, 404, { error: 'DEVOIR PRIME not found' });
+          }
+          const [rows] = await dbPool.query('SELECT id, lesson_id, title, level, semester, academic_year, teacher, total_points, created_at, updated_at FROM tbl_devoir_prime ORDER BY updated_at DESC');
+          return sendJSON(res, 200, rows);
+        }
+        const lessons = readDataFile('lessons.json', []).filter(l => (l.docType || l.doc_type || l.content?.doc_type) === 'devoir_prime');
+        return sendJSON(res, 200, lessons);
+      } catch (err) {
+        return sendJSON(res, 500, { error: err.message });
+      }
+    }
+  }
+
+  // Live Database Tables Health & Schema Sync Endpoint
+  if (pathname === '/api/admin/db-tables' && (req.method === 'GET' || req.method === 'POST')) {
+    try {
+      if (req.method === 'POST' || !isMySqlActive) {
+        await initMySQL();
+      }
+      const expectedTables = [
+        'tbl_exams',
+        'tbl_lessons',
+        'tbl_classes',
+        'tbl_users',
+        'tbl_config',
+        'tbl_assets',
+        'tbl_grades',
+        'tbl_devoir_prime'
+      ];
+      const report = {};
+      if (isMySqlActive && dbPool) {
+        for (const tbl of expectedTables) {
+          try {
+            const [cntRows] = await dbPool.query(`SELECT COUNT(*) AS cnt FROM ${tbl}`);
+            report[tbl] = { exists: true, rows: Number(cntRows?.[0]?.cnt || 0) };
+          } catch (e) {
+            report[tbl] = { exists: false, error: e.message };
+          }
+        }
+        return sendJSON(res, 200, {
+          storage: 'mysql',
+          mysqlActive: true,
+          tables: report
+        });
+      }
+      return sendJSON(res, 200, {
+        storage: 'json',
+        mysqlActive: false,
+        tables: report
+      });
+    } catch (err) {
+      return sendJSON(res, 500, { error: err.message });
+    }
+  }
+
   if (pathname === '/api/admin/reset-platform' && req.method === 'POST') {
     try {
       const payload = await getBody(req);
@@ -1571,6 +1730,7 @@ export const handleApiRequest = async (req, res, next) => {
         await dbPool.query('DELETE FROM tbl_classes');
         await dbPool.query('DELETE FROM tbl_users');
         await dbPool.query('DELETE FROM tbl_grades');
+        await dbPool.query('DELETE FROM tbl_devoir_prime').catch(() => {});
         await dbPool.query('DELETE FROM tbl_assets');
         if (includeConfig) {
           await dbPool.query('DELETE FROM tbl_config');

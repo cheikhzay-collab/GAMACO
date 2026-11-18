@@ -448,3 +448,184 @@ export function buildQuestionQrPayload(lesson = {}, meta = {}, exIdx = 0, q = {}
   }
   return `${meta?.title || 'DEVOIR PRIME'} | Ex${exIdx + 1} Q${num} | ${pts}`;
 }
+
+const BARE_LATEX_CMD_RE = /\\(?:dfrac|tfrac|frac|overrightarrow|overleftarrow|overline|underline|widehat|widetilde|vec|sqrt|parallel|perp|cdot|times|div|pm|mp|lim|mathbb|mathcal|mathrm|text|iff|Longleftrightarrow|Leftrightarrow|Longrightarrow|Rightarrow|implies|to|rightarrow|leftarrow|mapsto|in|notin|neq|ne|leq|geq|leqslant|geqslant|approx|equiv|infty|sum|prod|int|alpha|beta|gamma|delta|Delta|theta|lambda|mu|pi|sigma|omega|subset|subseteq|supset|cup|cap|emptyset|forall|exists|left|right|sin|cos|tan|ln|log|exp)\b/;
+
+/**
+ * Tokenizes a non-math text segment and wraps any bare LaTeX expressions
+ * (e.g. `\overrightarrow{AE'} = \dfrac{2}{3}\overrightarrow{AC}` or `(EE') \parallel (BC)`)
+ * cleanly inside `$ ... $` without touching surrounding French/Arabic prose.
+ */
+function wrapBareLatexInTextSegment(segment) {
+  if (!segment || !BARE_LATEX_CMD_RE.test(segment)) return segment;
+
+  const tokens = [];
+  let i = 0;
+  const n = segment.length;
+
+  const consumeBalanced = (openCh, closeCh) => {
+    let depth = 0;
+    let out = '';
+    while (i < n) {
+      const ch = segment[i];
+      out += ch;
+      if (ch === openCh) depth++;
+      else if (ch === closeCh) {
+        depth--;
+        if (depth === 0) {
+          i++;
+          break;
+        }
+      }
+      i++;
+    }
+    return out;
+  };
+
+  while (i < n) {
+    // 1. Whitespace
+    if (/\s/.test(segment[i])) {
+      let sp = '';
+      while (i < n && /\s/.test(segment[i])) sp += segment[i++];
+      tokens.push({ kind: 'space', val: sp });
+      continue;
+    }
+
+    // 2. LaTeX command + any chained {...} / [...] / ^... / _... arguments
+    if (segment[i] === '\\' && i + 1 < n && /[a-zA-Z{}]/.test(segment[i + 1])) {
+      let cmd = segment[i++];
+      if (/[a-zA-Z]/.test(segment[i])) {
+        while (i < n && /[a-zA-Z]/.test(segment[i])) cmd += segment[i++];
+      } else {
+        cmd += segment[i++];
+      }
+      // Consume optional whitespace + [...] / {...} / ^ / _ arguments attached to this command
+      while (i < n) {
+        if (segment[i] === '{') {
+          cmd += consumeBalanced('{', '}');
+        } else if (segment[i] === '[') {
+          cmd += consumeBalanced('[', ']');
+        } else if (segment[i] === '^' || segment[i] === '_') {
+          cmd += segment[i++];
+          if (i < n && segment[i] === '{') cmd += consumeBalanced('{', '}');
+          else if (i < n && !/\s/.test(segment[i])) cmd += segment[i++];
+        } else {
+          break;
+        }
+      }
+      tokens.push({ kind: 'math_cmd', val: cmd });
+      continue;
+    }
+
+    // 3. Arabic text -> prose
+    if (/[\u0600-\u06FF]/.test(segment[i])) {
+      let ar = '';
+      while (i < n && /[\u0600-\u06FF]/.test(segment[i])) ar += segment[i++];
+      tokens.push({ kind: 'prose', val: ar });
+      continue;
+    }
+
+    // 4. Parenthesized / bracketed geometry or math expressions like (EE'), (BC), [AB], (E)
+    if (segment[i] === '(' || segment[i] === '[') {
+      const openCh = segment[i];
+      const closeCh = openCh === '(' ? ')' : ']';
+      const saveIdx = i;
+      const chunk = consumeBalanced(openCh, closeCh);
+      const inner = chunk.slice(1, -1).trim();
+      // If inner has no multi-letter lowercase French words (3+ chars), treat as math atom
+      if (inner && !/[a-zàâäéèêëîïôöùûüç]{3,}/.test(inner)) {
+        tokens.push({ kind: 'math_atom', val: chunk });
+        continue;
+      }
+      i = saveIdx;
+    }
+
+    // 5. Pure math operators & numbers
+    if (/[=+\-<>^_0-9|/]/.test(segment[i])) {
+      let op = '';
+      while (i < n && /[=+\-<>^_0-9|/.,'′]/.test(segment[i])) {
+        // Stop before trailing sentence period/comma if followed by space or end
+        if ((segment[i] === '.' || segment[i] === ',') && (i + 1 >= n || /\s/.test(segment[i + 1]))) break;
+        op += segment[i++];
+      }
+      if (op) {
+        tokens.push({ kind: 'math_atom', val: op });
+        continue;
+      }
+    }
+
+    // 6. Latin word (distinguish French prose words vs short uppercase math identifiers like AB, AE', BC, x)
+    if (/[a-zA-ZÀ-ÖØ-öø-ÿ]/.test(segment[i])) {
+      let word = '';
+      while (i < n && /[a-zA-ZÀ-ÖØ-öø-ÿ'’′0-9]/.test(segment[i])) word += segment[i++];
+      // Common French connectors / words -> prose
+      const isFrenchProse =
+        /[àâäéèêëîïôöùûüçÀÂÄÉÈÊËÎÏÔÖÙÛÜÇ]/.test(word) ||
+        /^(?:on|a|et|ou|or|si|car|par|sur|dans|avec|pour|que|qui|est|sont|donc|alors|puisque|comme|aussi|les|des|une|un|la|le|en|de|du|au|aux|soit|soient|d'où|d'apres|d'après|l'on|n'est|pas|en|point|droite|droites|vecteur|vecteurs|triangle|théorème|theoreme|réciproque|reciproque|conclut|colinéaires|colineaires|parallèles|paralleles|continue|dérivable|derivable|strictement|croissante|décroissante|decroissante|fonction|limite|limites|ensemble|solutions|équation|equation|pose|donc)$/i.test(word) ||
+        /[a-z]{2,}/.test(word);
+
+      tokens.push({ kind: isFrenchProse ? 'prose' : 'math_atom', val: word });
+      continue;
+    }
+
+    // 7. Punctuation (:, ;, ,, ., etc.) -> prose boundary
+    tokens.push({ kind: 'prose', val: segment[i++] });
+  }
+
+  // Merge adjacent math tokens (including single spaces between math tokens) into contiguous spans.
+  // Wrap a span in `$...$` ONLY if it contains at least one `math_cmd` token!
+  let result = '';
+  let idx = 0;
+  while (idx < tokens.length) {
+    if (tokens[idx].kind === 'math_cmd' || tokens[idx].kind === 'math_atom') {
+      let start = idx;
+      let end = idx;
+      let hasCmd = tokens[idx].kind === 'math_cmd';
+      let j = idx + 1;
+      while (j < tokens.length) {
+        if (tokens[j].kind === 'math_cmd' || tokens[j].kind === 'math_atom') {
+          if (tokens[j].kind === 'math_cmd') hasCmd = true;
+          end = j;
+          j++;
+        } else if (tokens[j].kind === 'space' && j + 1 < tokens.length && (tokens[j + 1].kind === 'math_cmd' || tokens[j + 1].kind === 'math_atom')) {
+          j++;
+        } else {
+          break;
+        }
+      }
+
+      const spanText = tokens.slice(start, end + 1).map(t => t.val).join('');
+      if (hasCmd) {
+        result += `$${spanText.trim()}$`;
+      } else {
+        result += spanText;
+      }
+      idx = end + 1;
+    } else {
+      result += tokens[idx].val;
+      idx++;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Ensures all LaTeX expressions in a DEVOIR PRIME line (or finalBox) are properly wrapped in `$...$`
+ * and fixes over-escaped JSON backslashes (`\\dfrac` -> `\dfrac`).
+ */
+export function ensureMathDelimiters(raw) {
+  if (!raw || typeof raw !== 'string') return '';
+  let s = raw
+    // Fix over-escaped backslashes like \\dfrac, \\overrightarrow, \\parallel
+    .replace(/\\\\([a-zA-Z{}])/g, '\\$1')
+    // Normalize \( ... \) and \[ ... \] to $ ... $ and $$ ... $$
+    .replace(/\\\[([\s\S]*?)\\\]/g, '$$$$ $1 $$$$')
+    .replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$');
+
+  // Split around existing $...$ and $$...$$ blocks and fix bare LaTeX only outside them
+  const parts = s.split(/(\$\$[\s\S]*?\$\$|\$[^$\n]+\$)/g);
+  return parts
+    .map((part, idx) => (idx % 2 === 1 ? part : wrapBareLatexInTextSegment(part)))
+    .join('');
+}

@@ -12,6 +12,7 @@ import {
   getDefaultDevoirPrimeMeta,
   normalizeToDevoirPrimeExercises,
   buildQuestionQrPayload,
+  ensureMathDelimiters,
 } from './devoirPrimeHelpers.js';
 
 const escapeHtml = (str) =>
@@ -26,7 +27,7 @@ const escapeHtml = (str) =>
  */
 const formatRichMathHtml = (raw) => {
   if (!raw) return '';
-  const str = String(raw);
+  const str = ensureMathDelimiters(String(raw));
   const parts = str.split(/(\$\$[\s\S]*?\$\$|\$[\s\S]*?\$)/g);
   return parts
     .map((part, idx) => {
@@ -252,8 +253,7 @@ export async function generateDevoirPrimeHTML(lesson, options = {}) {
           <div class="dp-q-header">
             <div class="dp-q-pts">${escapeHtml(q.points || '1 pt')}</div>
             <div class="dp-q-statement">
-              <span class="dp-q-num">${escapeHtml(q.number || `${qIdx + 1}.`)}</span>
-              <span class="dp-q-text">${formatRichMathHtml(q.text)}</span>
+              <div class="dp-q-statement-body"><span class="dp-q-num">${escapeHtml(q.number || `${qIdx + 1}.`)}</span> <span class="dp-q-text">${formatRichMathHtml((q.text || '').replace(/^\s+/, ''))}</span></div>
               ${q.image ? `<div class="dp-q-img"><img src="${q.image}" alt="Figure" /></div>` : ''}
             </div>
             ${meta.showQR ? `

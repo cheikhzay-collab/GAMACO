@@ -4,6 +4,7 @@
 // Adopte la démarche méthodologique rigoureuse d'un Inspecteur Pédagogique National ou Professeur Agrégé
 
 import { normalizeLevel, getLevelDisplayName } from './levelHelpers';
+import { ensureMathDelimiters } from './devoirPrimeHelpers';
 
 /**
  * Détecte le domaine et le chapitre mathématique marocain concerné à partir de l'énoncé et des métadonnées
@@ -892,7 +893,7 @@ Format JSON EXACT attendu (tableau d'objets) :
       return [{
         id: questionsToSolve[0].id,
         layout: 'single',
-        steps: rawResponseText.split('\n').map(l => l.trim()).filter(Boolean),
+        steps: rawResponseText.split('\n').map(l => ensureMathDelimiters(l.trim())).filter(Boolean),
         finalBox: '',
         leftTitle: '',
         leftSteps: [],
@@ -909,14 +910,14 @@ Format JSON EXACT attendu (tableau d'objets) :
   return parsed.map((item, idx) => ({
     id: item.id || questionsToSolve[idx]?.id,
     layout: item.layout === 'two_columns' ? 'two_columns' : 'single',
-    steps: Array.isArray(item.steps) ? item.steps : [],
-    finalBox: item.finalBox || item.final_box || '',
-    leftTitle: item.leftTitle || '',
-    leftSteps: Array.isArray(item.leftSteps) ? item.leftSteps : [],
-    leftConclusion: item.leftConclusion || '',
-    rightTitle: item.rightTitle || '',
-    rightSteps: Array.isArray(item.rightSteps) ? item.rightSteps : [],
-    rightConclusion: item.rightConclusion || '',
+    steps: Array.isArray(item.steps) ? item.steps.map(s => ensureMathDelimiters(String(s || ''))) : [],
+    finalBox: ensureMathDelimiters(String(item.finalBox || item.final_box || '')),
+    leftTitle: ensureMathDelimiters(String(item.leftTitle || '')),
+    leftSteps: Array.isArray(item.leftSteps) ? item.leftSteps.map(s => ensureMathDelimiters(String(s || ''))) : [],
+    leftConclusion: ensureMathDelimiters(String(item.leftConclusion || '')),
+    rightTitle: ensureMathDelimiters(String(item.rightTitle || '')),
+    rightSteps: Array.isArray(item.rightSteps) ? item.rightSteps.map(s => ensureMathDelimiters(String(s || ''))) : [],
+    rightConclusion: ensureMathDelimiters(String(item.rightConclusion || '')),
     recommendedLines: Math.max(3, Math.min(14, Number(item.recommendedLines || item.recommended_lines) || questionsToSolve[idx]?.linesCount || 6)),
   }));
 }
