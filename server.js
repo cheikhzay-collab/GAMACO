@@ -32,7 +32,7 @@ try {
       }
     }
   }
-} catch (_) {}
+} catch (_) { }
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const DATA_DIR = path.join(__dirname, 'data');
@@ -177,7 +177,7 @@ const getExternalPersistentDir = () => {
     try {
       if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
       return p;
-    } catch (_) {}
+    } catch (_) { }
   }
   return null;
 };
@@ -212,10 +212,10 @@ const readDataFile = (fileName, defaultValue = []) => {
     try {
       const pContent = fs.readFileSync(persistentPath, 'utf8');
       const pParsed = JSON.parse(pContent);
-      
+
       // If local doesn't exist or is empty, copy from persistent
       if (!fs.existsSync(localPath)) {
-        try { fs.writeFileSync(localPath, pContent, 'utf8'); } catch (_) {}
+        try { fs.writeFileSync(localPath, pContent, 'utf8'); } catch (_) { }
         memoryCache.set(fileName, pParsed);
         return pParsed;
       }
@@ -226,7 +226,7 @@ const readDataFile = (fileName, defaultValue = []) => {
       if (Array.isArray(pParsed) && Array.isArray(lParsed) && pParsed.length > lParsed.length) {
         // Persistent has more items (e.g. after a redeploy checked out an older branch)
         memoryCache.set(fileName, pParsed);
-        try { fs.writeFileSync(localPath, pContent, 'utf8'); } catch (_) {}
+        try { fs.writeFileSync(localPath, pContent, 'utf8'); } catch (_) { }
         return pParsed;
       }
     } catch (e) {
@@ -241,7 +241,7 @@ const readDataFile = (fileName, defaultValue = []) => {
       if (persistentPath) {
         fs.writeFileSync(persistentPath, JSON.stringify(defaultValue, null, 2), 'utf8');
       }
-    } catch (_) {}
+    } catch (_) { }
     memoryCache.set(fileName, defaultValue);
     return defaultValue;
   }
@@ -252,7 +252,7 @@ const readDataFile = (fileName, defaultValue = []) => {
     memoryCache.set(fileName, parsed);
     // Sync to persistent folder if not yet copied
     if (persistentPath && !fs.existsSync(persistentPath)) {
-      try { fs.writeFileSync(persistentPath, content, 'utf8'); } catch (_) {}
+      try { fs.writeFileSync(persistentPath, content, 'utf8'); } catch (_) { }
     }
     return parsed;
   } catch (err) {
@@ -260,6 +260,12 @@ const readDataFile = (fileName, defaultValue = []) => {
     memoryCache.set(fileName, defaultValue);
     return defaultValue;
   }
+};
+
+const atomicWriteFileSync = (targetPath, content) => {
+  const tmpPath = `${targetPath}.tmp.${process.pid}.${Date.now()}`;
+  fs.writeFileSync(tmpPath, content, 'utf8');
+  fs.renameSync(tmpPath, targetPath);
 };
 
 const writeDataFile = (fileName, data) => {
@@ -275,18 +281,14 @@ const writeDataFile = (fileName, data) => {
     pendingWrites.delete(fileName);
     const jsonStr = JSON.stringify(data, null, 2);
     try {
-      fs.writeFile(localPath, jsonStr, 'utf8', (err) => {
-        if (err) console.error(`[Server] Error writing local ${fileName}:`, err.message);
-      });
+      atomicWriteFileSync(localPath, jsonStr);
     } catch (err) {
       console.error(`[Server] Error writing local ${fileName}:`, err.message);
     }
 
     if (persistentPath) {
       try {
-        fs.writeFile(persistentPath, jsonStr, 'utf8', (err) => {
-          if (err) console.error(`[Server] Error writing persistent ${fileName}:`, err.message);
-        });
+        atomicWriteFileSync(persistentPath, jsonStr);
       } catch (err) {
         console.error(`[Server] Error writing persistent ${fileName}:`, err.message);
       }
@@ -304,12 +306,12 @@ const flushPendingWritesSync = () => {
     if (data !== undefined) {
       const jsonStr = JSON.stringify(data, null, 2);
       try {
-        fs.writeFileSync(path.join(DATA_DIR, fileName), jsonStr, 'utf8');
-      } catch (_) {}
+        atomicWriteFileSync(path.join(DATA_DIR, fileName), jsonStr);
+      } catch (_) { }
       if (PERSISTENT_DIR) {
         try {
-          fs.writeFileSync(path.join(PERSISTENT_DIR, fileName), jsonStr, 'utf8');
-        } catch (_) {}
+          atomicWriteFileSync(path.join(PERSISTENT_DIR, fileName), jsonStr);
+        } catch (_) { }
       }
     }
   }
@@ -471,19 +473,6 @@ const initMySQL = async () => {
     `);
 
     await connection.query(`
-      CREATE TABLE IF NOT EXISTS tbl_logbook (
-        id VARCHAR(128) PRIMARY KEY,
-        class_id VARCHAR(64),
-        entry_date VARCHAR(32),
-        data LONGTEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        INDEX idx_logbook_class (class_id),
-        INDEX idx_logbook_date (entry_date)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-    `);
-
-    await connection.query(`
       CREATE TABLE IF NOT EXISTS tbl_devoir_prime (
         id VARCHAR(64) PRIMARY KEY,
         lesson_id VARCHAR(64) NOT NULL,
@@ -544,27 +533,30 @@ const initMySQL = async () => {
       "ALTER TABLE tbl_solutions MODIFY COLUMN solution_json LONGTEXT"
     ];
     for (const alt of safeAlters) {
-      await connection.query(alt).catch(() => {});
+      await connection.query(alt).catch(() => { });
     }
 
-    // 1. Synchronize Configuration (tbl_config <-> config.json)
+    // 1. Synchronize Configuration: MySQL is authoritative (seed from config.json ONLY if tbl_config is empty)
     const fileConfig = readDataFile('config.json', {});
-    for (const [k, v] of Object.entries(fileConfig)) {
-      if (k && v !== undefined && k !== 'key') {
-        await connection.query(
-          'INSERT IGNORE INTO tbl_config (key_name, value) VALUES (?, ?)',
-          [k, JSON.stringify(v)]
-        ).catch(() => {});
-      }
-    }
     const [dbConfigRows] = await connection.query('SELECT key_name, value FROM tbl_config');
     const dbConfig = {};
-    for (const r of dbConfigRows) {
-      dbConfig[r.key_name] = safeJsonParse(r.value, r.value);
+    if (dbConfigRows.length > 0) {
+      for (const r of dbConfigRows) {
+        dbConfig[r.key_name] = safeJsonParse(r.value, r.value);
+      }
+    } else {
+      for (const [k, v] of Object.entries(fileConfig)) {
+        if (k && v !== undefined && k !== 'key') {
+          await connection.query(
+            'INSERT IGNORE INTO tbl_config (key_name, value) VALUES (?, ?)',
+            [k, JSON.stringify(v)]
+          ).catch(() => { });
+          dbConfig[k] = v;
+        }
+      }
     }
-    const mergedConfig = { ...fileConfig, ...dbConfig };
-    writeDataFile('config.json', mergedConfig);
-    console.log(`[Server] Synced ${Object.keys(mergedConfig).length} configuration settings with MySQL.`);
+    writeDataFile('config.json', dbConfig);
+    console.log(`[Server] Synced ${Object.keys(dbConfig).length} configuration settings from MySQL.`);
 
     // 2. Synchronize Lessons: MySQL is the authoritative source of truth!
     // Only seed from JSON if tbl_lessons is completely empty (prevents resurrecting deleted lessons after redeploys).
@@ -586,7 +578,7 @@ const initMySQL = async () => {
         await connection.query(
           'INSERT IGNORE INTO tbl_lessons (id, title, subject, level, doc_type, data) VALUES (?, ?, ?, ?, ?, ?)',
           [l.id, l.title || '', l.subject || '', l.level || '', dt, JSON.stringify(l)]
-        ).catch(() => {});
+        ).catch(() => { });
         consolidatedLessons.set(l.id, l);
       }
     }
@@ -619,7 +611,7 @@ const initMySQL = async () => {
         await connection.query(
           'INSERT IGNORE INTO tbl_exams (id, title, level, data) VALUES (?, ?, ?, ?)',
           [ex.id, title, level, JSON.stringify(ex)]
-        ).catch(() => {});
+        ).catch(() => { });
         consolidatedExams.set(ex.id, ex);
       }
     }
@@ -650,7 +642,7 @@ const initMySQL = async () => {
         await connection.query(
           'INSERT IGNORE INTO tbl_classes (id, name, data) VALUES (?, ?, ?)',
           [c.id, c.name || '', JSON.stringify(c)]
-        ).catch(() => {});
+        ).catch(() => { });
         consolidatedClasses.set(c.id, c);
       }
     }
@@ -678,7 +670,7 @@ const initMySQL = async () => {
         await connection.query(
           'INSERT IGNORE INTO tbl_users (id, email, password, role, tier, data) VALUES (?, ?, ?, ?, ?, ?)',
           [uid, u.email || `${uid}@local.user`, u.password || 'student123', u.role || 'student', u.tier || 'freemium', JSON.stringify(u)]
-        ).catch(() => {});
+        ).catch(() => { });
         consolidatedUsers.set(uid, u);
       }
     }
@@ -705,7 +697,7 @@ const initMySQL = async () => {
         await connection.query(
           'INSERT IGNORE INTO tbl_grades (id, lesson_id, exam_id, class_id, title, doc_type, total_points, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
           [g.id, g.lessonId || g.lesson_id || null, g.examId || g.exam_id || null, g.classId || g.class_id || null, g.title || '', g.docType || g.doc_type || 'homework', parseFloat(g.totalPoints || g.total_points) || 20, JSON.stringify(g)]
-        ).catch(() => {});
+        ).catch(() => { });
         consolidatedGrades.set(g.id, g);
       }
     }
@@ -768,7 +760,7 @@ const initMySQL = async () => {
         if (!parsed) continue;
         const resolvedDocType = parsed.docType || parsed.doc_type || parsed.content?.doc_type || 'course';
         if (!lr.doc_type || lr.doc_type !== resolvedDocType) {
-          await connection.query('UPDATE tbl_lessons SET doc_type = ? WHERE id = ?', [resolvedDocType, lr.id]).catch(() => {});
+          await connection.query('UPDATE tbl_lessons SET doc_type = ? WHERE id = ?', [resolvedDocType, lr.id]).catch(() => { });
         }
         if (resolvedDocType === 'devoir_prime' || parsed.content?.devoir_prime_exercises) {
           const dpMeta = parsed.content?.devoir_prime_meta || {};
@@ -790,7 +782,7 @@ const initMySQL = async () => {
               JSON.stringify(dpMeta),
               JSON.stringify(dpExercises)
             ]
-          ).catch(() => {});
+          ).catch(() => { });
           dpSyncedCount++;
         }
 
@@ -803,12 +795,12 @@ const initMySQL = async () => {
               `INSERT IGNORE INTO tbl_solutions (id, lesson_id, section_id, question_id, doc_type, solution_text, solution_json)
                VALUES (?, ?, ?, '', ?, ?, NULL)`,
               [solId, lr.id, String(sec.id).slice(0, 128), resolvedDocType, String(sec.solution)]
-            ).catch(() => {});
+            ).catch(() => { });
           }
         }
       }
       console.log(`[Server] Verified tbl_lessons.doc_type, tbl_solutions, and synced ${dpSyncedCount} DEVOIR PRIME sheets.`);
-    } catch (_) {}
+    } catch (_) { }
 
     connection.release();
     isMySqlActive = true;
@@ -899,6 +891,444 @@ const serveStatic = (res, filePath) => {
     const stream = fs.createReadStream(filePath);
     stream.pipe(res);
   });
+};
+
+// ── Unified Server-Side AI Key Resolver (MySQL tbl_config -> config.json -> .env -> process.env) ──
+const AI_PROVIDER_KEY_MAP = {
+  gemini: { cfgField: 'geminiApiKey', envVars: ['GEMINI_API_KEY'], minLen: 20 },
+  openai: { cfgField: 'openaiApiKey', envVars: ['OPENAI_API_KEY'], minLen: 15 },
+  deepseek: { cfgField: 'deepseekApiKey', envVars: ['DEEPSEEK_API_KEY'], minLen: 10 },
+  claude: { cfgField: 'claudeApiKey', envVars: ['CLAUDE_API_KEY', 'ANTHROPIC_API_KEY'], minLen: 15 },
+};
+
+const readEnvFileKey = (envVarName) => {
+  try {
+    const envPath = path.join(__dirname, '.env');
+    if (!fs.existsSync(envPath)) return '';
+    const raw = fs.readFileSync(envPath, 'utf8');
+    const re = new RegExp(`^\\s*${envVarName}\\s*=\\s*([^\\r\\n]+)`, 'm');
+    const m = raw.match(re);
+    if (m && m[1]) {
+      return m[1].trim().replace(/^["']|["']$/g, '');
+    }
+  } catch (_) {}
+  return '';
+};
+
+const isValidAiKeyValue = (val, minLen = 10) => {
+  if (typeof val !== 'string') return false;
+  const cleaned = val.trim().replace(/^["']|["']$/g, '');
+  if (!cleaned || cleaned.length < minLen) return false;
+  if (/^(MY_GEMINI_API_KEY|YOUR_API_KEY|PLACEHOLDER)/i.test(cleaned)) return false;
+  return true;
+};
+
+const resolveServerAiKey = async (provider, clientKey = '') => {
+  const spec = AI_PROVIDER_KEY_MAP[provider] || AI_PROVIDER_KEY_MAP.gemini;
+  const minLen = spec.minLen || 10;
+
+  if (isValidAiKeyValue(clientKey, minLen)) {
+    return clientKey.trim().replace(/^["']|["']$/g, '');
+  }
+
+  // 1. Live MySQL tbl_config -> ai_settings
+  if (isMySqlActive && dbPool) {
+    try {
+      const [rows] = await dbPool.query("SELECT value FROM tbl_config WHERE key_name = 'ai_settings'");
+      if (rows.length > 0) {
+        const aiCfg = safeJsonParse(rows[0].value, {});
+        const dbVal = aiCfg?.[spec.cfgField];
+        if (isValidAiKeyValue(dbVal, minLen)) {
+          return dbVal.trim().replace(/^["']|["']$/g, '');
+        }
+      }
+    } catch (_) {}
+  }
+
+  // 2. config.json -> ai_settings
+  try {
+    const cfg = readDataFile('config.json', {});
+    const cfgVal = cfg?.ai_settings?.[spec.cfgField];
+    if (isValidAiKeyValue(cfgVal, minLen)) {
+      return cfgVal.trim().replace(/^["']|["']$/g, '');
+    }
+  } catch (_) {}
+
+  // 3. .env file or process.env
+  for (const envName of spec.envVars) {
+    const fromEnvFile = readEnvFileKey(envName);
+    if (isValidAiKeyValue(fromEnvFile, minLen)) return fromEnvFile;
+    const fromProcess = (process.env[envName] || '').trim().replace(/^["']|["']$/g, '');
+    if (isValidAiKeyValue(fromProcess, minLen)) return fromProcess;
+  }
+
+  return '';
+};
+
+// ── Automatic Rolling Database Protection & Snapshot Engine ──────────────────
+const MAX_ROLLING_SNAPSHOTS = 30;
+let lastSnapshotContentHash = null;
+
+const getSnapshotsDir = () => {
+  const base = PERSISTENT_DIR || DATA_DIR;
+  const dir = path.join(base, 'snapshots');
+  try {
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  } catch (_) {}
+  return dir;
+};
+
+const buildFullDatabaseBackupPayload = async () => {
+  let exams = [];
+  let lessons = [];
+  let classes = [];
+  let users = [];
+  let grades = [];
+  let logbook = [];
+  let devoirPrime = [];
+  let solutions = [];
+  let assets = [];
+  let config = {};
+
+  if (isMySqlActive && dbPool) {
+    const [examRows] = await dbPool.query('SELECT data FROM tbl_exams').catch(() => [[]]);
+    exams = examRows.map(r => safeJsonParse(r.data, {}));
+
+    const [lessonRows] = await dbPool.query('SELECT data FROM tbl_lessons').catch(() => [[]]);
+    lessons = lessonRows.map(r => safeJsonParse(r.data, {}));
+
+    const [classRows] = await dbPool.query('SELECT data FROM tbl_classes').catch(() => [[]]);
+    classes = classRows.map(r => safeJsonParse(r.data, {}));
+
+    const [userRows] = await dbPool.query('SELECT data FROM tbl_users').catch(() => [[]]);
+    users = userRows.map(r => safeJsonParse(r.data, {}));
+
+    const [gradeRows] = await dbPool.query('SELECT data FROM tbl_grades').catch(() => [[]]);
+    grades = gradeRows.map(r => safeJsonParse(r.data, {}));
+
+    const [logbookRows] = await dbPool.query('SELECT data FROM tbl_logbook').catch(() => [[]]);
+    logbook = logbookRows.map(r => safeJsonParse(r.data, {}));
+
+    const [dpRows] = await dbPool.query('SELECT * FROM tbl_devoir_prime').catch(() => [[]]);
+    devoirPrime = dpRows.map(r => ({
+      ...r,
+      meta: safeJsonParse(r.meta_json, {}),
+      exercises: safeJsonParse(r.exercises_json, [])
+    }));
+
+    const [solRows] = await dbPool.query('SELECT * FROM tbl_solutions').catch(() => [[]]);
+    solutions = solRows;
+
+    const [assetRows] = await dbPool.query('SELECT asset_path, mime_type, data FROM tbl_assets').catch(() => [[]]);
+    assets = assetRows;
+
+    const [configRows] = await dbPool.query('SELECT key_name, value FROM tbl_config').catch(() => [[]]);
+    for (const row of configRows) {
+      config[row.key_name] = safeJsonParse(row.value, row.value);
+    }
+  } else {
+    exams = readDataFile('exams.json', []);
+    lessons = readDataFile('lessons.json', []);
+    classes = readDataFile('classes.json', []);
+    users = readDataFile('users.json', []);
+    grades = readDataFile('grades.json', []);
+    logbook = readDataFile('logbook.json', []);
+    devoirPrime = readDataFile('devoir_prime.json', []);
+    solutions = readDataFile('solutions.json', []);
+    config = readDataFile('config.json', {});
+  }
+
+  return {
+    version: '1.3',
+    timestamp: new Date().toISOString(),
+    stats: {
+      examsCount: exams.length,
+      lessonsCount: lessons.length,
+      classesCount: classes.length,
+      usersCount: users.length,
+      gradesCount: grades.length,
+      logbookCount: logbook.length,
+      devoirPrimeCount: devoirPrime.length,
+      solutionsCount: solutions.length,
+      assetsCount: assets.length
+    },
+    exams,
+    lessons,
+    classes,
+    users,
+    grades,
+    logbook,
+    devoirPrime,
+    solutions,
+    assets,
+    config
+  };
+};
+
+const restoreFullDatabasePayload = async (payload) => {
+  const {
+    exams = [],
+    lessons = [],
+    classes = [],
+    users = [],
+    grades = [],
+    logbook = [],
+    devoirPrime = [],
+    solutions = [],
+    assets = [],
+    config = {}
+  } = payload || {};
+
+  if (isMySqlActive && dbPool) {
+    if (Array.isArray(exams) && exams.length > 0) {
+      for (const ex of exams) {
+        if (ex && ex.id) {
+          await dbPool.query(
+            'INSERT INTO tbl_exams (id, title, level, data) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE title = VALUES(title), level = VALUES(level), data = VALUES(data), updated_at = NOW()',
+            [ex.id, ex.name || ex.title || '', ex.level || '', JSON.stringify(ex)]
+          ).catch(() => {});
+        }
+      }
+    }
+    if (Array.isArray(lessons) && lessons.length > 0) {
+      for (const l of lessons) {
+        if (l && l.id) {
+          const dt = l.docType || l.doc_type || l.content?.doc_type || 'course';
+          await dbPool.query(
+            'INSERT INTO tbl_lessons (id, title, subject, level, doc_type, data) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE title = VALUES(title), subject = VALUES(subject), level = VALUES(level), doc_type = VALUES(doc_type), data = VALUES(data), updated_at = NOW()',
+            [l.id, l.title || '', l.subject || '', l.level || '', dt, JSON.stringify(l)]
+          ).catch(() => {});
+        }
+      }
+    }
+    if (Array.isArray(classes) && classes.length > 0) {
+      for (const c of classes) {
+        if (c && c.id) {
+          await dbPool.query(
+            'INSERT INTO tbl_classes (id, name, data) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name), data = VALUES(data), updated_at = NOW()',
+            [c.id, c.name || '', JSON.stringify(c)]
+          ).catch(() => {});
+        }
+      }
+    }
+    if (Array.isArray(users) && users.length > 0) {
+      for (const u of users) {
+        const uid = u?.id || u?.uid;
+        if (uid) {
+          await dbPool.query(
+            'INSERT INTO tbl_users (id, email, password, role, tier, data) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE email = VALUES(email), role = VALUES(role), tier = VALUES(tier), data = VALUES(data), updated_at = NOW()',
+            [uid, u.email || `${uid}@local.user`, u.password || hashPassword('student123'), u.role || 'student', u.tier || 'freemium', JSON.stringify(u)]
+          ).catch(() => {});
+        }
+      }
+    }
+    if (Array.isArray(grades) && grades.length > 0) {
+      for (const g of grades) {
+        if (g && g.id) {
+          await dbPool.query(
+            'INSERT INTO tbl_grades (id, lesson_id, exam_id, class_id, title, doc_type, total_points, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE lesson_id = VALUES(lesson_id), exam_id = VALUES(exam_id), class_id = VALUES(class_id), title = VALUES(title), doc_type = VALUES(doc_type), total_points = VALUES(total_points), data = VALUES(data), updated_at = NOW()',
+            [g.id, g.lessonId || g.lesson_id || null, g.examId || g.exam_id || null, g.classId || g.class_id || null, g.title || '', g.docType || g.doc_type || 'homework', parseFloat(g.totalPoints || g.total_points) || 20, JSON.stringify(g)]
+          ).catch(() => {});
+        }
+      }
+    }
+    if (Array.isArray(logbook) && logbook.length > 0) {
+      for (const lb of logbook) {
+        if (lb && lb.id) {
+          await dbPool.query(
+            'INSERT INTO tbl_logbook (id, class_id, entry_date, data) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE class_id = VALUES(class_id), entry_date = VALUES(entry_date), data = VALUES(data), updated_at = NOW()',
+            [String(lb.id).slice(0, 128), lb.classId || lb.class_id || null, lb.date || null, JSON.stringify(lb)]
+          ).catch(() => {});
+        }
+      }
+    }
+    if (Array.isArray(devoirPrime) && devoirPrime.length > 0) {
+      for (const dp of devoirPrime) {
+        if (dp && dp.id && dp.lesson_id) {
+          await dbPool.query(
+            'INSERT INTO tbl_devoir_prime (id, lesson_id, title, level, semester, academic_year, teacher, total_points, meta_json, exercises_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE title = VALUES(title), level = VALUES(level), semester = VALUES(semester), academic_year = VALUES(academic_year), teacher = VALUES(teacher), total_points = VALUES(total_points), meta_json = VALUES(meta_json), exercises_json = VALUES(exercises_json), updated_at = NOW()',
+            [dp.id, dp.lesson_id, dp.title || '', dp.level || '', dp.semester || '', dp.academic_year || '', dp.teacher || '', parseFloat(dp.total_points) || 20, typeof dp.meta_json === 'string' ? dp.meta_json : JSON.stringify(dp.meta || {}), typeof dp.exercises_json === 'string' ? dp.exercises_json : JSON.stringify(dp.exercises || [])]
+          ).catch(() => {});
+        }
+      }
+    }
+    if (Array.isArray(solutions) && solutions.length > 0) {
+      for (const s of solutions) {
+        if (s && s.id && s.lesson_id) {
+          await dbPool.query(
+            'INSERT INTO tbl_solutions (id, lesson_id, section_id, question_id, doc_type, solution_text, solution_json) VALUES (?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE doc_type = VALUES(doc_type), solution_text = VALUES(solution_text), solution_json = VALUES(solution_json), updated_at = NOW()',
+            [s.id, s.lesson_id, s.section_id || 'sec-1', s.question_id || '', s.doc_type || 'homework', s.solution_text || '', s.solution_json || null]
+          ).catch(() => {});
+        }
+      }
+    }
+    if (Array.isArray(assets) && assets.length > 0) {
+      for (const a of assets) {
+        if (a && a.asset_path && a.data) {
+          await dbPool.query(
+            'INSERT INTO tbl_assets (asset_path, data, mime_type) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE data = VALUES(data), mime_type = VALUES(mime_type), updated_at = NOW()',
+            [a.asset_path, a.data, a.mime_type || 'image/png']
+          ).catch(() => {});
+        }
+      }
+    }
+    if (config && typeof config === 'object') {
+      for (const [k, v] of Object.entries(config)) {
+        if (k && v !== undefined) {
+          await dbPool.query(
+            'INSERT INTO tbl_config (key_name, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = NOW()',
+            [k, JSON.stringify(v)]
+          ).catch(() => {});
+        }
+      }
+    }
+  }
+
+  if (Array.isArray(exams)) writeDataFile('exams.json', exams);
+  if (Array.isArray(lessons)) writeDataFile('lessons.json', lessons);
+  if (Array.isArray(classes)) writeDataFile('classes.json', classes);
+  if (Array.isArray(users)) writeDataFile('users.json', users);
+  if (Array.isArray(grades)) writeDataFile('grades.json', grades);
+  if (Array.isArray(logbook)) writeDataFile('logbook.json', logbook);
+  if (Array.isArray(devoirPrime)) writeDataFile('devoir_prime.json', devoirPrime);
+  if (Array.isArray(solutions)) writeDataFile('solutions.json', solutions);
+  if (config && typeof config === 'object') {
+    const curr = readDataFile('config.json', {});
+    writeDataFile('config.json', { ...curr, ...config });
+  }
+  flushPendingWritesSync();
+
+  return {
+    exams: exams.length,
+    lessons: lessons.length,
+    classes: classes.length,
+    users: users.length,
+    grades: grades.length,
+    logbook: logbook.length,
+    devoirPrime: devoirPrime.length,
+    solutions: solutions.length,
+    assets: assets.length
+  };
+};
+
+const createDatabaseSnapshot = async (reason = 'auto', options = {}) => {
+  const { force = false } = options;
+  try {
+    const backup = await buildFullDatabaseBackupPayload();
+    const totalRows =
+      (backup.stats.lessonsCount || 0) +
+      (backup.stats.examsCount || 0) +
+      (backup.stats.classesCount || 0) +
+      (backup.stats.logbookCount || 0) +
+      (backup.stats.usersCount || 0);
+
+    // Avoid overwriting good history with empty boot snapshots unless forced
+    if (!force && totalRows === 0) {
+      return { skipped: true, reason: 'empty_db' };
+    }
+
+    const hashPayload = JSON.stringify({
+      stats: backup.stats,
+      lessons: backup.lessons,
+      classes: backup.classes,
+      logbook: backup.logbook,
+      exams: backup.exams,
+      grades: backup.grades,
+      users: backup.users,
+      config: backup.config
+    });
+    const contentHash = crypto.createHash('sha256').update(hashPayload).digest('hex');
+
+    if (!force && lastSnapshotContentHash === contentHash) {
+      return { skipped: true, reason: 'unchanged' };
+    }
+
+    const dir = getSnapshotsDir();
+    const existingFiles = fs.existsSync(dir)
+      ? fs.readdirSync(dir).filter(f => /^snapshot_[a-zA-Z0-9._-]+\.json$/.test(f)).sort().reverse()
+      : [];
+
+    // Check hash against latest snapshot on disk so restarts with zero DB changes don't duplicate
+    if (!force && existingFiles.length > 0) {
+      try {
+        const latestObj = JSON.parse(fs.readFileSync(path.join(dir, existingFiles[0]), 'utf8'));
+        if (latestObj?.meta?.contentHash === contentHash) {
+          lastSnapshotContentHash = contentHash;
+          return { skipped: true, reason: 'matches_latest_on_disk', file: existingFiles[0] };
+        }
+      } catch (_) {}
+    }
+
+    const safeReason = String(reason || 'auto').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 24) || 'auto';
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const fileName = `snapshot_${stamp}_${safeReason}.json`;
+    const filePath = path.join(dir, fileName);
+
+    const snapshotDoc = {
+      ...backup,
+      meta: {
+        fileName,
+        reason: safeReason,
+        createdAt: new Date().toISOString(),
+        persistentVolume: Boolean(PERSISTENT_DIR),
+        contentHash
+      }
+    };
+
+    const jsonStr = JSON.stringify(snapshotDoc);
+    atomicWriteFileSync(filePath, jsonStr);
+    lastSnapshotContentHash = contentHash;
+
+    // Prune older snapshots beyond rolling limit
+    const updatedFiles = fs.readdirSync(dir)
+      .filter(f => /^snapshot_[a-zA-Z0-9._-]+\.json$/.test(f))
+      .sort()
+      .reverse();
+    if (updatedFiles.length > MAX_ROLLING_SNAPSHOTS) {
+      for (const oldFile of updatedFiles.slice(MAX_ROLLING_SNAPSHOTS)) {
+        try { fs.unlinkSync(path.join(dir, oldFile)); } catch (_) {}
+      }
+    }
+
+    console.log(`[Snapshot] Saved ${fileName} (${Math.round(jsonStr.length / 1024)} KB, lessons=${backup.stats.lessonsCount}, classes=${backup.stats.classesCount}, logbook=${backup.stats.logbookCount})`);
+    return {
+      created: true,
+      fileName,
+      sizeKB: Math.round(jsonStr.length / 1024),
+      reason: safeReason,
+      createdAt: snapshotDoc.meta.createdAt,
+      stats: backup.stats
+    };
+  } catch (err) {
+    console.warn('[Snapshot] Snapshot creation warning:', err.message);
+    return { created: false, error: err.message };
+  }
+};
+
+const listDatabaseSnapshots = () => {
+  const dir = getSnapshotsDir();
+  if (!fs.existsSync(dir)) return [];
+  const files = fs.readdirSync(dir)
+    .filter(f => /^snapshot_[a-zA-Z0-9._-]+\.json$/.test(f))
+    .sort()
+    .reverse();
+
+  return files.map(fileName => {
+    const fullPath = path.join(dir, fileName);
+    try {
+      const stat = fs.statSync(fullPath);
+      const raw = JSON.parse(fs.readFileSync(fullPath, 'utf8'));
+      return {
+        fileName,
+        reason: raw?.meta?.reason || 'auto',
+        createdAt: raw?.meta?.createdAt || raw?.timestamp || stat.mtime.toISOString(),
+        sizeKB: Math.max(1, Math.round(stat.size / 1024)),
+        stats: raw?.stats || {}
+      };
+    } catch (_) {
+      return null;
+    }
+  }).filter(Boolean);
 };
 
 // ── API Request Handler (used by both Vite dev middleware & production server) ──
@@ -997,7 +1427,7 @@ export const handleApiRequest = async (req, res, next) => {
             if (check.needsUpgrade && password) {
               const upgraded = hashPassword(password);
               const safeUserData = stripSensitiveUser(user);
-              dbPool.query('UPDATE tbl_users SET password = ?, data = ? WHERE id = ?', [upgraded, JSON.stringify(safeUserData), row.id]).catch(() => {});
+              dbPool.query('UPDATE tbl_users SET password = ?, data = ? WHERE id = ?', [upgraded, JSON.stringify(safeUserData), row.id]).catch(() => { });
             }
           }
         }
@@ -1121,6 +1551,8 @@ export const handleApiRequest = async (req, res, next) => {
     pathname.startsWith('/api/extraction-tasks') ||
     pathname === '/api/gemini/generate' ||
     pathname === '/api/openai/generate' ||
+    pathname === '/api/deepseek/generate' ||
+    pathname === '/api/ai/status' ||
     pathname === '/api/ai/solve'
   ) {
     if (!isAdminSession) {
@@ -1135,7 +1567,6 @@ export const handleApiRequest = async (req, res, next) => {
       pathname === '/api/exams' || pathname.startsWith('/api/exams/') ||
       pathname === '/api/lessons' || pathname.startsWith('/api/lessons/') ||
       pathname === '/api/classes' || pathname.startsWith('/api/classes/') ||
-      pathname === '/api/logbook' || pathname.startsWith('/api/logbook/') ||
       pathname === '/api/grades' || pathname.startsWith('/api/grades/') ||
       pathname === '/api/devoir-prime' || pathname.startsWith('/api/devoir-prime/') ||
       pathname === '/api/solutions' || pathname.startsWith('/api/solutions/') ||
@@ -1231,7 +1662,7 @@ export const handleApiRequest = async (req, res, next) => {
             const ex = safeJsonParse(rows[0].data, null);
             if (ex) return sendJSON(res, 200, ex);
           }
-        } catch (_) {}
+        } catch (_) { }
       }
       const exams = readDataFile('exams.json', []);
       const found = exams.find(e => e.id === id);
@@ -1282,7 +1713,7 @@ export const handleApiRequest = async (req, res, next) => {
                     if (dpMeta && Object.keys(dpMeta).length > 0) lesson.content.devoir_prime_meta = dpMeta;
                     if (Array.isArray(dpExs) && dpExs.length > 0) lesson.content.devoir_prime_exercises = dpExs;
                   }
-                } catch (_) {}
+                } catch (_) { }
 
                 // Hydrate latest saved section solutions from tbl_solutions if missing in lesson JSON
                 try {
@@ -1293,12 +1724,12 @@ export const handleApiRequest = async (req, res, next) => {
                     if (lesson.content?.sections) lesson.content.sections = applySols(lesson.content.sections);
                     if (lesson.sections) lesson.sections = applySols(lesson.sections);
                   }
-                } catch (_) {}
+                } catch (_) { }
 
                 return sendJSON(res, 200, lesson);
               }
             }
-          } catch (_) {}
+          } catch (_) { }
         }
         const lessons = readDataFile('lessons.json', []);
         const found = lessons.find(l => l.id === singleId);
@@ -1366,7 +1797,7 @@ export const handleApiRequest = async (req, res, next) => {
               if (parsedEx?.createdAt) existingCreatedAt = parsedEx.createdAt;
               else if (parsedEx?.created_at) existingCreatedAt = parsedEx.created_at;
             }
-          } catch (_) {}
+          } catch (_) { }
         }
         if (!existingCreatedAt) {
           const fileLessons = readDataFile('lessons.json', []);
@@ -1379,6 +1810,7 @@ export const handleApiRequest = async (req, res, next) => {
         lesson.createdAt = createdAt;
         lesson.created_at = createdAt;
 
+        // Normalize docType and isActive
         // Normalize docType, isActive and isArchived
         const docType = lesson.docType || lesson.doc_type || lesson.content?.doc_type || 'course';
         lesson.docType = docType;
@@ -1420,7 +1852,7 @@ export const handleApiRequest = async (req, res, next) => {
                 JSON.stringify(dpMeta),
                 JSON.stringify(dpExercises)
               ]
-            ).catch(() => {});
+            ).catch(() => { });
 
             for (const ex of dpExercises) {
               for (const q of (ex.questions || [])) {
@@ -1434,7 +1866,7 @@ export const handleApiRequest = async (req, res, next) => {
                      VALUES (?, ?, ?, ?, 'devoir_prime', ?, ?)
                      ON DUPLICATE KEY UPDATE solution_text = VALUES(solution_text), solution_json = VALUES(solution_json), updated_at = NOW()`,
                     [solId, targetId, String(ex.id || 'ex').slice(0, 128), String(q.id || '').slice(0, 128), solText, JSON.stringify(q)]
-                  ).catch(() => {});
+                  ).catch(() => { });
                 }
               }
             }
@@ -1450,7 +1882,7 @@ export const handleApiRequest = async (req, res, next) => {
                  VALUES (?, ?, ?, '', ?, ?, NULL)
                  ON DUPLICATE KEY UPDATE solution_text = VALUES(solution_text), doc_type = VALUES(doc_type), updated_at = NOW()`,
                 [solId, targetId, String(sec.id).slice(0, 128), docType, String(sec.solution)]
-              ).catch(() => {});
+              ).catch(() => { });
             }
           }
         }
@@ -1504,7 +1936,7 @@ export const handleApiRequest = async (req, res, next) => {
               const cls = safeJsonParse(rows[0].data, null);
               if (cls) return sendJSON(res, 200, cls);
             }
-          } catch (_) {}
+          } catch (_) { }
         }
         const classes = readDataFile('classes.json', []);
         const found = classes.find(c => c.id === singleId);
@@ -1709,7 +2141,7 @@ export const handleApiRequest = async (req, res, next) => {
               const gr = safeJsonParse(rows[0].data, null);
               if (gr) return sendJSON(res, 200, gr);
             }
-          } catch (_) {}
+          } catch (_) { }
         }
         const fileGrades = readDataFile('grades.json', []);
         const found = fileGrades.find(g => g.id === singleId);
@@ -1736,7 +2168,7 @@ export const handleApiRequest = async (req, res, next) => {
           const [rows] = await dbPool.query(query, params);
           const grades = rows.map(r => safeJsonParse(r.data, null)).filter(Boolean);
           if (grades.length > 0) return sendJSON(res, 200, grades);
-        } catch (_) {}
+        } catch (_) { }
       }
 
       let fileGrades = readDataFile('grades.json', []);
@@ -1787,7 +2219,7 @@ export const handleApiRequest = async (req, res, next) => {
     if (req.method === 'DELETE') {
       const id = singleId || parsedUrl.searchParams.get('id') || parsedUrl.searchParams.get('lesson_id');
       if (isMySqlActive && id) {
-        await dbPool.query('DELETE FROM tbl_grades WHERE id = ? OR lesson_id = ?', [id, id]).catch(() => {});
+        await dbPool.query('DELETE FROM tbl_grades WHERE id = ? OR lesson_id = ?', [id, id]).catch(() => { });
       }
       let fileGrades = readDataFile('grades.json', []);
       fileGrades = fileGrades.filter(g => g.id !== id && g.lessonId !== id && g.lesson_id !== id);
@@ -1809,7 +2241,7 @@ export const handleApiRequest = async (req, res, next) => {
               const u = safeJsonParse(rows[0].data, null);
               if (u) return sendJSON(res, 200, stripSensitiveUser(u));
             }
-          } catch (_) {}
+          } catch (_) { }
         }
         const users = readDataFile('users.json', []);
         const found = users.find(u => u.id === singleId || u.uid === singleId);
@@ -1823,7 +2255,7 @@ export const handleApiRequest = async (req, res, next) => {
           const [rows] = await dbPool.query('SELECT data FROM tbl_users ORDER BY updated_at DESC');
           const users = rows.map(r => stripSensitiveUser(safeJsonParse(r.data, null))).filter(Boolean);
           if (users.length > 0) return sendJSON(res, 200, users);
-        } catch (_) {}
+        } catch (_) { }
       }
       return sendJSON(res, 200, fileUsers);
     }
@@ -1911,20 +2343,74 @@ export const handleApiRequest = async (req, res, next) => {
     if (req.method === 'POST') {
       try {
         const payload = await getBody(req);
-        if (isMySqlActive) {
-          for (const [k, v] of Object.entries(payload)) {
-            if (k && v !== undefined) {
-              await dbPool.query(
-                'INSERT INTO tbl_config (key_name, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = NOW()',
-                [k, JSON.stringify(v)]
-              );
+        const existingFileCfg = readDataFile('config.json', {});
+        const mergedOut = { ...existingFileCfg };
+
+        const MERGEABLE_OBJECT_KEYS = new Set([
+          'ai_settings',
+          'branding',
+          'logbook_style_settings',
+          'pdf_settings',
+          'flashcard_settings',
+          'omr_scanner_settings',
+          'whatsapp_settings',
+          'exam_settings',
+          'security_settings',
+          'classes_settings'
+        ]);
+
+        for (const [k, v] of Object.entries(payload || {})) {
+          if (!k || v === undefined) continue;
+          let finalVal = v;
+
+          // Deep-merge nested config objects (especially ai_settings) so saving one API key NEVER wipes out other providers!
+          if (MERGEABLE_OBJECT_KEYS.has(k) && v && typeof v === 'object' && !Array.isArray(v)) {
+            let currentObj = (existingFileCfg[k] && typeof existingFileCfg[k] === 'object' && !Array.isArray(existingFileCfg[k]))
+              ? existingFileCfg[k]
+              : {};
+            if (isMySqlActive) {
+              try {
+                const [rows] = await dbPool.query('SELECT value FROM tbl_config WHERE key_name = ?', [k]);
+                if (rows.length > 0) {
+                  const parsedDb = safeJsonParse(rows[0].value, {});
+                  if (parsedDb && typeof parsedDb === 'object' && !Array.isArray(parsedDb)) {
+                    currentObj = { ...currentObj, ...parsedDb };
+                  }
+                }
+              } catch (_) {}
+            }
+            // For ai_settings, never let an empty string overwrite an existing non-empty key unless explicitly intended
+            if (k === 'ai_settings') {
+              const nextAi = { ...currentObj };
+              for (const [ak, av] of Object.entries(v)) {
+                if (av === undefined) continue;
+                if (/ApiKey$/i.test(ak) && av === '' && currentObj[ak] && Object.keys(v).length === 1) {
+                  nextAi[ak] = '';
+                } else if (/ApiKey$/i.test(ak) && !av && currentObj[ak]) {
+                  // Preserve existing key when bulk-saving settings without re-typing this key
+                  continue;
+                } else {
+                  nextAi[ak] = av;
+                }
+              }
+              finalVal = nextAi;
+            } else {
+              finalVal = { ...currentObj, ...v };
             }
           }
+
+          if (isMySqlActive) {
+            await dbPool.query(
+              'INSERT INTO tbl_config (key_name, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = NOW()',
+              [k, JSON.stringify(finalVal)]
+            );
+          }
+          mergedOut[k] = finalVal;
         }
-        const existing = readDataFile('config.json', {});
-        const updated = { ...existing, ...payload };
-        writeDataFile('config.json', updated);
-        return sendJSON(res, 200, { success: true, config: updated });
+
+        writeDataFile('config.json', mergedOut);
+        flushPendingWritesSync();
+        return sendJSON(res, 200, { success: true, config: mergedOut });
       } catch (err) {
         return sendJSON(res, 500, { error: err.message });
       }
@@ -1964,7 +2450,7 @@ export const handleApiRequest = async (req, res, next) => {
             'Cache-Control': 'public, max-age=31536000, immutable'
           });
           return res.end(buffer);
-        } catch (_) {}
+        } catch (_) { }
       }
       return sendJSON(res, 404, { error: 'Asset not found' });
     }
@@ -1994,88 +2480,10 @@ export const handleApiRequest = async (req, res, next) => {
     }
   }
 
-  // 8.5. Platform Factory Reset & Full Backup Endpoints
+  // 8.5. Platform Factory Reset, Full Backup & Auto-Snapshots Protection Endpoints
   if (pathname === '/api/admin/backup-full' && req.method === 'GET') {
     try {
-      let exams = [];
-      let lessons = [];
-      let classes = [];
-      let users = [];
-      let grades = [];
-      let logbook = [];
-      let devoirPrime = [];
-      let solutions = [];
-      let config = {};
-
-      if (isMySqlActive) {
-        const [examRows] = await dbPool.query('SELECT data FROM tbl_exams');
-        exams = examRows.map(r => safeJsonParse(r.data, {}));
-
-        const [lessonRows] = await dbPool.query('SELECT data FROM tbl_lessons');
-        lessons = lessonRows.map(r => safeJsonParse(r.data, {}));
-
-        const [classRows] = await dbPool.query('SELECT data FROM tbl_classes');
-        classes = classRows.map(r => safeJsonParse(r.data, {}));
-
-        const [userRows] = await dbPool.query('SELECT data FROM tbl_users');
-        users = userRows.map(r => safeJsonParse(r.data, {}));
-
-        const [gradeRows] = await dbPool.query('SELECT data FROM tbl_grades').catch(() => [[]]);
-        grades = gradeRows.map(r => safeJsonParse(r.data, {}));
-
-        const [logbookRows] = await dbPool.query('SELECT data FROM tbl_logbook').catch(() => [[]]);
-        logbook = logbookRows.map(r => safeJsonParse(r.data, {}));
-
-        const [dpRows] = await dbPool.query('SELECT * FROM tbl_devoir_prime').catch(() => [[]]);
-        devoirPrime = dpRows.map(r => ({
-          ...r,
-          meta: safeJsonParse(r.meta_json, {}),
-          exercises: safeJsonParse(r.exercises_json, [])
-        }));
-
-        const [solRows] = await dbPool.query('SELECT * FROM tbl_solutions').catch(() => [[]]);
-        solutions = solRows;
-
-        const [configRows] = await dbPool.query('SELECT key_name, value FROM tbl_config');
-        for (const row of configRows) {
-          config[row.key_name] = safeJsonParse(row.value, row.value);
-        }
-      } else {
-        exams = readDataFile('exams.json', []);
-        lessons = readDataFile('lessons.json', []);
-        classes = readDataFile('classes.json', []);
-        users = readDataFile('users.json', []);
-        grades = readDataFile('grades.json', []);
-        logbook = readDataFile('logbook.json', []);
-        devoirPrime = readDataFile('devoir_prime.json', []);
-        solutions = readDataFile('solutions.json', []);
-        config = readDataFile('config.json', {});
-      }
-
-      const backup = {
-        version: '1.2',
-        timestamp: new Date().toISOString(),
-        stats: {
-          examsCount: exams.length,
-          lessonsCount: lessons.length,
-          classesCount: classes.length,
-          usersCount: users.length,
-          gradesCount: grades.length,
-          logbookCount: logbook.length,
-          devoirPrimeCount: devoirPrime.length,
-          solutionsCount: solutions.length
-        },
-        exams,
-        lessons,
-        classes,
-        users,
-        grades,
-        logbook,
-        devoirPrime,
-        solutions,
-        config
-      };
-
+      const backup = await buildFullDatabaseBackupPayload();
       return sendJSON(res, 200, backup);
     } catch (err) {
       return sendJSON(res, 500, { error: err.message });
@@ -2085,127 +2493,100 @@ export const handleApiRequest = async (req, res, next) => {
   if (pathname === '/api/admin/restore-full' && req.method === 'POST') {
     try {
       const payload = await getBody(req);
-      const { exams = [], lessons = [], classes = [], users = [], grades = [], logbook = [], devoirPrime = [], solutions = [], config = {} } = payload || {};
+      // Always take an automatic safety snapshot BEFORE restoring
+      await createDatabaseSnapshot('pre-restore', { force: true });
+      const restored = await restoreFullDatabasePayload(payload);
+      return sendJSON(res, 200, { success: true, restored });
+    } catch (err) {
+      return sendJSON(res, 500, { error: err.message });
+    }
+  }
 
-      if (isMySqlActive) {
-        if (Array.isArray(exams) && exams.length > 0) {
-          for (const ex of exams) {
-            if (ex.id) {
-              await dbPool.query(
-                'INSERT INTO tbl_exams (id, data) VALUES (?, ?) ON DUPLICATE KEY UPDATE data = VALUES(data), updated_at = NOW()',
-                [ex.id, JSON.stringify(ex)]
-              );
-            }
-          }
-        }
-        if (Array.isArray(lessons) && lessons.length > 0) {
-          for (const l of lessons) {
-            if (l.id) {
-              const dt = l.docType || l.doc_type || l.content?.doc_type || 'course';
-              await dbPool.query(
-                'INSERT INTO tbl_lessons (id, title, subject, level, doc_type, data) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE title = VALUES(title), subject = VALUES(subject), level = VALUES(level), doc_type = VALUES(doc_type), data = VALUES(data), updated_at = NOW()',
-                [l.id, l.title || '', l.subject || '', l.level || '', dt, JSON.stringify(l)]
-              );
-            }
-          }
-        }
-        if (Array.isArray(classes) && classes.length > 0) {
-          for (const c of classes) {
-            if (c.id) {
-              await dbPool.query(
-                'INSERT INTO tbl_classes (id, name, data) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name), data = VALUES(data), updated_at = NOW()',
-                [c.id, c.name || '', JSON.stringify(c)]
-              );
-            }
-          }
-        }
-        if (Array.isArray(users) && users.length > 0) {
-          for (const u of users) {
-            const uid = u.id || u.uid;
-            if (uid) {
-              await dbPool.query(
-                'INSERT INTO tbl_users (id, email, password, role, tier, data) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE email = VALUES(email), role = VALUES(role), tier = VALUES(tier), data = VALUES(data), updated_at = NOW()',
-                [uid, u.email || `${uid}@local.user`, u.password || 'student123', u.role || 'student', u.tier || 'freemium', JSON.stringify(u)]
-              );
-            }
-          }
-        }
-        if (Array.isArray(grades) && grades.length > 0) {
-          for (const g of grades) {
-            if (g.id) {
-              await dbPool.query(
-                'INSERT INTO tbl_grades (id, lesson_id, exam_id, class_id, title, doc_type, total_points, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE lesson_id = VALUES(lesson_id), exam_id = VALUES(exam_id), class_id = VALUES(class_id), title = VALUES(title), doc_type = VALUES(doc_type), total_points = VALUES(total_points), data = VALUES(data), updated_at = NOW()',
-                [g.id, g.lessonId || g.lesson_id || null, g.examId || g.exam_id || null, g.classId || g.class_id || null, g.title || '', g.docType || g.doc_type || 'homework', parseFloat(g.totalPoints || g.total_points) || 20, JSON.stringify(g)]
-              );
-            }
-          }
-        }
-        if (Array.isArray(devoirPrime) && devoirPrime.length > 0) {
-          for (const dp of devoirPrime) {
-            if (dp.id && dp.lesson_id) {
-              await dbPool.query(
-                'INSERT INTO tbl_devoir_prime (id, lesson_id, title, level, semester, academic_year, teacher, total_points, meta_json, exercises_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE title = VALUES(title), level = VALUES(level), semester = VALUES(semester), academic_year = VALUES(academic_year), teacher = VALUES(teacher), total_points = VALUES(total_points), meta_json = VALUES(meta_json), exercises_json = VALUES(exercises_json), updated_at = NOW()',
-                [dp.id, dp.lesson_id, dp.title || '', dp.level || '', dp.semester || '', dp.academic_year || '', dp.teacher || '', parseFloat(dp.total_points) || 20, typeof dp.meta_json === 'string' ? dp.meta_json : JSON.stringify(dp.meta || {}), typeof dp.exercises_json === 'string' ? dp.exercises_json : JSON.stringify(dp.exercises || [])]
-              ).catch(() => {});
-            }
-          }
-        }
-        if (Array.isArray(solutions) && solutions.length > 0) {
-          for (const s of solutions) {
-            if (s.id && s.lesson_id) {
-              await dbPool.query(
-                'INSERT INTO tbl_solutions (id, lesson_id, section_id, question_id, doc_type, solution_text, solution_json) VALUES (?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE doc_type = VALUES(doc_type), solution_text = VALUES(solution_text), solution_json = VALUES(solution_json), updated_at = NOW()',
-                [s.id, s.lesson_id, s.section_id || 'sec-1', s.question_id || '', s.doc_type || 'homework', s.solution_text || '', s.solution_json || null]
-              ).catch(() => {});
-            }
-          }
-        }
-        if (Array.isArray(logbook) && logbook.length > 0) {
-          for (const lb of logbook) {
-            if (lb && lb.id) {
-              await dbPool.query(
-                'INSERT INTO tbl_logbook (id, class_id, entry_date, data) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE class_id = VALUES(class_id), entry_date = VALUES(entry_date), data = VALUES(data), updated_at = NOW()',
-                [String(lb.id).slice(0, 128), lb.classId || lb.class_id || null, lb.date || null, JSON.stringify(lb)]
-              ).catch(() => {});
-            }
-          }
-        }
-        if (config && typeof config === 'object') {
-          for (const [k, v] of Object.entries(config)) {
-            await dbPool.query(
-              'INSERT INTO tbl_config (key_name, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = NOW()',
-              [k, JSON.stringify(v)]
-            );
+  // Rolling Server Snapshots Management (Survives Hostinger Redeploys via External Persistent Volume)
+  if (pathname === '/api/admin/snapshots' && req.method === 'GET') {
+    try {
+      const snapshots = listDatabaseSnapshots();
+      const liveTables = {};
+      if (isMySqlActive && dbPool) {
+        const tblNames = [
+          'tbl_lessons', 'tbl_classes', 'tbl_logbook', 'tbl_exams',
+          'tbl_users', 'tbl_grades', 'tbl_devoir_prime', 'tbl_solutions',
+          'tbl_config', 'tbl_assets'
+        ];
+        for (const t of tblNames) {
+          try {
+            const [rows] = await dbPool.query(`SELECT COUNT(*) AS cnt FROM ${t}`);
+            liveTables[t] = Number(rows?.[0]?.cnt || 0);
+          } catch (_) {
+            liveTables[t] = 0;
           }
         }
       }
-
-      if (Array.isArray(exams)) writeDataFile('exams.json', exams);
-      if (Array.isArray(lessons)) writeDataFile('lessons.json', lessons);
-      if (Array.isArray(classes)) writeDataFile('classes.json', classes);
-      if (Array.isArray(users)) writeDataFile('users.json', users);
-      if (Array.isArray(grades)) writeDataFile('grades.json', grades);
-      if (Array.isArray(logbook)) writeDataFile('logbook.json', logbook);
-      if (Array.isArray(devoirPrime)) writeDataFile('devoir_prime.json', devoirPrime);
-      if (Array.isArray(solutions)) writeDataFile('solutions.json', solutions);
-      if (config && typeof config === 'object') {
-        const curr = readDataFile('config.json', {});
-        writeDataFile('config.json', { ...curr, ...config });
-      }
-
       return sendJSON(res, 200, {
-        success: true,
-        restored: {
-          exams: exams.length,
-          lessons: lessons.length,
-          classes: classes.length,
-          users: users.length,
-          grades: grades.length,
-          logbook: logbook.length,
-          devoirPrime: devoirPrime.length,
-          solutions: solutions.length
-        }
+        mysqlActive: isMySqlActive,
+        persistentDirActive: Boolean(PERSISTENT_DIR),
+        maxSnapshots: MAX_ROLLING_SNAPSHOTS,
+        snapshotCount: snapshots.length,
+        tables: liveTables,
+        snapshots
       });
+    } catch (err) {
+      return sendJSON(res, 500, { error: err.message });
+    }
+  }
+
+  if (pathname === '/api/admin/snapshots/create' && req.method === 'POST') {
+    try {
+      const body = await getBody(req).catch(() => ({}));
+      const reason = body?.reason || 'manual';
+      const result = await createDatabaseSnapshot(reason, { force: true });
+      if (!result.created) {
+        return sendJSON(res, 500, { error: result.error || 'Échec de création du snapshot.' });
+      }
+      return sendJSON(res, 200, { success: true, snapshot: result });
+    } catch (err) {
+      return sendJSON(res, 500, { error: err.message });
+    }
+  }
+
+  if (pathname === '/api/admin/snapshots/download' && req.method === 'GET') {
+    try {
+      const rawFile = parsedUrl.searchParams.get('file') || '';
+      const safeName = path.basename(rawFile);
+      if (!/^snapshot_[a-zA-Z0-9._-]+\.json$/.test(safeName)) {
+        return sendJSON(res, 400, { error: 'Nom de snapshot invalide.' });
+      }
+      const fullPath = path.join(getSnapshotsDir(), safeName);
+      if (!fs.existsSync(fullPath)) {
+        return sendJSON(res, 404, { error: 'Snapshot introuvable.' });
+      }
+      const content = fs.readFileSync(fullPath);
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Content-Disposition': `attachment; filename="${safeName}"`,
+        'Content-Length': content.length
+      });
+      return res.end(content);
+    } catch (err) {
+      return sendJSON(res, 500, { error: err.message });
+    }
+  }
+
+  if (pathname === '/api/admin/snapshots/restore' && req.method === 'POST') {
+    try {
+      const body = await getBody(req);
+      const safeName = path.basename(body?.fileName || '');
+      if (!/^snapshot_[a-zA-Z0-9._-]+\.json$/.test(safeName)) {
+        return sendJSON(res, 400, { error: 'Nom de snapshot invalide.' });
+      }
+      const fullPath = path.join(getSnapshotsDir(), safeName);
+      if (!fs.existsSync(fullPath)) {
+        return sendJSON(res, 404, { error: 'Snapshot introuvable sur le serveur.' });
+      }
+      const snapshotPayload = JSON.parse(fs.readFileSync(fullPath, 'utf8'));
+      await createDatabaseSnapshot('pre-rollback', { force: true });
+      const restored = await restoreFullDatabasePayload(snapshotPayload);
+      return sendJSON(res, 200, { success: true, fileName: safeName, restored });
     } catch (err) {
       return sendJSON(res, 500, { error: err.message });
     }
@@ -2287,7 +2668,7 @@ export const handleApiRequest = async (req, res, next) => {
                    VALUES (?, ?, ?, ?, 'devoir_prime', ?, ?)
                    ON DUPLICATE KEY UPDATE solution_text = VALUES(solution_text), solution_json = VALUES(solution_json), updated_at = NOW()`,
                   [solId, lessonId, String(ex.id || 'ex').slice(0, 128), String(q.id || '').slice(0, 128), solText, JSON.stringify(q)]
-                ).catch(() => {});
+                ).catch(() => { });
               }
             }
           }
@@ -2374,7 +2755,7 @@ export const handleApiRequest = async (req, res, next) => {
     if (req.method === 'DELETE') {
       const id = singleId || parsedUrl.searchParams.get('id');
       if (isMySqlActive && id) {
-        await dbPool.query('DELETE FROM tbl_solutions WHERE id = ?', [id]).catch(() => {});
+        await dbPool.query('DELETE FROM tbl_solutions WHERE id = ?', [id]).catch(() => { });
       }
       const sols = readDataFile('solutions.json', []).filter(s => s.id !== id);
       writeDataFile('solutions.json', sols);
@@ -2396,7 +2777,6 @@ export const handleApiRequest = async (req, res, next) => {
         'tbl_config',
         'tbl_assets',
         'tbl_grades',
-        'tbl_logbook',
         'tbl_devoir_prime',
         'tbl_solutions'
       ];
@@ -2437,6 +2817,9 @@ export const handleApiRequest = async (req, res, next) => {
 
       console.warn('[Server] ⚠️ INITIATING PLATFORM FACTORY RESET AND PURGE...');
 
+      // 0. Always take an automatic safety snapshot BEFORE wiping!
+      await createDatabaseSnapshot('pre-reset', { force: true });
+
       // 1. Wipe MySQL tables
       if (isMySqlActive) {
         await dbPool.query('DELETE FROM tbl_exams');
@@ -2444,9 +2827,8 @@ export const handleApiRequest = async (req, res, next) => {
         await dbPool.query('DELETE FROM tbl_classes');
         await dbPool.query('DELETE FROM tbl_users');
         await dbPool.query('DELETE FROM tbl_grades');
-        await dbPool.query('DELETE FROM tbl_logbook').catch(() => {});
-        await dbPool.query('DELETE FROM tbl_devoir_prime').catch(() => {});
-        await dbPool.query('DELETE FROM tbl_solutions').catch(() => {});
+        await dbPool.query('DELETE FROM tbl_devoir_prime').catch(() => { });
+        await dbPool.query('DELETE FROM tbl_solutions').catch(() => { });
         await dbPool.query('DELETE FROM tbl_assets');
         if (includeConfig) {
           await dbPool.query('DELETE FROM tbl_config');
@@ -2463,7 +2845,6 @@ export const handleApiRequest = async (req, res, next) => {
       writeDataFile('classes.json', []);
       writeDataFile('users.json', []);
       writeDataFile('grades.json', []);
-      writeDataFile('logbook.json', []);
       writeDataFile('devoir_prime.json', []);
       writeDataFile('solutions.json', []);
       writeDataFile('extraction_tasks.json', []);
@@ -2495,7 +2876,7 @@ export const handleApiRequest = async (req, res, next) => {
                 delete pCfg.logbook_entries;
                 delete pCfg.teacher_schedule_current;
                 fs.writeFileSync(pPath, JSON.stringify(pCfg, null, 2), 'utf8');
-              } catch (_) {}
+              } catch (_) { }
             }
           }
           console.log('[Server] Persistent external backup files successfully emptied.');
@@ -2538,9 +2919,14 @@ export const handleApiRequest = async (req, res, next) => {
         if (action === 'retry' || pathname.endsWith('/retry') || body.action === 'retry') {
           const targetId = id || body.id;
           if (!targetId) return sendJSON(res, 400, { error: 'ID de tâche manquant' });
-          const retriedTask = retryExtractionTask(targetId, body.apiKey);
+          const existingTask = getExtractionTaskById(targetId);
+          const resolvedRetryKey = await resolveServerAiKey(existingTask?.provider || body.provider || 'gemini', body.apiKey);
+          const retriedTask = retryExtractionTask(targetId, resolvedRetryKey);
           return sendJSON(res, 200, { success: true, task: retriedTask });
         }
+        // Automatically resolve API key from MySQL tbl_config / .env if client omitted it
+        const provider = body.provider || 'gemini';
+        body.apiKey = await resolveServerAiKey(provider, body.apiKey);
         const newTask = createExtractionTask(body);
         return sendJSON(res, 201, { success: true, task: newTask });
       } catch (err) {
@@ -2555,46 +2941,34 @@ export const handleApiRequest = async (req, res, next) => {
     }
   }
 
+  // 9.5 AI Provider Availability Status Endpoint (Admin-only, never leaks raw keys)
+  if (pathname === '/api/ai/status' && req.method === 'GET') {
+    try {
+      const [geminiK, openaiK, deepseekK, claudeK] = await Promise.all([
+        resolveServerAiKey('gemini'),
+        resolveServerAiKey('openai'),
+        resolveServerAiKey('deepseek'),
+        resolveServerAiKey('claude')
+      ]);
+      return sendJSON(res, 200, {
+        gemini: Boolean(geminiK),
+        openai: Boolean(openaiK),
+        deepseek: Boolean(deepseekK),
+        claude: Boolean(claudeK)
+      });
+    } catch (err) {
+      return sendJSON(res, 500, { error: err.message });
+    }
+  }
+
   // 10. Gemini AI Proxy Endpoint (Secure Server-Side Execution with active model cascade)
   if (pathname === '/api/gemini/generate' && req.method === 'POST') {
     try {
       const payload = await getBody(req);
-      let effectiveKey = (payload?.apiKey || '').trim();
-      
-      // If client provided placeholder or no key, resolve real key
-      if (!effectiveKey || effectiveKey === 'MY_GEMINI_API_KEY' || effectiveKey.length < 20) {
-        try {
-          const cfg = readDataFile('config.json', {});
-          const keyFromConfig = cfg?.ai_settings?.geminiApiKey;
-          if (keyFromConfig && keyFromConfig.length > 20 && keyFromConfig !== 'MY_GEMINI_API_KEY') {
-            effectiveKey = keyFromConfig.trim();
-          }
-        } catch (_) {}
-
-        try {
-          const envPath = path.join(__dirname, '.env');
-          if (fs.existsSync(envPath)) {
-            const raw = fs.readFileSync(envPath, 'utf8');
-            const m = raw.match(/GEMINI_API_KEY\s*=\s*([^\r\n]+)/);
-            if (m && m[1]) {
-              const fileKey = m[1].trim().replace(/^["']|["']$/g, '');
-              if (fileKey && fileKey !== 'MY_GEMINI_API_KEY' && fileKey.length > 20) {
-                effectiveKey = fileKey;
-              }
-            }
-          }
-        } catch (_) {}
-
-        if (!effectiveKey || effectiveKey === 'MY_GEMINI_API_KEY') {
-          const envKey = (process.env.GEMINI_API_KEY || '').trim();
-          if (envKey && envKey !== 'MY_GEMINI_API_KEY' && envKey.length > 20) {
-            effectiveKey = envKey;
-          }
-        }
-      }
+      const effectiveKey = await resolveServerAiKey('gemini', payload?.apiKey);
 
       if (!effectiveKey) {
-        return sendJSON(res, 500, { error: 'Aucune clé API Gemini valide configurée sur le serveur ou fournie par le client.' });
+        return sendJSON(res, 400, { error: 'Aucune clé API Gemini valide configurée sur le serveur ou fournie par le client.' });
       }
 
       let requestedModel = (payload?.model || 'gemini-3.5-flash-lite').trim().replace(/^models\//, '');
@@ -2632,7 +3006,7 @@ export const handleApiRequest = async (req, res, next) => {
 
             const apiRes = await fetch(endpoint, {
               method: 'POST',
-              headers: { 
+              headers: {
                 'Content-Type': 'application/json',
                 'x-goog-api-key': effectiveKey
               },
@@ -2679,39 +3053,7 @@ export const handleApiRequest = async (req, res, next) => {
   if (pathname === '/api/openai/generate' && req.method === 'POST') {
     try {
       const payload = await getBody(req);
-      let effectiveKey = (payload?.apiKey || '').trim();
-
-      // If client provided placeholder or no key, resolve real key from config or env
-      if (!effectiveKey || effectiveKey.length < 15) {
-        try {
-          const cfg = readDataFile('config.json', {});
-          const keyFromConfig = cfg?.ai_settings?.openaiApiKey;
-          if (keyFromConfig && keyFromConfig.length > 15) {
-            effectiveKey = keyFromConfig.trim();
-          }
-        } catch (_) {}
-
-        try {
-          const envPath = path.join(__dirname, '.env');
-          if (fs.existsSync(envPath)) {
-            const raw = fs.readFileSync(envPath, 'utf8');
-            const m = raw.match(/OPENAI_API_KEY\s*=\s*([^\r\n]+)/);
-            if (m && m[1]) {
-              const fileKey = m[1].trim().replace(/^["']|["']$/g, '');
-              if (fileKey && fileKey.length > 15) {
-                effectiveKey = fileKey;
-              }
-            }
-          }
-        } catch (_) {}
-
-        if (!effectiveKey) {
-          const envKey = (process.env.OPENAI_API_KEY || '').trim();
-          if (envKey && envKey.length > 15) {
-            effectiveKey = envKey;
-          }
-        }
-      }
+      const effectiveKey = await resolveServerAiKey('openai', payload?.apiKey);
 
       if (!effectiveKey) {
         return sendJSON(res, 400, {
@@ -2728,10 +3070,10 @@ export const handleApiRequest = async (req, res, next) => {
         ...(isReasoning
           ? { max_completion_tokens: payload.max_tokens || 25000 }
           : {
-              max_tokens: payload.max_tokens || 16000,
-              temperature: payload.temperature !== undefined ? payload.temperature : 0.1,
-              response_format: payload.response_format || { type: 'json_object' }
-            })
+            max_tokens: payload.max_tokens || 16000,
+            temperature: payload.temperature !== undefined ? payload.temperature : 0.1,
+            response_format: payload.response_format || { type: 'json_object' }
+          })
       };
 
       const apiRes = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -2756,6 +3098,51 @@ export const handleApiRequest = async (req, res, next) => {
         modelUsed: model,
         data
       });
+    } catch (err) {
+      return sendJSON(res, 500, { error: err.message });
+    }
+  }
+
+  // 10c. DeepSeek Proxy Endpoint (Secure Server-Side Execution — avoids exposing keys in frontend)
+  if (pathname === '/api/deepseek/generate' && req.method === 'POST') {
+    try {
+      const payload = await getBody(req);
+      const effectiveKey = await resolveServerAiKey('deepseek', payload?.apiKey);
+
+      if (!effectiveKey) {
+        return sendJSON(res, 400, {
+          error: 'Aucune clé API DeepSeek valide configurée sur le serveur ou fournie par le client.'
+        });
+      }
+
+      const rawUrl = (payload?.baseUrl || 'https://api.deepseek.com').trim().replace(/\/$/, '');
+      const endpoint = `${rawUrl}/v1/chat/completions`;
+      const model = (payload?.model || 'deepseek-chat').trim();
+
+      const reqBody = {
+        model,
+        messages: payload.messages || [],
+        max_tokens: payload.max_tokens || 8192,
+        ...(model === 'deepseek-reasoner' ? {} : { temperature: payload.temperature !== undefined ? payload.temperature : 0.1 })
+      };
+
+      const apiRes = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${effectiveKey}`
+        },
+        body: JSON.stringify(reqBody)
+      });
+
+      if (!apiRes.ok) {
+        const errData = await apiRes.json().catch(() => ({}));
+        const msg = errData?.error?.message || `HTTP ${apiRes.status}`;
+        return sendJSON(res, apiRes.status, { error: `DeepSeek [${model}]: ${msg}` });
+      }
+
+      const data = await apiRes.json();
+      return sendJSON(res, 200, { success: true, modelUsed: model, data });
     } catch (err) {
       return sendJSON(res, 500, { error: err.message });
     }
@@ -3029,7 +3416,17 @@ if (!isVite) {
     console.log('=================================================');
   });
 
-  initMySQL().catch(err => {
-    console.error('[Server] MySQL initialization error:', err.message);
-  });
+  initMySQL()
+    .then(async () => {
+      // Automatic post-deploy / startup protection snapshot (stored safely on external persistent volume)
+      await createDatabaseSnapshot('startup', { force: false });
+      // Periodic 6-hour rolling snapshot (only writes if DB contents changed)
+      const snapTimer = setInterval(() => {
+        createDatabaseSnapshot('auto', { force: false }).catch(() => {});
+      }, 6 * 60 * 60 * 1000);
+      if (typeof snapTimer.unref === 'function') snapTimer.unref();
+    })
+    .catch(err => {
+      console.error('[Server] MySQL initialization error:', err.message);
+    });
 }

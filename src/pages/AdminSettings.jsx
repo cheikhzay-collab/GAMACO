@@ -347,6 +347,96 @@ export default function AdminSettings() {
   const [isResetting, setIsResetting] = useState(false);
   const [resetSuccess, setResetSuccess] = useState(false);
 
+  // Server Rolling Auto-Snapshots State
+  const [snapshotsInfo, setSnapshotsInfo] = useState(null);
+  const [loadingSnapshots, setLoadingSnapshots] = useState(false);
+  const [creatingSnapshot, setCreatingSnapshot] = useState(false);
+  const [restoringSnapshotFile, setRestoringSnapshotFile] = useState(null);
+  const [snapshotNotice, setSnapshotNotice] = useState('');
+
+  const fetchServerSnapshots = async () => {
+    setLoadingSnapshots(true);
+    try {
+      const res = await fetch('/api/admin/snapshots');
+      if (res.ok) {
+        const data = await res.json();
+        setSnapshotsInfo(data);
+      }
+    } catch (err) {
+      console.warn('[AdminSettings] Failed to load snapshots:', err);
+    } finally {
+      setLoadingSnapshots(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'backup_omr') {
+      fetchServerSnapshots();
+    }
+  }, [activeTab]);
+
+  const handleCreateServerSnapshot = async () => {
+    setCreatingSnapshot(true);
+    setSnapshotNotice('');
+    try {
+      const res = await fetch('/api/admin/snapshots/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'manual' })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Échec de création');
+      setSnapshotNotice(`✅ تم حفظ نسخة احتياطية فورية على الخادم (${data.snapshot?.fileName})`);
+      setTimeout(() => setSnapshotNotice(''), 4500);
+      await fetchServerSnapshots();
+    } catch (err) {
+      alert('❌ ' + (err?.message || 'تعذر إنشاء النسخة الاحتياطية على الخادم.'));
+    } finally {
+      setCreatingSnapshot(false);
+    }
+  };
+
+  const handleDownloadServerSnapshot = async (fileName) => {
+    try {
+      const res = await fetch(`/api/admin/snapshots/download?file=${encodeURIComponent(fileName)}`);
+      if (!res.ok) throw new Error('تعذر تحميل الملف');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('❌ ' + (err?.message || 'Erreur téléchargement'));
+    }
+  };
+
+  const handleRestoreServerSnapshot = async (fileName) => {
+    if (!window.confirm(`هل أنت متأكد من استعادة النسخة الاحتياطية "${fileName}" إلى قاعدة البيانات MySQL؟\n\n(سيتم تلقائياً أخذ نسخة أمان لحالتك الحالية قبل الاستعادة)`)) {
+      return;
+    }
+    setRestoringSnapshotFile(fileName);
+    setSnapshotNotice('');
+    try {
+      const res = await fetch('/api/admin/snapshots/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Échec restauration');
+      alert(`✅ تمت استعادة قاعدة البيانات بنجاح من ${fileName}!\nالدروس: ${data.restored?.lessons || 0} | الأقسام: ${data.restored?.classes || 0} | دفتر النصوص: ${data.restored?.logbook || 0}`);
+      window.location.reload();
+    } catch (err) {
+      alert('❌ ' + (err?.message || 'تعذرت الاستعادة.'));
+    } finally {
+      setRestoringSnapshotFile(null);
+    }
+  };
+
   const handleExportBackup = async () => {
     try {
       // 1. Fetch full server database (MySQL & JSON files)
@@ -3500,6 +3590,167 @@ export default function AdminSettings() {
           {/* ── SAUVEGARDE & OMR TAB ── */}
           {activeTab === 'backup_omr' && (
             <div className="flex flex-col gap-6">
+
+              {/* 🛡️ Automatic Server Protection & Rolling Snapshots Card */}
+              <div className="bento-card" style={{ border: '1.5px solid rgba(16, 185, 129, 0.28)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div style={{ width: 42, height: 42, borderRadius: 12, background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
+                      <ShieldCheck size={22} />
+                    </div>
+                    <div>
+                      <h2 className="settings-title" style={{ margin: 0, fontSize: '1.18rem' }}>
+                        الحماية التلقائية لقاعدة البيانات (Auto-Snapshots MySQL)
+                      </h2>
+                      <p style={{ margin: '0.2rem 0 0', fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                        نسخ احتياطي تلقائي في مجلد دائم خارج مجلد التحديثات عند كل تشغيل/تحديث وكل 6 ساعات (يحتفظ بآخر {snapshotsInfo?.maxSnapshots || 30} نسخة).
+                      </p>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={fetchServerSnapshots}
+                      disabled={loadingSnapshots}
+                      className="btn-outline"
+                      style={{ padding: '0.55rem 0.9rem', borderRadius: 10, fontSize: '0.8rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                    >
+                      <RefreshCw size={14} className={loadingSnapshots ? 'animate-spin' : ''} />
+                      تحديث
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCreateServerSnapshot}
+                      disabled={creatingSnapshot}
+                      className="btn"
+                      style={{
+                        padding: '0.55rem 1rem', borderRadius: 10, fontSize: '0.82rem', fontWeight: 800,
+                        background: 'linear-gradient(135deg, #6366f1, #10b981)', color: '#fff', border: 'none',
+                        display: 'inline-flex', alignItems: 'center', gap: '0.45rem', cursor: creatingSnapshot ? 'wait' : 'pointer'
+                      }}
+                    >
+                      {creatingSnapshot ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={15} />}
+                      {creatingSnapshot ? 'جاري الحفظ...' : 'أخذ نسخة فورية على الخادم'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Live Protection Status Pills */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
+                  <span style={{
+                    padding: '0.28rem 0.7rem', borderRadius: 999, fontSize: '0.75rem', fontWeight: 800,
+                    background: snapshotsInfo?.mysqlActive ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)',
+                    color: snapshotsInfo?.mysqlActive ? '#059669' : '#d97706',
+                    border: `1px solid ${snapshotsInfo?.mysqlActive ? 'rgba(16,185,129,0.3)' : 'rgba(245,158,11,0.3)'}`
+                  }}>
+                    {snapshotsInfo?.mysqlActive ? '● MySQL متصل ومحمي' : '● وضع التخزين المحلي'}
+                  </span>
+                  <span style={{
+                    padding: '0.28rem 0.7rem', borderRadius: 999, fontSize: '0.75rem', fontWeight: 800,
+                    background: snapshotsInfo?.persistentDirActive ? 'rgba(99,102,241,0.1)' : 'rgba(148,163,184,0.12)',
+                    color: snapshotsInfo?.persistentDirActive ? 'var(--violet)' : 'var(--text-muted)',
+                    border: '1px solid rgba(99,102,241,0.25)'
+                  }}>
+                    {snapshotsInfo?.persistentDirActive ? '🛡️ مجلد Hostinger الدائم مُفعّل (معزول عن التحديثات)' : '💾 مجلد النسخ المحلي'}
+                  </span>
+                  {snapshotsInfo?.tables && (
+                    <span style={{ padding: '0.28rem 0.7rem', borderRadius: 999, fontSize: '0.74rem', fontWeight: 700, background: 'var(--bg-glass)', border: '1px solid var(--border)', color: 'var(--text-main)' }}>
+                      الدروس: {snapshotsInfo.tables.tbl_lessons ?? 0} · الأقسام: {snapshotsInfo.tables.tbl_classes ?? 0} · دفتر النصوص: {snapshotsInfo.tables.tbl_logbook ?? 0} · الامتحانات: {snapshotsInfo.tables.tbl_exams ?? 0} · النقط: {snapshotsInfo.tables.tbl_grades ?? 0}
+                    </span>
+                  )}
+                </div>
+
+                {snapshotNotice && (
+                  <div style={{ marginBottom: '0.9rem', padding: '0.65rem 0.9rem', borderRadius: 10, background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', color: '#059669', fontSize: '0.82rem', fontWeight: 700 }}>
+                    {snapshotNotice}
+                  </div>
+                )}
+
+                {/* Snapshots List */}
+                {loadingSnapshots && !snapshotsInfo ? (
+                  <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                    جاري تحميل سجل النسخ الاحتياطية من الخادم...
+                  </div>
+                ) : !snapshotsInfo?.snapshots?.length ? (
+                  <div style={{ padding: '1.25rem', borderRadius: 12, background: 'var(--bg-glass)', border: '1px dashed var(--border)', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.84rem' }}>
+                    لا توجد نسخ مسجلة بعد — اضغط "أخذ نسخة فورية على الخادم" لحفظ أول نقطة استعادة الآن.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '290px', overflowY: 'auto', paddingRight: '2px' }}>
+                    {snapshotsInfo.snapshots.map((snap) => {
+                      const reasonLabels = {
+                        startup: '🔄 عند التحديث/التشغيل',
+                        auto: '⏱️ تلقائي (6س)',
+                        manual: '📌 يدوي',
+                        'pre-restore': '🛡️ قبل الاستعادة',
+                        'pre-reset': '🛡️ قبل التفريغ',
+                        'pre-rollback': '🛡️ قبل التراجع'
+                      };
+                      const label = reasonLabels[snap.reason] || snap.reason;
+                      const formattedTime = (() => {
+                        try {
+                          return new Date(snap.createdAt).toLocaleString('fr-FR', {
+                            day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                          });
+                        } catch { return snap.createdAt; }
+                      })();
+                      return (
+                        <div
+                          key={snap.fileName}
+                          style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.6rem',
+                            padding: '0.65rem 0.85rem', borderRadius: 11, background: 'var(--bg-glass)', border: '1px solid var(--border)'
+                          }}
+                        >
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: '0.73rem', fontWeight: 800, padding: '0.15rem 0.5rem', borderRadius: 6, background: 'rgba(99,102,241,0.1)', color: 'var(--violet)' }}>
+                                {label}
+                              </span>
+                              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                                {formattedTime}
+                              </span>
+                              <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)' }}>
+                                ({snap.sizeKB} KB)
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)' }}>
+                              {snap.stats?.lessonsCount ?? 0} دروس · {snap.stats?.classesCount ?? 0} أقسام · {snap.stats?.logbookCount ?? 0} دفتر نصوص · {snap.stats?.examsCount ?? 0} امتحانات · {snap.stats?.usersCount ?? 0} مستخدمين
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadServerSnapshot(snap.fileName)}
+                              className="btn-outline"
+                              style={{ padding: '0.35rem 0.65rem', borderRadius: 8, fontSize: '0.75rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+                              title="تحميل ملف النسخة"
+                            >
+                              <Download size={13} /> تحميل
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRestoreServerSnapshot(snap.fileName)}
+                              disabled={restoringSnapshotFile === snap.fileName}
+                              style={{
+                                padding: '0.35rem 0.7rem', borderRadius: 8, fontSize: '0.75rem', fontWeight: 800,
+                                background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.35)',
+                                color: '#059669', cursor: restoringSnapshotFile === snap.fileName ? 'wait' : 'pointer',
+                                display: 'inline-flex', alignItems: 'center', gap: '0.3rem'
+                              }}
+                              title="استعادة قاعدة البيانات من هذه النقطة"
+                            >
+                              <RotateCcw size={13} /> {restoringSnapshotFile === snap.fileName ? 'جاري...' : 'استعادة'}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
               
               {/* Backup & Restore Data Card */}
               <div className="bento-card settings-backup-card flex flex-col justify-between">

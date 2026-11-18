@@ -46,7 +46,7 @@ const markDeletedId = (id) => {
 
 const hasAdminSession = () => {
   try {
-    const token = localStorage.getItem('gamaco_auth_token');
+    const token = localStorage.getItem('auth_token') || localStorage.getItem('gamaco_auth_token');
     const rawUser = localStorage.getItem('lconq_current_user');
     if (!token || !rawUser) return false;
     const u = JSON.parse(rawUser);

@@ -849,6 +849,7 @@ export default function AdminLessonsImport({ onBack }) {
 
   const [openaiKey, setOpenaiKey] = useState(() => localStorage.getItem('openaiApiKey') || '');
   const [openaiModel, setOpenaiModel] = useState(() => localStorage.getItem('openaiModel') || 'gpt-4o');
+  const [serverAiReady, setServerAiReady] = useState({ gemini: false, openai: false, deepseek: false, claude: false });
   
   const [uploadFile, setUploadFile] = useState(null);
   const [fileName, setFileName] = useState('');
@@ -1103,6 +1104,21 @@ export default function AdminLessonsImport({ onBack }) {
       })
       .catch(() => {});
 
+    // Check which AI providers are ready on the server (including .env keys without exposing secrets)
+    fetch('/api/ai/status')
+      .then(r => r.ok ? r.json() : null)
+      .then(st => {
+        if (st && typeof st === 'object') {
+          setServerAiReady({
+            gemini: Boolean(st.gemini),
+            openai: Boolean(st.openai),
+            deepseek: Boolean(st.deepseek),
+            claude: Boolean(st.claude)
+          });
+        }
+      })
+      .catch(() => {});
+
     window.addEventListener('storage', sync);
     return () => window.removeEventListener('storage', sync);
   }, []);
@@ -1295,12 +1311,15 @@ Pour chaque exercice, activité ou application résolue dans le champ "solution"
           const proxyErrData = await proxyRes.json().catch(() => ({}));
           const pMsg = proxyErrData?.error || `Erreur serveur ${proxyRes.status}`;
           lastErr = new Error(pMsg);
+          if (proxyRes.status === 401) {
+            throw new Error('انتهت صلاحية الجلسة — يرجى تسجيل الدخول مرة أخرى لاستخدام أدوات الاستخراج.');
+          }
           if (proxyRes.status === 403 || /leaked|permission_denied|api key not valid|api_key_invalid/i.test(pMsg)) {
             throw lastErr;
           }
         }
       } catch (proxyErr) {
-        if (/leaked|permission_denied|api key not valid|api_key_invalid/i.test(proxyErr.message)) {
+        if (/انتهت صلاحية الجلسة|leaked|permission_denied|api key not valid|api_key_invalid/i.test(proxyErr.message)) {
           throw proxyErr;
         }
         console.warn('[Server Proxy Fallback] Failed:', proxyErr.message);
@@ -1552,6 +1571,35 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
       temperature: 0.1
     };
 
+    // 1. Prefer secure server proxy (/api/deepseek/generate) so keys stored on server/.env work automatically
+    try {
+      const proxyRes = await fetch('/api/deepseek/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...payload,
+          baseUrl: cleanUrl,
+          apiKey: deepseekKey?.trim() || undefined
+        })
+      });
+      if (proxyRes.ok) {
+        const proxyJson = await proxyRes.json();
+        const content = proxyJson?.data?.choices?.[0]?.message?.content;
+        if (content && content.trim()) return content;
+      } else if (proxyRes.status === 401) {
+        throw new Error('انتهت صلاحية الجلسة — يرجى تسجيل الدخول مرة أخرى لاستخدام DeepSeek.');
+      } else if (!deepseekKey?.trim()) {
+        const err = await proxyRes.json().catch(() => ({}));
+        throw new Error(err?.error || `Erreur DeepSeek ${proxyRes.status}`);
+      }
+    } catch (proxyErr) {
+      if (/انتهت صلاحية الجلسة/.test(proxyErr.message) || !deepseekKey?.trim()) {
+        throw proxyErr;
+      }
+      console.warn('[DeepSeek Proxy] Falling back to direct call:', proxyErr.message);
+    }
+
+    // 2. Direct fallback if local key is explicitly provided
     const headers = {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${deepseekKey}`
@@ -1721,19 +1769,19 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
   };
 
   const handleAnalyze = async () => {
-    if (provider === 'openai' && !openaiKey) {
+    if (provider === 'openai' && !openaiKey && !serverAiReady.openai) {
       setError('Clé API OpenAI manquante. Veuillez la configurer.');
       return;
     }
-    if (provider === 'gemini' && !geminiKey) {
+    if (provider === 'gemini' && !geminiKey && !serverAiReady.gemini) {
       setError('Clé API Gemini manquante. Veuillez la configurer.');
       return;
     }
-    if (provider === 'claude' && !claudeKey) {
+    if (provider === 'claude' && !claudeKey && !serverAiReady.claude) {
       setError('Clé API Claude manquante. Veuillez la configurer.');
       return;
     }
-    if (provider === 'deepseek' && !deepseekKey) {
+    if (provider === 'deepseek' && !deepseekKey && !serverAiReady.deepseek) {
       setError('Clé API DeepSeek manquante. Veuillez la configurer.');
       return;
     }
@@ -1878,15 +1926,16 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
         else if (parsed.course && Array.isArray(parsed.course.sections)) rawSections = parsed.course.sections;
         else if (parsed.course && Array.isArray(parsed.course.items)) rawSections = parsed.course.items;
         else {
-          const arrayProp = Object.values(parsed).find(val => Array.isArray(val) && val.length > 0 && typeof val[0] === 'object');
-          if (arrayProp) {
-            rawSections = arrayProp;
+          const skipKeys = new Set(['points_table', 'topics', 'general_instructions', 'subject_components', 'notations']);
+          const arrayEntry = Object.entries(parsed).find(([k, val]) => !skipKeys.has(k) && Array.isArray(val) && val.length > 0 && typeof val[0] === 'object');
+          if (arrayEntry) {
+            rawSections = arrayEntry[1];
           }
         }
       }
 
       if (rawSections.length === 0) {
-        if (parsed.content || parsed.questions || parsed.exercice || parsed.title) {
+        if (parsed.content || parsed.questions || parsed.exercice || parsed.enonce) {
           rawSections = [parsed];
         } else {
           throw new Error("L'IA n'a retourné aucun exercice ni contenu pour ce document. Veuillez vérifier le document ou réessayer avec un autre modèle d'IA.");
@@ -2011,14 +2060,17 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
           content = items.map(it => typeof it === 'string' ? it : (it.text || '')).filter(Boolean).join('\n');
         }
 
-        // If content exists but items is empty, build items from content lines
+        // If content exists and items has no text/bullet/highlight_box entries (e.g. only figures/tables or empty),
+        // prepend the content lines so Phase 2 always shows the full extracted text alongside figures/tables
         let finalItems = items;
-        if (finalItems.length === 0 && content.trim()) {
+        const hasTextualItems = finalItems.some(it => it && ['text', 'bullet', 'highlight_box', 'notation_grid'].includes(it.type) && (it.text || '').trim().length > 0);
+        if (!hasTextualItems && content.trim()) {
           const lines = content.split('\n').map(l => l.trim()).filter(Boolean);
-          finalItems = lines.map(line => {
+          const contentItems = lines.map(line => {
             const isBullet = /^(\d+|[a-zA-Z])[.)]|\*\*(\d+|[a-zA-Z])/.test(line);
             return { type: isBullet ? 'bullet' : 'text', text: line };
           });
+          finalItems = [...contentItems, ...finalItems];
         }
 
         const hasAr = /[\u0600-\u06FF]/.test((sec.title || '') + ' ' + content + ' ' + (sec.solution || '') + ' ' + finalItems.map(it => it.text || '').join(' '));
@@ -2029,7 +2081,16 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
           points: sec.points !== undefined && sec.points !== null ? sec.points : '',
           language: sec.language || (hasAr ? 'ar' : 'fr')
         };
+      }).filter(sec => {
+        const hasTitle = Boolean((sec.title || '').trim());
+        const hasContent = Boolean((sec.content || '').trim());
+        const hasItems = Array.isArray(sec.items) && sec.items.length > 0;
+        return hasTitle || hasContent || hasItems;
       });
+
+      if (mappedSections.length === 0) {
+        throw new Error("L'IA a renvoyé une structure vide (0 section exploitable). Veuillez vérifier la clé API ou essayer un autre modèle.");
+      }
 
       // Build page snapshots for figure placeholders (lightweight — just for preview thumbnails)
       let activePdfProxy = pdfDocProxy;
@@ -2278,12 +2339,14 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
         content = items.map(it => typeof it === 'string' ? it : (it.text || '')).filter(Boolean).join('\n');
       }
       let finalItems = items;
-      if (finalItems.length === 0 && content.trim()) {
+      const hasTextualItems = finalItems.some(it => it && ['text', 'bullet', 'highlight_box', 'notation_grid'].includes(it.type) && (it.text || '').trim().length > 0);
+      if (!hasTextualItems && content.trim()) {
         const lines = content.split('\n').map(l => l.trim()).filter(Boolean);
-        finalItems = lines.map(line => {
+        const contentItems = lines.map(line => {
           const isBullet = /^(\d+|[a-zA-Z])[.)]|\*\*(\d+|[a-zA-Z])/.test(line);
           return { type: isBullet ? 'bullet' : 'text', text: line };
         });
+        finalItems = [...contentItems, ...finalItems];
       }
 
       const solution = typeof sec.solution === 'string' ? sec.solution : (
@@ -2422,19 +2485,19 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
       return;
     }
 
-    if (provider === 'openai' && !openaiKey) {
+    if (provider === 'openai' && !openaiKey && !serverAiReady.openai) {
       setError('Clé API OpenAI requise. Veuillez la renseigner.');
       return;
     }
-    if (provider === 'gemini' && !geminiKey) {
+    if (provider === 'gemini' && !geminiKey && !serverAiReady.gemini) {
       setError('Clé API Gemini requise. Veuillez la renseigner.');
       return;
     }
-    if (provider === 'claude' && !claudeKey) {
+    if (provider === 'claude' && !claudeKey && !serverAiReady.claude) {
       setError('Clé API Claude requise. Veuillez la renseigner.');
       return;
     }
-    if (provider === 'deepseek' && !deepseekKey) {
+    if (provider === 'deepseek' && !deepseekKey && !serverAiReady.deepseek) {
       setError('Clé API DeepSeek requise. Veuillez la renseigner.');
       return;
     }
