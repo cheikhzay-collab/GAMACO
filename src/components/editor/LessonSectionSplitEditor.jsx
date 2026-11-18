@@ -13,6 +13,13 @@ import {
 import { renderWithMath, autoRepairMathText } from '../../utils/mathRenderer';
 import { ensureMathDelimiters } from '../../utils/devoirPrimeHelpers';
 import { validateExercisePoints } from '../../utils/scoreBalancingValidator';
+import {
+  getSectionImageEntries,
+  getSectionImageMap,
+  getReferencedFigIds,
+  splitTextByFigureTokens,
+  resolveFigureItem,
+} from '../../utils/figureShortcodes';
 import SmartTableRenderer from '../SmartTableRenderer';
 
 const SECTION_TYPES = [
@@ -52,28 +59,93 @@ const BG_PRESETS = [
   { label: 'رمادي هادئ', val: '#f8fafc', swatch: '#f8fafc', border: '#cbd5e1' },
 ];
 
-function renderPreviewParagraphs(rawText, isAr) {
-  if (!rawText || !String(rawText).trim()) return null;
-  const safe = ensureMathDelimiters(String(rawText));
-  const lines = safe.split(/\n/);
-  return lines.map((line, i) => {
-    const trimmed = line.trim();
-    if (!trimmed) return <div key={i} style={{ height: '0.45rem' }} />;
-    return (
-      <div
-        key={i}
+function renderPreviewFigureCard(imgItem, key) {
+  const align = imgItem.align || 'center';
+  const justify = align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center';
+  return (
+    <div key={key} style={{ display: 'flex', flexDirection: 'column', alignItems: justify, margin: '0.55rem 0' }}>
+      <img
+        src={imgItem.url || imgItem.src}
+        alt={imgItem.alt || 'Figure'}
         style={{
-          marginBottom: '0.32rem',
-          lineHeight: 1.7,
-          direction: isAr ? 'rtl' : 'ltr',
-          textAlign: isAr ? 'right' : 'left',
-          wordBreak: 'break-word',
+          width: `${imgItem.width_pct || 75}%`,
+          maxWidth: '100%',
+          height: 'auto',
+          borderRadius: '8px',
+          border: '1px solid #e2e8f0',
+          background: '#fff',
         }}
-      >
-        {renderWithMath(trimmed)}
-      </div>
-    );
+      />
+      {imgItem.alt && (
+        <span style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '0.2rem', fontStyle: 'italic' }}>
+          {imgItem.alt}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function renderPreviewParagraphs(rawText, isAr, imageMap = null) {
+  if (!rawText || !String(rawText).trim()) return null;
+  const segments = splitTextByFigureTokens(String(rawText));
+  const out = [];
+
+  segments.forEach((seg, segIdx) => {
+    if (seg.type === 'figure') {
+      const resolved = resolveFigureItem(imageMap, seg);
+      if (resolved) {
+        out.push(renderPreviewFigureCard(resolved, `fig-${segIdx}-${seg.figId}`));
+      } else {
+        out.push(
+          <div
+            key={`missing-fig-${segIdx}`}
+            style={{
+              margin: '0.35rem 0',
+              padding: '0.3rem 0.6rem',
+              borderRadius: '6px',
+              background: '#fef3c7',
+              border: '1px dashed #f59e0b',
+              color: '#92400e',
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              display: 'inline-block',
+            }}
+          >
+            ⚠️ {seg.rawToken} (صورة غير موجودة في هذا التمرين)
+          </div>
+        );
+      }
+      return;
+    }
+
+    const safe = ensureMathDelimiters(seg.value);
+    const lines = safe.split(/\n/);
+    lines.forEach((line, i) => {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        if (i > 0 && i < lines.length - 1) {
+          out.push(<div key={`sp-${segIdx}-${i}`} style={{ height: '0.4rem' }} />);
+        }
+        return;
+      }
+      out.push(
+        <div
+          key={`ln-${segIdx}-${i}`}
+          style={{
+            marginBottom: '0.32rem',
+            lineHeight: 1.7,
+            direction: isAr ? 'rtl' : 'ltr',
+            textAlign: isAr ? 'right' : 'left',
+            wordBreak: 'break-word',
+          }}
+        >
+          {renderWithMath(trimmed)}
+        </div>
+      );
+    });
   });
+
+  return out;
 }
 
 export default function LessonSectionSplitEditor({
@@ -104,6 +176,7 @@ export default function LessonSectionSplitEditor({
     Boolean(section.solution && String(section.solution).trim())
   );
   const [uploadingImg, setUploadingImg] = useState(false);
+  const [copiedToken, setCopiedToken] = useState('');
 
   const menuRef = useRef(null);
   const contentRef = useRef(null);
@@ -134,13 +207,74 @@ export default function LessonSectionSplitEditor({
   const isSolving = solvingSecIdx === secIdx;
   const hasSolution = Boolean(section.solution && String(section.solution).trim());
 
-  const imageItems = (section.items || [])
-    .map((item, idx) => ({ item, idx }))
-    .filter(({ item }) => item?.type === 'image' && (item.url || item.src));
+  const imageEntries = getSectionImageEntries(section);
+  const imageItems = imageEntries.map(({ item, itemIdx, figId, token }) => ({ item, idx: itemIdx, figId, token }));
+  const imageMap = getSectionImageMap(section);
+  const referencedFigIds = getReferencedFigIds(section);
 
   const tableItems = (section.items || [])
     .map((item, idx) => ({ item, idx }))
     .filter(({ item }) => item?.type === 'table' && item.table_data);
+
+  const handleCopyFigureToken = async (item, itemIdx, figId, token) => {
+    if (!item.figId) {
+      onUpdateItem(secIdx, itemIdx, 'figId', figId);
+    }
+    try {
+      await navigator.clipboard.writeText(token);
+    } catch {
+      // Fallback copy
+      const ta = document.createElement('textarea');
+      ta.value = token;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    setCopiedToken(token);
+    setTimeout(() => setCopiedToken(prev => (prev === token ? '' : prev)), 1600);
+  };
+
+  const handleInsertFigureToken = (field, item, itemIdx, figId, token) => {
+    if (!item.figId) {
+      onUpdateItem(secIdx, itemIdx, 'figId', figId);
+    }
+    if (field === 'solution' && !solutionExpanded) {
+      setSolutionExpanded(true);
+    }
+    const currentText = String(section[field] || '');
+    const ta = field === 'solution' ? solutionRef.current : contentRef.current;
+
+    let nextText;
+    let nextCursorPos = null;
+    if (ta && typeof ta.selectionStart === 'number') {
+      const start = ta.selectionStart;
+      const end = ta.selectionEnd ?? start;
+      const before = currentText.slice(0, start);
+      const after = currentText.slice(end);
+      const prefix = before.length > 0 && !before.endsWith('\n') ? '\n' : '';
+      const suffix = after.length > 0 && !after.startsWith('\n') ? '\n' : '';
+      const insertChunk = `${prefix}${token}${suffix}`;
+      nextText = before + insertChunk + after;
+      nextCursorPos = start + insertChunk.length;
+    } else {
+      nextText = currentText.trim()
+        ? `${currentText.replace(/\s+$/, '')}\n${token}\n`
+        : `${token}\n`;
+    }
+
+    onUpdateSection(secIdx, field, nextText);
+    requestAnimationFrame(() => {
+      const targetTa = field === 'solution' ? solutionRef.current : contentRef.current;
+      if (targetTa) {
+        targetTa.focus();
+        if (nextCursorPos !== null) {
+          targetTa.setSelectionRange(nextCursorPos, nextCursorPos);
+        }
+        onRegisterActiveTextarea?.(secIdx, field, targetTa);
+      }
+    });
+  };
 
   const pointsCheck = section.type === 'exercise' ? validateExercisePoints(section) : null;
 
@@ -190,35 +324,13 @@ export default function LessonSectionSplitEditor({
   const gridCols = !isMobile && viewMode === 'split' ? 'minmax(0, 1.05fr) minmax(0, 0.95fr)' : 'minmax(0, 1fr)';
 
   const renderPreviewImages = (position) => {
-    const matching = imageItems.filter(({ item }) => (item.position || 'after') === position);
+    const matching = imageItems.filter(
+      ({ item, figId }) => !referencedFigIds.has(figId.toLowerCase()) && (item.position || 'after') === position
+    );
     if (matching.length === 0) return null;
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', margin: '0.65rem 0' }}>
-        {matching.map(({ item, idx }) => {
-          const align = item.align || 'center';
-          const justify = align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center';
-          return (
-            <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: justify }}>
-              <img
-                src={item.url || item.src}
-                alt={item.alt || 'Figure'}
-                style={{
-                  width: `${item.width_pct || 75}%`,
-                  maxWidth: '100%',
-                  height: 'auto',
-                  borderRadius: '8px',
-                  border: '1px solid #e2e8f0',
-                  background: '#fff',
-                }}
-              />
-              {item.alt && (
-                <span style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '0.2rem', fontStyle: 'italic' }}>
-                  {item.alt}
-                </span>
-              )}
-            </div>
-          );
-        })}
+        {matching.map(({ item, idx }) => renderPreviewFigureCard(item, idx))}
       </div>
     );
   };
@@ -835,132 +947,227 @@ export default function LessonSectionSplitEditor({
 
               {imageItems.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                  {imageItems.map(({ item, idx }) => (
+                  {imageItems.map(({ item, idx, figId, token }) => {
+                    const isPlacedViaCode = referencedFigIds.has(figId.toLowerCase());
+                    return (
                     <div
                       key={idx}
                       style={{
                         display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.6rem',
-                        flexWrap: 'wrap',
-                        padding: '0.45rem',
+                        flexDirection: 'column',
+                        gap: '0.4rem',
+                        padding: '0.5rem',
                         borderRadius: '8px',
                         background: 'var(--bg-card)',
-                        border: '1px solid var(--border)',
+                        border: isPlacedViaCode ? '1px solid rgba(16, 185, 129, 0.45)' : '1px solid var(--border)',
                       }}
                     >
-                      <img
-                        src={item.url || item.src}
-                        alt={item.alt || 'Figure'}
-                        style={{ width: '54px', height: '42px', objectFit: 'contain', borderRadius: '6px', background: '#fff', border: '1px solid var(--border)' }}
-                      />
-                      <div style={{ flex: 1, minWidth: '140px', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                        <input
-                          type="text"
-                          value={item.alt || ''}
-                          onChange={e => onUpdateItem(secIdx, idx, 'alt', e.target.value)}
-                          placeholder="وصف الشكل (اختياري)"
-                          style={{
-                            width: '100%',
-                            padding: '0.22rem 0.45rem',
-                            borderRadius: '6px',
-                            border: '1px solid var(--border)',
-                            background: 'var(--bg-main)',
-                            color: 'var(--text-main)',
-                            fontSize: '0.74rem',
-                          }}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                        <img
+                          src={item.url || item.src}
+                          alt={item.alt || 'Figure'}
+                          style={{ width: '54px', height: '42px', objectFit: 'contain', borderRadius: '6px', background: '#fff', border: '1px solid var(--border)' }}
                         />
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', fontSize: '0.7rem' }}>
-                          <span style={{ color: 'var(--text-muted)', fontWeight: 700 }}>{item.width_pct || 75}%</span>
+                        <div style={{ flex: 1, minWidth: '140px', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                           <input
-                            type="range"
-                            min={25}
-                            max={100}
-                            step={5}
-                            value={item.width_pct || 75}
-                            onChange={e => onUpdateItem(secIdx, idx, 'width_pct', Number(e.target.value))}
-                            style={{ width: '72px' }}
-                          />
-                          <div style={{ display: 'inline-flex', gap: '2px' }}>
-                            {[
-                              { id: 'left', icon: AlignLeft },
-                              { id: 'center', icon: AlignCenter },
-                              { id: 'right', icon: AlignRight },
-                            ].map(({ id: al, icon: Icon }) => (
-                              <button
-                                key={al}
-                                type="button"
-                                onClick={() => onUpdateItem(secIdx, idx, 'align', al)}
-                                style={{
-                                  padding: '2px 4px',
-                                  borderRadius: '4px',
-                                  border: '1px solid var(--border)',
-                                  background: (item.align || 'center') === al ? 'var(--violet)' : 'transparent',
-                                  color: (item.align || 'center') === al ? '#fff' : 'var(--text-muted)',
-                                  cursor: 'pointer',
-                                }}
-                              >
-                                <Icon size={11} />
-                              </button>
-                            ))}
-                          </div>
-                          <select
-                            value={item.position || 'after'}
-                            onChange={e => onUpdateItem(secIdx, idx, 'position', e.target.value)}
+                            type="text"
+                            value={item.alt || ''}
+                            onChange={e => onUpdateItem(secIdx, idx, 'alt', e.target.value)}
+                            placeholder="وصف الشكل (اختياري)"
                             style={{
-                              padding: '1px 4px',
-                              borderRadius: '5px',
+                              width: '100%',
+                              padding: '0.22rem 0.45rem',
+                              borderRadius: '6px',
                               border: '1px solid var(--border)',
                               background: 'var(--bg-main)',
                               color: 'var(--text-main)',
-                              fontSize: '0.69rem',
+                              fontSize: '0.74rem',
+                            }}
+                          />
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', fontSize: '0.7rem' }}>
+                            <span style={{ color: 'var(--text-muted)', fontWeight: 700 }}>{item.width_pct || 75}%</span>
+                            <input
+                              type="range"
+                              min={25}
+                              max={100}
+                              step={5}
+                              value={item.width_pct || 75}
+                              onChange={e => onUpdateItem(secIdx, idx, 'width_pct', Number(e.target.value))}
+                              style={{ width: '72px' }}
+                            />
+                            <div style={{ display: 'inline-flex', gap: '2px' }}>
+                              {[
+                                { id: 'left', icon: AlignLeft },
+                                { id: 'center', icon: AlignCenter },
+                                { id: 'right', icon: AlignRight },
+                              ].map(({ id: al, icon: Icon }) => (
+                                <button
+                                  key={al}
+                                  type="button"
+                                  onClick={() => onUpdateItem(secIdx, idx, 'align', al)}
+                                  style={{
+                                    padding: '2px 4px',
+                                    borderRadius: '4px',
+                                    border: '1px solid var(--border)',
+                                    background: (item.align || 'center') === al ? 'var(--violet)' : 'transparent',
+                                    color: (item.align || 'center') === al ? '#fff' : 'var(--text-muted)',
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  <Icon size={11} />
+                                </button>
+                              ))}
+                            </div>
+                            {isPlacedViaCode ? (
+                              <span
+                                title="تظهر الصورة تلقائياً في المكان الذي وُضع فيه الكود"
+                                style={{
+                                  padding: '1px 6px',
+                                  borderRadius: '99px',
+                                  background: 'rgba(16, 185, 129, 0.12)',
+                                  border: '1px solid rgba(16, 185, 129, 0.35)',
+                                  color: '#059669',
+                                  fontSize: '0.66rem',
+                                  fontWeight: 800,
+                                }}
+                              >
+                                ✓ مُدرجة بالكود
+                              </span>
+                            ) : (
+                              <select
+                                value={item.position || 'after'}
+                                onChange={e => onUpdateItem(secIdx, idx, 'position', e.target.value)}
+                                style={{
+                                  padding: '1px 4px',
+                                  borderRadius: '5px',
+                                  border: '1px solid var(--border)',
+                                  background: 'var(--bg-main)',
+                                  color: 'var(--text-main)',
+                                  fontSize: '0.69rem',
+                                }}
+                              >
+                                <option value="before">قبل النص</option>
+                                <option value="after">بعد النص</option>
+                              </select>
+                            )}
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'inline-flex', gap: '0.25rem' }}>
+                          <button
+                            type="button"
+                            onClick={() => onOpenAiEnhancer?.(secIdx, idx, item)}
+                            title="تحسين جودة الشكل بالذكاء الاصطناعي HD"
+                            style={{
+                              padding: '0.28rem 0.45rem',
+                              borderRadius: '6px',
+                              border: '1px solid rgba(139, 92, 246, 0.35)',
+                              background: 'rgba(139, 92, 246, 0.1)',
+                              color: '#7c3aed',
+                              fontSize: '0.7rem',
+                              fontWeight: 800,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '2px',
                             }}
                           >
-                            <option value="before">قبل النص</option>
-                            <option value="after">بعد النص</option>
-                          </select>
+                            <Sparkles size={11} /> HD
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onRemoveItem(secIdx, idx)}
+                            title="حذف الصورة"
+                            style={{
+                              padding: '0.28rem',
+                              borderRadius: '6px',
+                              border: '1px solid rgba(239, 68, 68, 0.3)',
+                              background: 'rgba(239, 68, 68, 0.08)',
+                              color: '#ef4444',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <Trash2 size={12} />
+                          </button>
                         </div>
                       </div>
 
-                      <div style={{ display: 'inline-flex', gap: '0.25rem' }}>
+                      {/* Shortcode Positioning Toolbar */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          flexWrap: 'wrap',
+                          gap: '0.35rem',
+                          paddingTop: '0.35rem',
+                          borderTop: '1px dashed var(--border)',
+                        }}
+                      >
                         <button
                           type="button"
-                          onClick={() => onOpenAiEnhancer?.(secIdx, idx, item)}
-                          title="تحسين جودة الشكل بالذكاء الاصطناعي HD"
+                          onClick={() => handleCopyFigureToken(item, idx, figId, token)}
+                          title="انقر لنسخ كود الصورة ولصقه أينما تريد"
                           style={{
-                            padding: '0.28rem 0.45rem',
-                            borderRadius: '6px',
-                            border: '1px solid rgba(139, 92, 246, 0.35)',
-                            background: 'rgba(139, 92, 246, 0.1)',
-                            color: '#7c3aed',
-                            fontSize: '0.7rem',
-                            fontWeight: 800,
-                            cursor: 'pointer',
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: '2px',
-                          }}
-                        >
-                          <Sparkles size={11} /> HD
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onRemoveItem(secIdx, idx)}
-                          title="حذف الصورة"
-                          style={{
-                            padding: '0.28rem',
+                            gap: '0.35rem',
+                            padding: '0.18rem 0.5rem',
                             borderRadius: '6px',
-                            border: '1px solid rgba(239, 68, 68, 0.3)',
-                            background: 'rgba(239, 68, 68, 0.08)',
-                            color: '#ef4444',
+                            border: '1px solid rgba(99, 102, 241, 0.35)',
+                            background: copiedToken === token ? 'rgba(16, 185, 129, 0.14)' : 'rgba(99, 102, 241, 0.08)',
+                            color: copiedToken === token ? '#059669' : '#4f46e5',
+                            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
                             cursor: 'pointer',
+                            direction: 'ltr',
                           }}
                         >
-                          <Trash2 size={12} />
+                          <Copy size={11} />
+                          <span>{copiedToken === token ? 'تم النسخ ✓' : token}</span>
                         </button>
+
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', flexWrap: 'wrap' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleInsertFigureToken('content', item, idx, figId, token)}
+                            title="إدراج كود الصورة في موضع المؤشر داخل نص التمرين"
+                            style={{
+                              padding: '0.18rem 0.5rem',
+                              borderRadius: '6px',
+                              border: '1px solid rgba(37, 99, 235, 0.3)',
+                              background: 'rgba(37, 99, 235, 0.08)',
+                              color: '#2563eb',
+                              fontSize: '0.68rem',
+                              fontWeight: 800,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            + إدراج في النص
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleInsertFigureToken('solution', item, idx, figId, token)}
+                            title="إدراج كود الصورة في موضع المؤشر داخل الحل النموذجي"
+                            style={{
+                              padding: '0.18rem 0.5rem',
+                              borderRadius: '6px',
+                              border: '1px solid rgba(16, 185, 129, 0.35)',
+                              background: 'rgba(16, 185, 129, 0.08)',
+                              color: '#059669',
+                              fontSize: '0.68rem',
+                              fontWeight: 800,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            + إدراج في الحل
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  ))}
+                  );
+                  })}
                 </div>
               )}
             </div>
@@ -1047,7 +1254,7 @@ export default function LessonSectionSplitEditor({
               {/* Main Rendered Math Content */}
               {section.content && String(section.content).trim() ? (
                 <div style={{ color: '#0f172a' }}>
-                  {renderPreviewParagraphs(section.content, secIsAr)}
+                  {renderPreviewParagraphs(section.content, secIsAr, imageMap)}
                 </div>
               ) : (
                 <div style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '0.84rem', padding: '0.6rem 0' }}>
@@ -1081,7 +1288,7 @@ export default function LessonSectionSplitEditor({
                     <CheckCircle2 size={13} /> Corrigé / الحل النموذجي
                   </div>
                   <div style={{ fontSize: '0.88rem', color: '#0f172a' }}>
-                    {renderPreviewParagraphs(section.solution, secIsAr)}
+                    {renderPreviewParagraphs(section.solution, secIsAr, imageMap)}
                   </div>
                 </div>
               )}

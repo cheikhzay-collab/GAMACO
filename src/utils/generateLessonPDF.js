@@ -2,6 +2,15 @@ import katex from 'katex';
 import katexCss from 'katex/dist/katex.min.css?inline';
 import { openNationalExamPrintWindow } from './generateNationalExamPDF.js';
 import { openCourseSummaryPrintWindow } from './generateCourseSummaryPDF.js';
+import {
+  getSectionImageEntries,
+  getSectionImageMap,
+  getReferencedFigIds,
+  hasFigureToken,
+  isStandaloneFigureLine,
+  splitTextByFigureTokens,
+  resolveFigureItem,
+} from './figureShortcodes.js';
 
 /* ── RTL mode flag — set per render call ── */
 let _rtlMode = false;
@@ -911,8 +920,27 @@ const parseExerciseTitle = (title, fallbackIdx, isArabicMode = false, sectionNum
   return { number: sectionNumber || String(fallbackIdx + 1), label: clean };
 };
 
+/* ── Render math text with inline [[FIG:N]] figure shortcode resolution ── */
+const renderMathWithFigures = (text, imageMap = null, renderFigureFn = null) => {
+  if (text === null || text === undefined) return '';
+  if (!imageMap || !renderFigureFn || !hasFigureToken(text)) {
+    return renderMath(text);
+  }
+  const segments = splitTextByFigureTokens(String(text));
+  return segments.map((seg) => {
+    if (seg.type === 'figure') {
+      const resolved = resolveFigureItem(imageMap, seg);
+      if (resolved) {
+        return renderFigureFn(resolved);
+      }
+      return '';
+    }
+    return seg.value.trim() ? renderMath(seg.value) : '';
+  }).join('');
+};
+
 /* ── Render Devoir Surveillé homework body with barème ── */
-const renderHomeworkBody = (text, isArabicMode) => {
+const renderHomeworkBody = (text, isArabicMode, imageMap = null, renderFigureFn = null) => {
   if (text === null || text === undefined) return '';
 
   let rawText = String(text);
@@ -986,11 +1014,24 @@ const renderHomeworkBody = (text, isArabicMode) => {
 
     if (!cleanLine) return;
 
+    const standaloneFig = isStandaloneFigureLine(cleanLine);
+    if (standaloneFig) {
+      parsedItems.push({
+        cleanLine,
+        pointsStr: '',
+        isSubQ: false,
+        isFigure: true,
+        figToken: standaloneFig,
+      });
+      return;
+    }
+
     const isSubQ = isQuestionRegex.test(cleanLine);
     parsedItems.push({
       cleanLine,
       pointsStr,
-      isSubQ
+      isSubQ,
+      isFigure: false,
     });
   });
 
@@ -998,10 +1039,15 @@ const renderHomeworkBody = (text, isArabicMode) => {
   let i = 0;
   while (i < parsedItems.length) {
     const item = parsedItems[i];
+    if (item.isFigure) {
+      blocks.push({ isFigureBlock: true, figToken: item.figToken });
+      i++;
+      continue;
+    }
     if (item.pointsStr || item.isSubQ || blocks.length === 0) {
       const block = { headerItem: item, subItems: [] };
       i++;
-      while (i < parsedItems.length && !parsedItems[i].pointsStr && !parsedItems[i].isSubQ) {
+      while (i < parsedItems.length && !parsedItems[i].isFigure && !parsedItems[i].pointsStr && !parsedItems[i].isSubQ) {
         block.headerItem.cleanLine += '\n' + parsedItems[i].cleanLine;
         i++;
       }
@@ -1010,14 +1056,26 @@ const renderHomeworkBody = (text, isArabicMode) => {
       const lastBlock = blocks[blocks.length - 1];
       if (lastBlock && lastBlock.headerItem) {
         lastBlock.headerItem.cleanLine += '\n' + item.cleanLine;
+      } else {
+        blocks.push({ headerItem: item, subItems: [] });
       }
       i++;
     }
   }
 
   const rows = blocks.map(b => {
+    if (b.isFigureBlock) {
+      const resolved = resolveFigureItem(imageMap, b.figToken);
+      if (!resolved || !renderFigureFn) return '';
+      return `
+        <div class="homework-row homework-media-row">
+          <div class="homework-bareme-cell"></div>
+          <div class="homework-content-cell homework-media-cell">${renderFigureFn(resolved)}</div>
+        </div>`;
+    }
+
     const ptsStr = b.headerItem ? b.headerItem.pointsStr : '';
-    const headerHtml = b.headerItem ? `<div>${renderMath(b.headerItem.cleanLine)}</div>` : '';
+    const headerHtml = b.headerItem ? `<div>${renderMathWithFigures(b.headerItem.cleanLine, imageMap, renderFigureFn)}</div>` : '';
 
     let subHtml = '';
     if (b.subItems.length >= 2) {
@@ -1029,11 +1087,11 @@ const renderHomeworkBody = (text, isArabicMode) => {
             const cleanText = si.cleanLine.trim();
             const needsSemi = allShort && idx < b.subItems.length - 1 && !cleanText.endsWith(';') && !cleanText.endsWith(':');
             const displayText = needsSemi ? `${cleanText} ;` : cleanText;
-            return `<div class="homework-subq-item" style="padding: 0.1rem 0;">${renderMath(displayText)}</div>`;
+            return `<div class="homework-subq-item" style="padding: 0.1rem 0;">${renderMathWithFigures(displayText, imageMap, renderFigureFn)}</div>`;
           }).join('')}
         </div>`;
     } else if (b.subItems.length === 1) {
-      subHtml = `<div style="margin-top: 0.25rem;">${renderMath(b.subItems[0].cleanLine)}</div>`;
+      subHtml = `<div style="margin-top: 0.25rem;">${renderMathWithFigures(b.subItems[0].cleanLine, imageMap, renderFigureFn)}</div>`;
     }
 
     return `
@@ -1310,10 +1368,10 @@ export const generateLessonHTML = (lesson, settings = {}) => {
     return name.replace(/^prof[:.\s]*/i, '').replace(/^pr[:.\s]*/i, '').replace(/^أستاذ[:.\s]*/i, '').trim();
   };
 
-  const renderItemHtml = (item) => {
+  const renderItemHtml = (item, secImageMap = null) => {
     if (!item) return '';
     if (item.type === 'highlight_box') {
-      return `<div class="highlight-box">${renderMath(item.text)}</div>`;
+      return `<div class="highlight-box">${renderMathWithFigures(item.text, secImageMap, renderItemHtml)}</div>`;
     } else if (item.type === 'notation_grid') {
       let colsHtml = '';
       item.notation_columns?.forEach((col) => {
@@ -1422,7 +1480,7 @@ export const generateLessonHTML = (lesson, settings = {}) => {
       const bulletStyle = isArabic
         ? 'flex-direction:row;text-align:right;'
         : '';
-      return `<div class="bullet-item" style="${bulletStyle}">${bulletDot}<span style="flex:1;font-family:${isArabic ? arabicFontFamily : 'inherit'}">${renderMath(itemText)}</span></div>`;
+      return `<div class="bullet-item" style="${bulletStyle}">${bulletDot}<span style="flex:1;font-family:${isArabic ? arabicFontFamily : 'inherit'}">${renderMathWithFigures(itemText, secImageMap, renderItemHtml)}</span></div>`;
     }
   };
 
@@ -1449,6 +1507,14 @@ export const generateLessonHTML = (lesson, settings = {}) => {
 
   processedSections.forEach((sec, idx) => {
     const isTheory = sec.type !== 'exercise';
+    const secImageEntries = getSectionImageEntries(sec);
+    const secImageMap = getSectionImageMap(sec);
+    const secReferencedFigs = getReferencedFigIds(sec);
+    const secFigIdByItemIdx = new Map(secImageEntries.map(e => [e.itemIdx, e.figId.toLowerCase()]));
+    const isItemReferencedByCode = (itemIdx) => {
+      const fid = secFigIdByItemIdx.get(itemIdx);
+      return Boolean(fid && secReferencedFigs.has(fid));
+    };
 
     // Section header row — shown only for theory/lesson docs, not exercise sheets
     if (!isExercises && sec.section_header && sec.section_header !== prevSectionHeader) {
@@ -1462,26 +1528,27 @@ export const generateLessonHTML = (lesson, settings = {}) => {
     }
 
     if (isTheory) {
-      // Theory/content subsection
-      const hasImageItem = sec.items?.some(item => item.type === 'image');
+      // Theory/content subsection (skip auto-rendering images already placed inline via [[FIG:N]])
+      const unplacedItems = (sec.items || []).filter((item, itIdx) => !(item?.type === 'image' && isItemReferencedByCode(itIdx)));
+      const hasImageItem = unplacedItems.some(item => item.type === 'image');
       let itemsHtml = '';
 
       if (hasImageItem) {
-        const imageItem = sec.items.find(item => item.type === 'image');
-        const nonImageItems = sec.items.filter(item => item.type !== 'image');
+        const imageItem = unplacedItems.find(item => item.type === 'image');
+        const nonImageItems = unplacedItems.filter(item => item.type !== 'image');
         const widthPct = imageItem.width_pct || 80;
         const align = imageItem.align || 'center';
 
         if (nonImageItems.length === 0 || align === 'center' || widthPct >= 70) {
           // Full-width / Centered Figure Block
-          sec.items.forEach((item) => {
-            itemsHtml += renderItemHtml(item);
+          unplacedItems.forEach((item) => {
+            itemsHtml += renderItemHtml(item, secImageMap);
           });
         } else {
           // Side-by-Side layout for small side images (widthPct < 70)
           let nonImageHtml = '';
           nonImageItems.forEach((item) => {
-            nonImageHtml += renderItemHtml(item);
+            nonImageHtml += renderItemHtml(item, secImageMap);
           });
 
           const rawUrl = (imageItem.url || '').trim();
@@ -1525,12 +1592,12 @@ export const generateLessonHTML = (lesson, settings = {}) => {
             </div>`;
         }
       } else {
-        sec.items?.forEach((item) => {
-          itemsHtml += renderItemHtml(item);
+        unplacedItems.forEach((item) => {
+          itemsHtml += renderItemHtml(item, secImageMap);
         });
       }
       if (!itemsHtml && sec.content) {
-        itemsHtml = renderMath(sec.content);
+        itemsHtml = renderMathWithFigures(sec.content, secImageMap, renderItemHtml);
       }
 
       const type = sec.type || 'content';
@@ -1618,16 +1685,17 @@ export const generateLessonHTML = (lesson, settings = {}) => {
       const { number: exeNumber, label: exeLabel } = parseExerciseTitle(sec.title, idx, isArabic, sec.section_number);
       const isHomeworkSec = isHomework;
 
-      // Render any attached images or tables in exercise items
+      // Render any attached images or tables in exercise items (skip images already placed via [[FIG:N]] shortcode)
       let exerciseBeforeHtml = '';
       let exerciseAfterHtml = '';
       if (Array.isArray(sec.items)) {
-        sec.items.forEach(it => {
+        sec.items.forEach((it, itIdx) => {
+          if (it.type === 'image' && isItemReferencedByCode(itIdx)) return;
           if (it.type === 'image' || it.type === 'table') {
             if (it.position === 'before') {
-              exerciseBeforeHtml += renderItemHtml(it);
+              exerciseBeforeHtml += renderItemHtml(it, secImageMap);
             } else {
-              exerciseAfterHtml += renderItemHtml(it);
+              exerciseAfterHtml += renderItemHtml(it, secImageMap);
             }
           }
         });
@@ -1648,7 +1716,7 @@ export const generateLessonHTML = (lesson, settings = {}) => {
               <div class="homework-bareme-cell"></div>
               <div class="homework-content-cell homework-media-cell">${exerciseBeforeHtml}</div>
             </div>` : ''}
-            ${renderHomeworkBody(sec.content, isArabic)}
+            ${renderHomeworkBody(sec.content, isArabic, secImageMap, renderItemHtml)}
             ${exerciseAfterHtml ? `
             <div class="homework-row homework-media-row">
               <div class="homework-bareme-cell"></div>
@@ -1660,7 +1728,7 @@ export const generateLessonHTML = (lesson, settings = {}) => {
               <div class="homework-content-cell" style="border-top: 1px solid rgba(16,185,129,0.15)">
                 <div class="solution-block" style="margin-top: 0; padding: 0.5rem 0;">
                   <h4 class="solution-title" ${isArabic ? `style="flex-direction:row;font-family:${arabicFontFamily}"` : ''}>📖 ${isArabic ? 'الحل المفصل' : 'Démonstration rédigée'}</h4>
-                  <div class="solution-content" ${isArabic ? `style="text-align:right;direction:rtl;font-family:${arabicFontFamily}"` : ''}>${renderMath(sec.solution)}</div>
+                  <div class="solution-content" ${isArabic ? `style="text-align:right;direction:rtl;font-family:${arabicFontFamily}"` : ''}>${renderMathWithFigures(sec.solution, secImageMap, renderItemHtml)}</div>
                 </div>
               </div>
             </div>` : ''}
@@ -1694,13 +1762,13 @@ export const generateLessonHTML = (lesson, settings = {}) => {
             </div>
             <div class="exercise-body modern-exercise-body" style="${customBodyStyle} ${isArabic ? 'text-align:right;direction:rtl' : ''}">
               ${exerciseBeforeHtml}
-              ${renderMath(sec.content)}
+              ${renderMathWithFigures(sec.content, secImageMap, renderItemHtml)}
               ${exerciseAfterHtml}
             </div>
             ${sec.solution ? `
             <div class="solution-block modern-solution-block">
               <h4 class="solution-title" ${isArabic ? `style="flex-direction:row;font-family:${arabicFontFamily}"` : ''}><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-1px;margin-${isArabic ? 'left' : 'right'}:5px"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>${isArabic ? 'الحل المفصل' : 'Démonstration rédigée'}</h4>
-              <div class="solution-content" ${isArabic ? `style="text-align:right;direction:rtl;font-family:${arabicFontFamily}"` : ''}>${renderMath(sec.solution)}</div>
+              <div class="solution-content" ${isArabic ? `style="text-align:right;direction:rtl;font-family:${arabicFontFamily}"` : ''}>${renderMathWithFigures(sec.solution, secImageMap, renderItemHtml)}</div>
             </div>` : ''}
           </div>`;
         } else {
@@ -1715,13 +1783,13 @@ export const generateLessonHTML = (lesson, settings = {}) => {
             </div>
             <div class="exercise-body" style="${customBodyStyle} ${isArabic ? 'text-align:right;direction:rtl' : ''}">
               ${exerciseBeforeHtml}
-              ${renderMath(sec.content)}
+              ${renderMathWithFigures(sec.content, secImageMap, renderItemHtml)}
               ${exerciseAfterHtml}
             </div>
             ${sec.solution ? `
             <div class="solution-block">
               <h4 class="solution-title" ${isArabic ? `style="flex-direction:row;font-family:${arabicFontFamily}"` : ''}>📖 ${isArabic ? 'الحل المفصل' : 'Démonstration rédigée'}</h4>
-              <div class="solution-content" ${isArabic ? `style="text-align:right;direction:rtl;font-family:${arabicFontFamily}"` : ''}>${renderMath(sec.solution)}</div>
+              <div class="solution-content" ${isArabic ? `style="text-align:right;direction:rtl;font-family:${arabicFontFamily}"` : ''}>${renderMathWithFigures(sec.solution, secImageMap, renderItemHtml)}</div>
             </div>` : ''}
           </div>`;
         }

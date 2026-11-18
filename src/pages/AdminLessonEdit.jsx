@@ -33,6 +33,7 @@ import {
 } from '../utils/devoirPrimeHelpers';
 import { openLessonPrintWindow } from '../utils/generateLessonPDF';
 import { openNationalExamPrintWindow } from '../utils/generateNationalExamPDF';
+import { getNextFigId } from '../utils/figureShortcodes';
 import { openCourseSummaryPrintWindow } from '../utils/generateCourseSummaryPDF';
 import { openEbookTemplatePrintWindow } from '../utils/generateEbookTemplatePDF';
 import { openDevoirPrimePrintWindow } from '../utils/generateDevoirPrimePDF';
@@ -705,7 +706,7 @@ export default function AdminLessonEdit() {
     setSections(prev => prev.map((sec, i) => {
       if (i !== secIdx) return sec;
       const items = Array.isArray(sec.items) ? [...sec.items] : [];
-      items.push({ type: 'image', url: finalUrl, alt, width_pct: 75, align: 'center', position: 'after' });
+      items.push({ type: 'image', figId: getNextFigId(items), url: finalUrl, alt, width_pct: 75, align: 'center', position: 'after' });
       return { ...sec, items };
     }));
   };
@@ -718,11 +719,28 @@ export default function AdminLessonEdit() {
       if (!next[sIdx]) return prev;
       const sec = { ...next[sIdx] };
       const items = Array.isArray(sec.items) ? [...sec.items] : [];
-      const newImg = { type: 'image', url, alt: alt || 'Figure', width_pct: width_pct || 75, align: align || 'center', position: 'after' };
       if (targetItemIdx !== null && targetItemIdx >= 0 && items[targetItemIdx]?.type === 'image') {
-        items[targetItemIdx] = { ...items[targetItemIdx], ...newImg };
+        const existingFigId = items[targetItemIdx].figId || getNextFigId(items);
+        items[targetItemIdx] = {
+          ...items[targetItemIdx],
+          figId: existingFigId,
+          type: 'image',
+          url,
+          alt: alt || 'Figure',
+          width_pct: width_pct || 75,
+          align: align || 'center',
+          position: items[targetItemIdx].position || 'after',
+        };
       } else {
-        items.push(newImg);
+        items.push({
+          type: 'image',
+          figId: getNextFigId(items),
+          url,
+          alt: alt || 'Figure',
+          width_pct: width_pct || 75,
+          align: align || 'center',
+          position: 'after',
+        });
       }
       sec.items = items;
       next[sIdx] = sec;

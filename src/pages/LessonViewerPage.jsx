@@ -27,6 +27,15 @@ import { openDevoirPrimePrintWindow } from '../utils/generateDevoirPrimePDF';
 import { openCoursePrintWindow } from '../utils/generateCoursePDF';
 import { isCourseDocument } from '../utils/courseHelpers';
 import { buildPointsTableFromPrimeExercises } from '../utils/devoirPrimeHelpers';
+import {
+  getSectionImageEntries,
+  getSectionImageMap,
+  getReferencedFigIds,
+  hasFigureToken,
+  isStandaloneFigureLine,
+  splitTextByFigureTokens,
+  resolveFigureItem,
+} from '../utils/figureShortcodes';
 
 /**
  * Convert **bold** markdown to <strong> inline spans, keeping the rest as plain text.
@@ -298,8 +307,46 @@ const parseExerciseTitle = (title, fallbackIdx, isArabicMode = false, sectionNum
 };
 
 
+const renderInlineFigureNode = (imgItem, key) => {
+  if (!imgItem) return null;
+  const rawUrl = (imgItem.url || imgItem.src || '').trim();
+  if (!rawUrl) return null;
+  const align = imgItem.align || 'center';
+  const widthPct = imgItem.width_pct || 80;
+  const justifyMap = { left: 'flex-start', center: 'center', right: 'flex-end' };
+  const altText = imgItem.alt || imgItem.description || '';
+  return (
+    <div key={key} style={{ display: 'flex', flexDirection: 'column', alignItems: justifyMap[align] || 'center', margin: '0.75rem 0', width: '100%' }}>
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '12px', padding: '0.6rem', maxWidth: `${widthPct}%`, minWidth: '180px', display: 'inline-flex', flexDirection: 'column', alignItems: 'center', boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
+        <img src={rawUrl} alt={altText || 'Figure'} style={{ width: '100%', maxHeight: '380px', borderRadius: '8px', objectFit: 'contain', display: 'block' }} />
+        {altText && <div style={{ marginTop: '0.4rem', fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>{renderWithMath(altText)}</div>}
+      </div>
+    </div>
+  );
+};
+
+const renderMathWithSectionFigures = (text, section) => {
+  if (text === null || text === undefined) return null;
+  if (!section || !hasFigureToken(text)) {
+    return renderWithMath(text);
+  }
+  const imageMap = getSectionImageMap(section);
+  const segments = splitTextByFigureTokens(String(text));
+  return (
+    <>
+      {segments.map((seg, idx) => {
+        if (seg.type === 'figure') {
+          const resolved = resolveFigureItem(imageMap, seg);
+          return resolved ? renderInlineFigureNode(resolved, `inline-fig-${idx}-${seg.figId}`) : null;
+        }
+        return seg.value.trim() ? <span key={`inline-txt-${idx}`}>{renderWithMath(seg.value)}</span> : null;
+      })}
+    </>
+  );
+};
+
 /* ── Render Devoir Surveillé homework body with barème ── */
-const renderHomeworkBody = (text, isArabicMode, arabicFont, renderWithMath, secId, onPointsChange, isDirectEdit = false, onContentChange = null) => {
+const renderHomeworkBody = (text, isArabicMode, arabicFont, renderWithMath, secId, onPointsChange, isDirectEdit = false, onContentChange = null, section = null) => {
   if (text === null || text === undefined) return null;
 
   let rawText = String(text);
@@ -370,6 +417,20 @@ const renderHomeworkBody = (text, isArabicMode, arabicFont, renderWithMath, secI
 
     if (!cleanLine) return;
 
+    const standaloneFig = !isDirectEdit ? isStandaloneFigureLine(cleanLine) : null;
+    if (standaloneFig) {
+      parsedItems.push({
+        idx,
+        cleanLine,
+        pointsStr: '',
+        displayPoints: '',
+        isSubQ: false,
+        isFigure: true,
+        figToken: standaloneFig,
+      });
+      return;
+    }
+
     let displayPoints = pointsStr;
     if (displayPoints.startsWith('(') && displayPoints.endsWith(')')) {
       displayPoints = displayPoints.slice(1, -1);
@@ -381,7 +442,8 @@ const renderHomeworkBody = (text, isArabicMode, arabicFont, renderWithMath, secI
       cleanLine,
       pointsStr,
       displayPoints,
-      isSubQ
+      isSubQ,
+      isFigure: false
     });
   });
 
@@ -389,10 +451,15 @@ const renderHomeworkBody = (text, isArabicMode, arabicFont, renderWithMath, secI
   let i = 0;
   while (i < parsedItems.length) {
     const item = parsedItems[i];
+    if (item.isFigure) {
+      blocks.push({ isFigureBlock: true, figToken: item.figToken });
+      i++;
+      continue;
+    }
     if (item.pointsStr || item.isSubQ || blocks.length === 0) {
       const block = { headerItem: item, subItems: [] };
       i++;
-      while (i < parsedItems.length && !parsedItems[i].pointsStr && !parsedItems[i].isSubQ) {
+      while (i < parsedItems.length && !parsedItems[i].isFigure && !parsedItems[i].pointsStr && !parsedItems[i].isSubQ) {
         block.headerItem.cleanLine += '\n' + parsedItems[i].cleanLine;
         i++;
       }
@@ -401,12 +468,29 @@ const renderHomeworkBody = (text, isArabicMode, arabicFont, renderWithMath, secI
       const lastBlock = blocks[blocks.length - 1];
       if (lastBlock && lastBlock.headerItem) {
         lastBlock.headerItem.cleanLine += '\n' + item.cleanLine;
+      } else {
+        blocks.push({ headerItem: item, subItems: [] });
       }
       i++;
     }
   }
 
+  const imageMap = section ? getSectionImageMap(section) : null;
+
   const rows = blocks.map((b, bIdx) => {
+    if (b.isFigureBlock) {
+      const resolved = resolveFigureItem(imageMap, b.figToken);
+      if (!resolved) return null;
+      return (
+        <div key={`hw-fig-${bIdx}`} className="homework-row homework-media-row">
+          <div className="homework-bareme-cell" />
+          <div className="homework-content-cell homework-media-cell">
+            {renderInlineFigureNode(resolved, `hw-fig-node-${bIdx}`)}
+          </div>
+        </div>
+      );
+    }
+
     const ptsStr = b.headerItem ? b.headerItem.pointsStr : '';
     const displayPts = b.headerItem ? b.headerItem.displayPoints : '';
     const hIdx = b.headerItem ? b.headerItem.idx : (b.subItems[0]?.idx || bIdx);
@@ -434,7 +518,7 @@ const renderHomeworkBody = (text, isArabicMode, arabicFont, renderWithMath, secI
             }}
           />
         ) : (
-          renderWithMath(b.headerItem.cleanLine)
+          renderMathWithSectionFigures(b.headerItem.cleanLine, section)
         )}
       </div>
     ) : null;
@@ -4019,6 +4103,11 @@ export default function LessonViewerPage() {
                         }
 
                         if (item.type === 'image') {
+                          const refFigs = getReferencedFigIds(sec);
+                          const entryForIdx = getSectionImageEntries(sec).find(e => e.itemIdx === itemIdx);
+                          if (entryForIdx && refFigs.has(entryForIdx.figId.toLowerCase())) {
+                            return null;
+                          }
                           const align = item.align || 'center';
                           const widthPct = item.width_pct || 80;
                           const justifyMap = { left: 'flex-start', center: 'center', right: 'flex-end' };
@@ -4184,7 +4273,7 @@ export default function LessonViewerPage() {
                                 }}
                               />
                             ) : (
-                              <span style={{ flex: 1 }}>{renderWithMath(item.text)}</span>
+                              <span style={{ flex: 1 }}>{renderMathWithSectionFigures(item.text, sec)}</span>
                             )}
                           </div>
                         );
@@ -4194,6 +4283,15 @@ export default function LessonViewerPage() {
                 })() : (
                     (() => {
                       if (isHomework) {
+                        const hwRefFigs = getReferencedFigIds(sec);
+                        const hwEntriesByIdx = new Map(getSectionImageEntries(sec).map(e => [e.itemIdx, e.figId.toLowerCase()]));
+                        const hwUnplacedBefore = (sec.items || [])
+                          .map((it, itIdx) => ({ it, itIdx }))
+                          .filter(({ it, itIdx }) => it?.type === 'image' && it.position === 'before' && !hwRefFigs.has(hwEntriesByIdx.get(itIdx)));
+                        const hwUnplacedAfter = (sec.items || [])
+                          .map((it, itIdx) => ({ it, itIdx }))
+                          .filter(({ it, itIdx }) => it?.type === 'image' && it.position !== 'before' && !hwRefFigs.has(hwEntriesByIdx.get(itIdx)));
+
                         return (
                           <div className="homework-table" style={isArabic ? { fontFamily: arabicFont } : {}}>
                             <div className="homework-header-row">
@@ -4202,8 +4300,26 @@ export default function LessonViewerPage() {
                                 {isArabic ? 'تمرين' : 'Exercice'} {exeNumber} {exeLabel ? ` : ${exeLabel}` : ''}
                               </div>
                             </div>
+
+                            {hwUnplacedBefore.length > 0 && (
+                              <div className="homework-row homework-media-row">
+                                <div className="homework-bareme-cell" />
+                                <div className="homework-content-cell homework-media-cell">
+                                  {hwUnplacedBefore.map(({ it, itIdx }) => renderInlineFigureNode(it, `hw-before-${itIdx}`))}
+                                </div>
+                              </div>
+                            )}
                             
-                            {renderHomeworkBody(sec.content, isArabic, arabicFont, renderWithMath, sec.id, handlePointsChange, isDirectEdit, handleContentChange)}
+                            {renderHomeworkBody(sec.content, isArabic, arabicFont, renderWithMath, sec.id, handlePointsChange, isDirectEdit, handleContentChange, sec)}
+
+                            {hwUnplacedAfter.length > 0 && (
+                              <div className="homework-row homework-media-row">
+                                <div className="homework-bareme-cell" />
+                                <div className="homework-content-cell homework-media-cell">
+                                  {hwUnplacedAfter.map(({ it, itIdx }) => renderInlineFigureNode(it, `hw-after-${itIdx}`))}
+                                </div>
+                              </div>
+                            )}
 
                             {/* Interactive student checks inside homework row */}
                             {sec.interactive_answers?.length > 0 && (
@@ -4291,7 +4407,7 @@ export default function LessonViewerPage() {
                                         {isArabic ? 'الحل المفصل' : 'Démonstration rédigée'}
                                       </h4>
                                       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontSize: '0.9rem', lineHeight: 1.8, textAlign: isArabic ? 'right' : 'left', fontFamily: isArabic ? arabicFont : 'inherit', direction: isArabic ? 'rtl' : 'ltr' }}>
-                                        {renderWithMath(sec.solution)}
+                                        {renderMathWithSectionFigures(sec.solution, sec)}
                                       </div>
                                     </div>
                                   )}
@@ -4493,33 +4609,31 @@ export default function LessonViewerPage() {
                                   </div>
                                 )}
 
-                                {/* Attached images/tables with position === 'before' */}
-                                {sec.items?.filter(it => (it.type === 'image' || it.type === 'table') && it.position === 'before').map((item, itemIdx) => {
-                                  if (item.type === 'image') {
-                                    const align = item.align || 'center';
-                                    const widthPct = item.width_pct || 80;
-                                    const justifyMap = { left: 'flex-start', center: 'center', right: 'flex-end' };
-                                    const rawUrl = (item.url || '').trim();
-                                    const altText = item.alt || item.description || '';
-                                    if (!rawUrl) return null;
-                                    return (
-                                      <div key={`ex-img-before-${itemIdx}`} style={{ display: 'flex', flexDirection: 'column', alignItems: justifyMap[align], margin: '0.8rem 0', width: '100%' }}>
-                                        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '12px', padding: '0.6rem', maxWidth: `${widthPct}%`, minWidth: '180px', display: 'inline-flex', flexDirection: 'column', alignItems: 'center', boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
-                                          <img src={rawUrl} alt={altText || 'Figure'} style={{ width: '100%', maxHeight: '350px', borderRadius: '8px', objectFit: 'contain', display: 'block' }} />
-                                          {altText && <div style={{ marginTop: '0.4rem', fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>{renderWithMath(altText)}</div>}
-                                        </div>
-                                      </div>
-                                    );
-                                  }
-                                  if (item.type === 'table') {
-                                    return (
-                                      <div key={`ex-tbl-before-${itemIdx}`} style={{ margin: '0.8rem 0', width: '100%' }}>
-                                        <SmartTableRenderer table={item.table || item.data || item.text || item} title={item.title} />
-                                      </div>
-                                    );
-                                  }
-                                  return null;
-                                })}
+                                {/* Attached images/tables with position === 'before' (skip images already placed via [[FIG:N]]) */}
+                                {(() => {
+                                  const refFigs = getReferencedFigIds(sec);
+                                  const entriesByIdx = new Map(getSectionImageEntries(sec).map(e => [e.itemIdx, e.figId.toLowerCase()]));
+                                  return (sec.items || [])
+                                    .map((it, origIdx) => ({ item: it, origIdx }))
+                                    .filter(({ item, origIdx }) =>
+                                      (item.type === 'image' || item.type === 'table') &&
+                                      item.position === 'before' &&
+                                      !(item.type === 'image' && refFigs.has(entriesByIdx.get(origIdx)))
+                                    )
+                                    .map(({ item, origIdx }) => {
+                                      if (item.type === 'image') {
+                                        return renderInlineFigureNode(item, `ex-img-before-${origIdx}`);
+                                      }
+                                      if (item.type === 'table') {
+                                        return (
+                                          <div key={`ex-tbl-before-${origIdx}`} style={{ margin: '0.8rem 0', width: '100%' }}>
+                                            <SmartTableRenderer table={item.table || item.data || item.text || item} title={item.title} />
+                                          </div>
+                                        );
+                                      }
+                                      return null;
+                                    });
+                                })()}
 
                                 {isDirectEdit ? (
                                   <textarea
@@ -4542,36 +4656,34 @@ export default function LessonViewerPage() {
                                     }}
                                   />
                                 ) : (
-                                  renderWithMath(sec.content)
+                                  renderMathWithSectionFigures(sec.content, sec)
                                 )}
 
-                            {/* Attached images and tables inside exercise (default / after) */}
-                            {sec.items?.filter(it => (it.type === 'image' || it.type === 'table') && it.position !== 'before').map((item, itemIdx) => {
-                              if (item.type === 'image') {
-                                const align = item.align || 'center';
-                                const widthPct = item.width_pct || 80;
-                                const justifyMap = { left: 'flex-start', center: 'center', right: 'flex-end' };
-                                const rawUrl = (item.url || '').trim();
-                                const altText = item.alt || item.description || '';
-                                if (!rawUrl) return null;
-                                return (
-                                  <div key={`ex-img-${itemIdx}`} style={{ display: 'flex', flexDirection: 'column', alignItems: justifyMap[align], margin: '1rem 0', width: '100%' }}>
-                                    <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '12px', padding: '0.6rem', maxWidth: `${widthPct}%`, minWidth: '180px', display: 'inline-flex', flexDirection: 'column', alignItems: 'center', boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
-                                      <img src={rawUrl} alt={altText || 'Figure'} style={{ width: '100%', maxHeight: '350px', borderRadius: '8px', objectFit: 'contain', display: 'block' }} />
-                                      {altText && <div style={{ marginTop: '0.4rem', fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>{renderWithMath(altText)}</div>}
-                                    </div>
-                                  </div>
-                                );
-                              }
-                              if (item.type === 'table') {
-                                return (
-                                  <div key={`ex-tbl-${itemIdx}`} style={{ margin: '1rem 0', width: '100%' }}>
-                                    <SmartTableRenderer table={item.table || item.data || item.text || item} title={item.title} />
-                                  </div>
-                                );
-                              }
-                              return null;
-                            })}
+                            {/* Attached images and tables inside exercise (default / after, skip images placed via [[FIG:N]]) */}
+                            {(() => {
+                              const refFigs = getReferencedFigIds(sec);
+                              const entriesByIdx = new Map(getSectionImageEntries(sec).map(e => [e.itemIdx, e.figId.toLowerCase()]));
+                              return (sec.items || [])
+                                .map((it, origIdx) => ({ item: it, origIdx }))
+                                .filter(({ item, origIdx }) =>
+                                  (item.type === 'image' || item.type === 'table') &&
+                                  item.position !== 'before' &&
+                                  !(item.type === 'image' && refFigs.has(entriesByIdx.get(origIdx)))
+                                )
+                                .map(({ item, origIdx }) => {
+                                  if (item.type === 'image') {
+                                    return renderInlineFigureNode(item, `ex-img-after-${origIdx}`);
+                                  }
+                                  if (item.type === 'table') {
+                                    return (
+                                      <div key={`ex-tbl-${origIdx}`} style={{ margin: '1rem 0', width: '100%' }}>
+                                        <SmartTableRenderer table={item.table || item.data || item.text || item} title={item.title} />
+                                      </div>
+                                    );
+                                  }
+                                  return null;
+                                });
+                            })()}
                           </div>
                         );
                       })()}
@@ -4688,7 +4800,7 @@ export default function LessonViewerPage() {
                               direction: isArabic ? 'rtl' : 'ltr',
                             }}>
                               {sec.solution ? (
-                                renderWithMath(sec.solution)
+                                renderMathWithSectionFigures(sec.solution, sec)
                               ) : (
                                 <div className="no-print" style={{ textAlign: 'center', padding: '1.25rem 0.5rem' }}>
                                   <p style={{ color: 'var(--text-muted)', marginBottom: '0.75rem', fontSize: '0.88rem' }}>
