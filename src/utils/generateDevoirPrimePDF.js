@@ -407,9 +407,8 @@ export async function generateDevoirPrimeHTML(lesson, options = {}) {
     }
 
     .dp-sheet-body {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
+      display: block;
+      width: 100%;
     }
 
     /* ── PAGE 1 COVER HEADER ── */
@@ -916,6 +915,25 @@ export async function generateDevoirPrimeHTML(lesson, options = {}) {
       var maxSheetInnerHeight = probe.offsetHeight;
       document.body.removeChild(probe);
 
+      function getFullHeight(el) {
+        if (!el) return 0;
+        var cs = window.getComputedStyle(el);
+        return el.offsetHeight + (parseFloat(cs.marginTop) || 0) + (parseFloat(cs.marginBottom) || 0);
+      }
+
+      function getActualUsedHeight(sheet, body) {
+        var header = sheet.firstElementChild;
+        var headerH = (header && header !== body) ? getFullHeight(header) : 0;
+        var bodyH = 0;
+        Array.from(body.children).forEach(function(ch) {
+          bodyH += getFullHeight(ch);
+        });
+        return headerH + bodyH;
+      }
+
+      // Pre-measure every flow item's exact height while in staging (same 186mm width as sheet body)
+      var itemHeights = items.map(function(el) { return getFullHeight(el); });
+
       function createSheet(pageIndex) {
         var sheet = document.createElement('section');
         sheet.className = 'dp-sheet';
@@ -938,24 +956,31 @@ export async function generateDevoirPrimeHTML(lesson, options = {}) {
         var item = items[i];
         var keepWithNext = item.getAttribute('data-keep-with-next') === 'true';
 
-        // Measure current used height inside sheet
+        // Append and measure true used height (never inflated by flex: 1)
         current.body.appendChild(item);
 
-        // If this is an exercise heading, peek whether it + next question card fit
-        var overflow = current.sheet.scrollHeight > current.sheet.clientHeight + 2;
+        var usedH = getActualUsedHeight(current.sheet, current.body);
+        var overflow = usedH > maxSheetInnerHeight - 2 || current.sheet.scrollHeight > current.sheet.clientHeight + 2;
 
+        // If this is an exercise heading or stem, verify it fits together with the next question card
+        // (and any chained keep-with-next stem directly following an exercise heading)
         if (!overflow && keepWithNext && i + 1 < items.length) {
-          var nextItem = items[i + 1];
-          var nextH = nextItem.offsetHeight || 160;
-          var usedH = 0;
-          Array.from(current.sheet.children).forEach(function(ch) { usedH += ch.offsetHeight; });
-          if (usedH + nextH > maxSheetInnerHeight) {
+          var lookaheadH = 0;
+          var j = i + 1;
+          while (j < items.length) {
+            lookaheadH += itemHeights[j] || 120;
+            if (items[j].getAttribute('data-keep-with-next') !== 'true') {
+              break;
+            }
+            j++;
+          }
+          if (usedH + lookaheadH > maxSheetInnerHeight - 2) {
             overflow = true;
           }
         }
 
         if (overflow && current.body.children.length > 1) {
-          // Move item to a fresh next page
+          // Move item cleanly to a fresh next page
           pageNum += 1;
           current = createSheet(pageNum);
           current.body.appendChild(item);
@@ -987,11 +1012,13 @@ export async function generateDevoirPrimeHTML(lesson, options = {}) {
     window.addEventListener('load', function() {
       var staging = document.getElementById('dp-staging');
       renderAllMath(staging);
-      // Slight delay to let web fonts & KaTeX settle before measuring exact heights
-      setTimeout(function() {
-        paginateDocument();
-        ${options.autoPrint ? 'setTimeout(function(){ window.print(); }, 350);' : ''}
-      }, 250);
+      var fontsReady = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
+      fontsReady.then(function() {
+        setTimeout(function() {
+          paginateDocument();
+          ${options.autoPrint ? 'setTimeout(function(){ window.print(); }, 350);' : ''}
+        }, 180);
+      });
     });
   </script>
 </body>
