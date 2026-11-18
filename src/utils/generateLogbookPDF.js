@@ -295,14 +295,19 @@ const renderActivityCellHTML = (content, isHeader, isArMode, styleConfig) => {
       }
     }
 
-    // Filter out redundant empty exercise stubs immediately followed by full exercise headers
+    // Filter out redundant empty exercise stubs ONLY when immediately followed by the SAME exercise number
     // e.g. "• **Exercice 08 :**" followed by "• Exercice 08 : Étude de fonction..."
+    // Never drop distinct consecutive exercises like "Exercice 01 :", "Exercice 02 :", "Exercice 03 :"
     const curClean = cur.replace(/^(\s*(?:[•▪■›–—]|-(?!-)\s+|\*(?!\*)\s+))+/, '').replace(/\*\*/g, '').trim();
-    const isExerciseStub = /^(exercice|تمرين|devoir|contrôle|فرض)\s*n?°?\s*\d*\s*:?\s*$/i.test(curClean);
-    if (isExerciseStub && i + 1 < rawLines.length) {
+    const stubMatch = curClean.match(/^(exercice|تمرين|devoir|contrôle|فرض)\s*(?:n°|nº|num)?\s*(\d+)\s*:?\s*$/i);
+    if (stubMatch && i + 1 < rawLines.length) {
       const nextClean = rawLines[i + 1].trim().replace(/^(\s*(?:[•▪■›–—]|-(?!-)\s+|\*(?!\*)\s+))+/, '').replace(/\*\*/g, '').trim();
-      const nextIsExercise = /^(exercice|تمرين|devoir|contrôle|فرض)\s*n?°?\s*\d*/i.test(nextClean);
-      if (nextIsExercise) {
+      const nextMatch = nextClean.match(/^(exercice|تمرين|devoir|contrôle|فرض)\s*(?:n°|nº|num)?\s*(\d+)\b/i);
+      if (
+        nextMatch &&
+        stubMatch[1].toLowerCase() === nextMatch[1].toLowerCase() &&
+        Number(stubMatch[2]) === Number(nextMatch[2])
+      ) {
         continue;
       }
     }
