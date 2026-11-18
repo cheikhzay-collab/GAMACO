@@ -147,7 +147,7 @@ function buildRunningHeaderTemplateHtml(meta) {
  * Renders the dotted lines backdrop for a given number of lines.
  */
 function buildDottedLinesHtml(linesCount) {
-  const count = Math.max(3, Math.min(16, Number(linesCount) || 5));
+  const count = Math.max(1, Math.min(24, Number(linesCount) || 5));
   let html = '<div class="dp-dotted-lines-bg">';
   for (let i = 0; i < count; i++) {
     html += '<div class="dp-dotted-line"></div>';
@@ -255,8 +255,9 @@ export async function generateDevoirPrimeHTML(lesson, options = {}) {
 
       const qrDataUrl = qrMap[`${eIdx}_${qIdx}`] || '';
       const solHtml = buildSolutionOverlayHtml(q, meta.solutionStyle);
-      const dottedHtml = buildDottedLinesHtml(q.linesCount);
-      const minHeightPx = Math.max(3, Number(q.linesCount) || 5) * 29 + 14;
+      const initialLines = Math.max(1, Math.min(24, Number(q.linesCount) || 5));
+      const dottedHtml = buildDottedLinesHtml(initialLines);
+      const minHeightPx = initialLines * 29 + 14;
 
       flowBlocksHtml.push(`
         <div class="dp-flow-item dp-q-card">
@@ -271,9 +272,14 @@ export async function generateDevoirPrimeHTML(lesson, options = {}) {
                 ${qrDataUrl ? `<img src="${qrDataUrl}" alt="QR" />` : '<span class="dp-qr-fallback">QR</span>'}
               </div>` : ''}
           </div>
-          <div class="dp-answer-zone" style="min-height: ${minHeightPx}px;">
+          <div class="dp-answer-zone" data-lines="${initialLines}" style="min-height: ${minHeightPx}px;">
             ${dottedHtml}
             ${solHtml}
+            <div class="dp-line-controls no-print" dir="rtl" title="تعديل عدد أسطر الكتابة لهذا السؤال (لا يظهر عند الطباعة)">
+              <button type="button" class="dp-lc-btn" onclick="adjustQuestionLines(this, -1)" title="إنقاص سطر">−</button>
+              <span class="dp-lc-count"><span class="dp-lc-num">${initialLines}</span> أسطر</span>
+              <button type="button" class="dp-lc-btn dp-lc-plus" onclick="adjustQuestionLines(this, 1)" title="إضافة سطر للكتابة">+</button>
+            </div>
           </div>
         </div>
       `);
@@ -832,9 +838,85 @@ export async function generateDevoirPrimeHTML(lesson, options = {}) {
       visibility: hidden;
     }
 
+    /* Per-question writing lines controls (Screen only, hidden on print) */
+    .dp-line-controls {
+      position: absolute;
+      bottom: 5px;
+      right: 8px;
+      z-index: 10;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(15, 23, 42, 0.86);
+      color: #f8fafc;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      border-radius: 999px;
+      padding: 2px 5px;
+      font-family: 'Tajawal', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      box-shadow: 0 3px 10px rgba(15, 23, 42, 0.22);
+      opacity: 0.42;
+      transition: opacity 0.16s ease, transform 0.16s ease;
+      user-select: none;
+    }
+    .dp-q-card:hover .dp-line-controls,
+    .dp-line-controls:hover {
+      opacity: 1;
+    }
+    .dp-lc-btn {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(255, 255, 255, 0.16);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 900;
+      line-height: 1;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      transition: background 0.14s ease;
+    }
+    .dp-lc-btn:hover { background: rgba(255, 255, 255, 0.32); }
+    .dp-lc-plus { background: #0284c7; }
+    .dp-lc-plus:hover { background: #0ea5e9; }
+    .dp-lc-count {
+      padding: 0 4px;
+      white-space: nowrap;
+    }
+    .dp-toolbar-lines-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      border-radius: 8px;
+      padding: 3px 8px;
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #e2e8f0;
+    }
+    .dp-toolbar-lines-btn {
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+      border-radius: 6px;
+      padding: 3px 8px;
+      font-family: 'Tajawal', sans-serif;
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: background 0.14s ease;
+    }
+    .dp-toolbar-lines-btn:hover { background: rgba(56, 189, 248, 0.35); }
+
     @media print {
       body { background: #fff !important; }
-      .dp-toolbar, .no-print { display: none !important; }
+      .dp-toolbar, .no-print, .dp-line-controls { display: none !important; }
       #dp-pages-root { padding: 0 !important; gap: 0 !important; }
       .dp-sheet {
         box-shadow: none !important;
@@ -852,6 +934,11 @@ export async function generateDevoirPrimeHTML(lesson, options = {}) {
       <span>${escapeHtml(meta.title)}</span>
     </div>
     <div class="dp-toolbar-actions">
+      <div class="dp-toolbar-lines-group" dir="rtl" title="إضافة أو إنقاص سطر للكتابة في جميع الأسئلة دفعة واحدة">
+        <span>📏 الأسطر:</span>
+        <button type="button" class="dp-toolbar-lines-btn" onclick="adjustAllLines(1)">+ سطر للكل</button>
+        <button type="button" class="dp-toolbar-lines-btn" onclick="adjustAllLines(-1)">− سطر للكل</button>
+      </div>
       <button type="button" id="btn-mode-student" class="dp-btn ${!initialShowSolutions ? 'dp-btn-active' : ''}" onclick="setSolutionsMode(false)">
         📝 نسخة التلميذ (نقط فقط - بدون حل)
       </button>
@@ -994,6 +1081,48 @@ export async function generateDevoirPrimeHTML(lesson, options = {}) {
         sh.querySelectorAll('.dp-page-num').forEach(function(el) { el.textContent = String(idx + 1); });
         sh.querySelectorAll('.dp-total-pages').forEach(function(el) { el.textContent = String(total); });
       });
+    }
+
+    function applyLinesToZone(zone, nextCount) {
+      if (!zone) return;
+      var clamped = Math.max(1, Math.min(24, Number(nextCount) || 5));
+      zone.setAttribute('data-lines', String(clamped));
+      zone.style.minHeight = (clamped * 29 + 14) + 'px';
+
+      var bg = zone.querySelector('.dp-dotted-lines-bg');
+      if (bg) {
+        var html = '';
+        for (var i = 0; i < clamped; i++) {
+          html += '<div class="dp-dotted-line"></div>';
+        }
+        bg.innerHTML = html;
+      }
+
+      var numEl = zone.querySelector('.dp-lc-num');
+      if (numEl) numEl.textContent = String(clamped);
+    }
+
+    function adjustQuestionLines(btnEl, delta) {
+      var zone = btnEl && btnEl.closest ? btnEl.closest('.dp-answer-zone') : null;
+      if (!zone) return;
+      var current = parseInt(zone.getAttribute('data-lines') || '5', 10);
+      var next = Math.max(1, Math.min(24, current + delta));
+      if (next === current) return;
+      var prevScrollY = window.scrollY;
+      applyLinesToZone(zone, next);
+      paginateDocument();
+      window.scrollTo(0, prevScrollY);
+    }
+
+    function adjustAllLines(delta) {
+      var prevScrollY = window.scrollY;
+      var zones = document.querySelectorAll('.dp-answer-zone');
+      zones.forEach(function(zone) {
+        var current = parseInt(zone.getAttribute('data-lines') || '5', 10);
+        applyLinesToZone(zone, current + delta);
+      });
+      paginateDocument();
+      window.scrollTo(0, prevScrollY);
     }
 
     function setSolutionsMode(show) {
