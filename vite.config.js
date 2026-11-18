@@ -34,13 +34,28 @@ export default defineConfig(({ mode }) => {
       react(),
       apiServerPlugin(),
     VitePWA({
-      selfDestroying: true,
-      strategies: 'injectManifest',
-      srcDir: 'src',
-      filename: 'sw.js',
+      strategies: 'generateSW',
       registerType: 'autoUpdate',
-      injectManifest: {
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB
+      workbox: {
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: true,
+        navigateFallbackDenylist: [/^\/api\//, /^\/ping$/],
+        runtimeCaching: [
+          {
+            urlPattern: /^\/api\/.*$/,
+            handler: 'NetworkOnly',
+          },
+          {
+            urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'gamaco-google-fonts',
+              expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 365 },
+            },
+          },
+        ],
       },
       includeAssets: ['favicon.svg', 'icons/*.png'],
 

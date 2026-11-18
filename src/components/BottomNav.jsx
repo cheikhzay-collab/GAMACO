@@ -20,21 +20,21 @@ export default function BottomNav() {
   const dueToday  = isStudent ? (dueTodayCount || 0) : 0;
 
   const studentItems = [
-    { to: '/dashboard', icon: LayoutDashboard, label: 'Accueil'  },
-    { to: '/levels',    icon: Library,         label: 'Cours'    },
-    { to: '/scanner',   icon: Camera,          label: 'Scanner'  },
-    { to: '/study',     icon: BookOpen,        label: 'Réviser'  },
-    { to: '/ranking',   icon: Trophy,          label: 'Rank'     },
+    { to: '/dashboard', icon: LayoutDashboard, label: 'الرئيسية' },
+    { to: '/levels',    icon: Library,         label: 'الدروس'   },
+    { to: '/study',     icon: BookOpen,        label: 'المراجعة' },
+    { to: '/scanner',   icon: Camera,          label: 'الماسح'   },
   ];
 
   const adminItems = [
-    { to: '/admin/dashboard', icon: LayoutDashboard, label: 'Accueil' },
-    { to: '/admin/exams',     icon: Library,          label: 'QCMs'    },
-    { to: '/scanner',         icon: Camera,           label: 'Scanner' },
+    { to: '/admin/dashboard', icon: LayoutDashboard, label: 'الرئيسية' },
+    { to: '/admin/lessons',   icon: FileText,        label: 'الدروس'   },
+    { to: '/admin/logbook',   icon: ClipboardList,   label: 'الدفتر'   },
+    { to: '/admin/classes',   icon: Users,           label: 'الأقسام'  },
   ];
 
   const guestItems = [
-    { to: '/schools',   icon: GraduationCap,   label: 'Écoles'   },
+    { to: '/levels', icon: GraduationCap, label: 'المستويات' },
   ];
 
   const items = !user ? guestItems : (isStudent ? studentItems : adminItems);
@@ -90,7 +90,7 @@ export default function BottomNav() {
 
         <div className="mob-nav-items" ref={navRef}>
           {items.map(({ to, icon: Icon, label }) => {
-            const showBadge = label === 'Réviser' && isStudent && dueToday > 0;
+            const showBadge = to === '/study' && isStudent && dueToday > 0;
             return (
               <NavLink
                 key={to}
@@ -99,7 +99,7 @@ export default function BottomNav() {
                 end={to === '/dashboard' || to === '/admin/dashboard'}
               >
                 <div className="mob-nav-icon-wrap" style={{ position: 'relative' }}>
-                  <Icon size={22} strokeWidth={1.8} />
+                  <Icon size={21} strokeWidth={2} />
                   {showBadge && (
                     <span className="mob-nav-badge">
                       {dueToday}
@@ -116,35 +116,35 @@ export default function BottomNav() {
             <button
               className={`mob-nav-item${showSheet ? ' active' : ''}`}
               onClick={() => setShowSheet(true)}
-              title="Outils d'administration"
-              aria-label="Outils d'administration"
+              title="المزيد من الأدوات"
+              aria-label="المزيد من الأدوات"
             >
               <div className="mob-nav-icon-wrap">
-                <Zap size={22} strokeWidth={1.8} className={showSheet ? 'text-violet' : ''} />
+                <Zap size={21} strokeWidth={2} className={showSheet ? 'text-violet' : ''} />
               </div>
-              <span className="mob-nav-label">Outils</span>
+              <span className="mob-nav-label">المزيد</span>
             </button>
           ) : (
             <button
-              className="mob-nav-item"
+              className={`mob-nav-item${showSheet ? ' active' : ''}`}
               onClick={() => setShowSheet(true)}
-              title="Profil & Déconnexion"
-              aria-label="Profil et Déconnexion"
+              title="حسابي والإعدادات"
+              aria-label="حسابي والإعدادات"
               style={{ position: 'relative' }}
             >
               <div className="mob-nav-icon-wrap" style={{ position: 'relative' }}>
                 {/* Avatar circle */}
                 <div style={{
-                  width: 30, height: 30, borderRadius: '50%',
+                  width: 26, height: 26, borderRadius: '50%',
                   background: 'linear-gradient(135deg, var(--violet), var(--emerald))',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '0.78rem', fontWeight: 900, color: '#fff',
-                  border: '2px solid rgba(255,255,255,0.12)',
+                  fontSize: '0.72rem', fontWeight: 900, color: '#fff',
+                  border: '2px solid rgba(255,255,255,0.16)',
                 }}>
                   {initial}
                 </div>
               </div>
-              <span className="mob-nav-label">Moi</span>
+              <span className="mob-nav-label">حسابي</span>
             </button>
           )}
         </div>

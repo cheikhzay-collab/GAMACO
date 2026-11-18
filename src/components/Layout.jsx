@@ -2,6 +2,7 @@ import { useState, useEffect, Suspense, useMemo } from 'react';
 import { Outlet, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import BottomNav from './BottomNav';
+import MobileInstallBanner from './MobileInstallBanner';
 import { useAuth } from '../context/AuthContext';
 import WhatsAppButton from './WhatsAppButton';
 import CommandPalette from './CommandPalette';
@@ -49,6 +50,11 @@ export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+
+  // Scroll smoothly to top on mobile/desktop route changes (native app feel)
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, [location.pathname]);
 
   // Generate confetti in useEffect to keep rendering phase pure and idempotent.
   const [confettiArray, setConfettiArray] = useState([]);
@@ -178,6 +184,8 @@ export default function Layout() {
 
       {/* Main content area */}
       <main className="main-content">
+        {/* Mobile PWA Install Banner (auto-hides on desktop & when installed) */}
+        {isMobile && <MobileInstallBanner />}
         {/* Offline Banner */}
         {isOnline === false && (
           <div style={{

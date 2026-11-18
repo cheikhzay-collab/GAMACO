@@ -1,13 +1,35 @@
 import { useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, ClipboardList, Sparkles, FileText,
   BookMarked, Camera, GraduationCap, FileUp, Layers, Settings,
   Trophy, BookOpen, Sun, Moon, LogOut, Menu, X, ChevronLeft, ChevronRight,
-  BrainCircuit
+  BrainCircuit, ArrowLeft
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import LconqLogo from './LconqLogo';
+
+function getMobileRouteMeta(pathname) {
+  if (pathname === '/admin/dashboard') return { title: 'لوحة التحكم', isRoot: true };
+  if (pathname === '/dashboard') return { title: 'الرئيسية', isRoot: true };
+  if (pathname === '/admin/lessons') return { title: 'الوثائق والدروس', isRoot: true };
+  if (pathname.startsWith('/admin/lessons/') || pathname.startsWith('/lessons/')) return { title: 'عرض الوثيقة', isRoot: false };
+  if (pathname === '/admin/logbook') return { title: 'دفتر النصوص', isRoot: true };
+  if (pathname === '/admin/classes') return { title: 'الأقسام والتلاميذ', isRoot: true };
+  if (pathname.startsWith('/admin/classes/')) return { title: 'تفاصيل القسم', isRoot: false };
+  if (pathname.startsWith('/admin/users/')) return { title: 'ملف التلميذ', isRoot: false };
+  if (pathname.startsWith('/admin/ai-')) return { title: 'المولّد الذكي IA', isRoot: false };
+  if (pathname === '/admin/exams') return { title: 'بنك التمارين وQCM', isRoot: false };
+  if (pathname.startsWith('/admin/exams/')) return { title: 'تعديل الامتحان', isRoot: false };
+  if (pathname === '/admin/ebooks') return { title: 'الكتب الإلكترونية', isRoot: false };
+  if (pathname === '/admin/upload') return { title: 'رفع QCM', isRoot: false };
+  if (pathname === '/admin/self-learning') return { title: 'التكوين الذاتي', isRoot: false };
+  if (pathname === '/admin/settings') return { title: 'الإعدادات', isRoot: false };
+  if (pathname === '/levels') return { title: 'المستويات والدروس', isRoot: true };
+  if (pathname === '/scanner' || pathname === '/scan') return { title: 'الماسح الذكي OMR', isRoot: true };
+  if (pathname === '/ranking') return { title: 'الترتيب العام', isRoot: false };
+  return { title: 'GAMACO', isRoot: true };
+}
 
 // ─── NAV ITEM COMPONENT ────────────────────────────────────────────────────────
 const SidebarNavItem = ({ to, icon: Icon, label, collapsed }) => (
@@ -27,8 +49,10 @@ const SidebarNavItem = ({ to, icon: Icon, label, collapsed }) => (
 export default function Sidebar() {
   const { user, logout, theme, toggleTheme } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const mobileMeta = getMobileRouteMeta(location.pathname);
 
   const handleLogout = () => { logout(); navigate('/login'); };
   const isStudent = user?.role === 'student';
@@ -65,19 +89,35 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Mobile Top Header Toggle (visible on small screens) */}
+      {/* Native-Feel Mobile Top App Bar (visible on <= 768px) */}
       <div className="mobile-header">
-        <button
-          className="mobile-header__toggle"
-          onClick={() => setMobileOpen(v => !v)}
-          aria-label="Toggle Menu"
+        {!mobileMeta.isRoot ? (
+          <button
+            className="mobile-header__toggle"
+            onClick={() => navigate(-1)}
+            aria-label="رجوع"
+          >
+            <ArrowLeft size={20} />
+          </button>
+        ) : (
+          <button
+            className="mobile-header__toggle"
+            onClick={() => setMobileOpen(v => !v)}
+            aria-label="القائمة"
+          >
+            {mobileOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
+        )}
+
+        <div
+          className="mobile-header__title-wrap"
+          onClick={() => mobileMeta.isRoot && navigate(isAdmin ? '/admin/dashboard' : '/dashboard')}
         >
-          {mobileOpen ? <X size={22} /> : <Menu size={22} />}
-        </button>
-        <div className="mobile-header__logo" onClick={() => navigate('/')}>
-          <LconqLogo size={26} textSize="1rem" />
+          <span className="mobile-header__title">{mobileMeta.title}</span>
+          <span className="mobile-header__subtitle">GAMACO</span>
         </div>
-        <button className="mobile-header__icon-btn" onClick={toggleTheme}>
+
+        <button className="mobile-header__icon-btn" onClick={toggleTheme} aria-label="تبديل المظهر">
           {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
         </button>
       </div>
