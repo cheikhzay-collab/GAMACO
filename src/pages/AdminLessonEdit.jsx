@@ -103,9 +103,13 @@ export default function AdminLessonEdit() {
   // Workspace UI controls
   const [viewMode, setViewMode] = useState(() => {
     try {
+      if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+        const saved = localStorage.getItem('lesson_edit_view_mode_v2');
+        return saved === 'preview' ? 'preview' : 'write';
+      }
       return localStorage.getItem('lesson_edit_view_mode_v2') || 'split';
     } catch {
-      return 'split';
+      return typeof window !== 'undefined' && window.innerWidth <= 768 ? 'write' : 'split';
     }
   }); // 'split' | 'write' | 'preview'
   const [focusMode, setFocusMode] = useState(true);

@@ -2312,7 +2312,7 @@ export default function AdminLogbook() {
               const cls = classes.find(c => c.id === e.target.value);
               setSelectedClass(cls || null);
             }}
-            style={{ width: '220px', fontWeight: 700 }}
+            style={{ width: 'min(220px, 100%)', flex: '1 1 180px', fontWeight: 700 }}
           >
             <option value="">-- Choisir une classe --</option>
             {classes.map(c => {
@@ -2979,7 +2979,7 @@ export default function AdminLogbook() {
                 </div>
 
                 {/* Coordinates Grid */}
-                <div style={{ 
+                <div className="logbook-meta-grid" style={{ 
                   display: 'grid', 
                   gridTemplateColumns: 'repeat(4, 1fr)', 
                   gap: '8px', 

@@ -105,7 +105,7 @@ export default function AdminLessons() {
   const [archiveView, setArchiveView] = useState('active_lib'); // 'active_lib' | 'archived'
   const [archivingLessonId, setArchivingLessonId] = useState(null);
   const [sortOrder, setSortOrder] = useState('newest'); // 'newest' | 'oldest'
-  const [viewMode, setViewMode] = useState('table'); // 'table' | 'cards'
+  const [viewMode, setViewMode] = useState(() => (typeof window !== 'undefined' && window.innerWidth <= 768 ? 'cards' : 'table')); // 'table' | 'cards'
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [syncSuccessMsg, setSyncSuccessMsg] = useState('');
 
@@ -890,7 +890,7 @@ ${sectionsContentText}
           gap: '0.75rem',
           marginBottom: '1.25rem'
         }}>
-          <div style={{
+          <div className="admin-archive-switcher" style={{
             display: 'inline-flex',
             background: 'var(--bg-glass)',
             border: '1px solid var(--border)',
@@ -1010,7 +1010,7 @@ ${sectionsContentText}
         )}
 
         {/* ── Stats Indicators (Clickable Filters) ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
+        <div className="admin-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
           {/* Total Fiches */}
           <div 
             onClick={() => { handleSwitchArchiveView('active_lib'); setStatusFilter('all'); }}
@@ -1731,7 +1731,7 @@ ${sectionsContentText}
 
       {/* ── FLOATING BULK ACTION BAR ── */}
       {selectedLessonIds.length > 0 && (
-        <div style={{
+        <div className="floating-bulk-bar" style={{
           position: 'fixed',
           bottom: '2rem',
           left: '50%',

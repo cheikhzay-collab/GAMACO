@@ -603,7 +603,7 @@ RÈGLES IMPORTANTES DE RÉDACTION ET STRUCTURE :
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '290px 1fr', gap: '1.5rem', alignItems: 'start' }}>
+      <div className="sl-generator-grid" style={{ display: 'grid', gridTemplateColumns: '290px 1fr', gap: '1.5rem', alignItems: 'start' }}>
 
         {/* ── Formulaire ── */}
         <div className="card" style={{ padding: '1.4rem', display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>

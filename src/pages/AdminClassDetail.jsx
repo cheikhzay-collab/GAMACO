@@ -3297,7 +3297,7 @@ export default function AdminClassDetail() {
                   </div>
 
                   {/* Decimal Shortcuts Row */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.65rem', marginBottom: '1rem' }}>
+                  <div className="mobile-2col-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.65rem', marginBottom: '1rem' }}>
                     {['.00', '.25', '.50', '.75'].map(val => (
                       <button
                         key={val}
