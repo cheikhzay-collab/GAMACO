@@ -5,6 +5,35 @@ import App from './App.jsx'
 import { logError } from './services/logger'
 import { queryCache } from './services/queryCache'
 
+// ── Automatic Same-Origin Auth Header Attachment for /api/* ────────────────
+// Ensures every API request across all services sends the HMAC Bearer token
+// and HttpOnly session cookie seamlessly without duplicating header logic.
+if (typeof window !== 'undefined' && typeof window.fetch === 'function' && !window.__gamacoAuthFetchPatched) {
+  window.__gamacoAuthFetchPatched = true;
+  const _origFetch = window.fetch.bind(window);
+  window.fetch = (input, init = {}) => {
+    try {
+      const url = typeof input === 'string' ? input : (input?.url || '');
+      const isSameOriginApi =
+        url.startsWith('/api/') ||
+        url.startsWith(`${window.location.origin}/api/`);
+      if (isSameOriginApi) {
+        const token = localStorage.getItem('auth_token');
+        const headers = new Headers(init?.headers || (input instanceof Request ? input.headers : undefined));
+        if (token && !headers.has('Authorization')) {
+          headers.set('Authorization', `Bearer ${token}`);
+        }
+        return _origFetch(input, {
+          ...init,
+          credentials: init?.credentials || 'same-origin',
+          headers,
+        });
+      }
+    } catch (_) {}
+    return _origFetch(input, init);
+  };
+}
+
 // ── Global Error Listeners ─────────────────────────────────────────────────
 window.addEventListener('error', (event) => {
   const errorObj = event.error || new Error(event.message || 'Global Window Error');

@@ -45,17 +45,17 @@ export default defineConfig(({ mode }) => {
       includeAssets: ['favicon.svg', 'icons/*.png'],
 
       manifest: {
-        name: "L'CONQ — Concours Médecine",
-        short_name: "L'CONQ",
-        description: "La plateforme SRS gamifiée pour préparer les concours de médecine au Maroc.",
+        name: "GAMACO — Plateforme Éducative Mathématiques",
+        short_name: "GAMACO",
+        description: "Plateforme éducative complète pour les cours, devoirs surveillés, DEVOIR PRIME et préparation aux examens au Maroc.",
         start_url: '/',
         scope: '/',
         display: 'standalone',
         orientation: 'portrait-primary',
         background_color: '#0D1117',
-        theme_color: '#5254F0',
+        theme_color: '#1e3a8a',
         lang: 'fr',
-        categories: ['education', 'medical', 'productivity'],
+        categories: ['education', 'mathematics', 'productivity'],
         icons: [
           { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
           { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
@@ -113,7 +113,7 @@ export default defineConfig(({ mode }) => {
             return 'vendor-katex';
           }
           // ── PDF generation (heavy, jsPDF + html2canvas) ───────────
-          if (id.includes('jspdf') || id.includes('html2canvas')) {
+          if (id.includes('jspdf')) {
             return 'vendor-pdf';
           }
           // ── PDF.js viewer ─────────────────────────────────────────

@@ -715,7 +715,7 @@ export default function AdminAIImport({ onBack }) {
     if (!m || m.includes('4-5') || m === 'claude-3-haiku-20240307') return 'claude-3-5-sonnet-20241022';
     return m;
   });
-  const [deepseekKey, setDeepseekKey] = useState(() => localStorage.getItem('deepseekApiKey') || 'sk-12a7032f07d740348c607ef947a0a9f7');
+  const [deepseekKey, setDeepseekKey] = useState(() => localStorage.getItem('deepseekApiKey') || '');
   const [deepseekUrl, setDeepseekUrl] = useState(() => localStorage.getItem('deepseekApiUrl') || 'https://api.deepseek.com');
   const [deepseekModel, setDeepseekModel] = useState(() => {
     let m = draft?.deepseekModel || localStorage.getItem('deepseekModel') || 'deepseek-reasoner';

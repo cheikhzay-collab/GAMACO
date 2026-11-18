@@ -434,7 +434,7 @@ export async function callAIWithFailover(prompt, options = {}) {
       }
 
       if (prov === 'deepseek') {
-        const key = options.deepseekKey || localStorage.getItem('deepseekApiKey') || 'sk-12a7032f07d740348c607ef947a0a9f7';
+        const key = options.deepseekKey || localStorage.getItem('deepseekApiKey') || '';
         if (!key) continue;
         const url = options.deepseekUrl || localStorage.getItem('deepseekApiUrl') || 'https://api.deepseek.com';
         const model = options.deepseekModel || localStorage.getItem('deepseekModel') || 'deepseek-chat';

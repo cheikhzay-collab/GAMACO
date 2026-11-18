@@ -987,42 +987,8 @@ export function AuthProvider({ children }) {
         return authUser;
       }
     } catch (authErr) {
-      console.warn('[Supabase Auth] login error:', authErr.message);
-      // If it is invalid credentials error, throw directly
-      if (!authErr.message?.includes('Failed to fetch') && !authErr.message?.includes('NetworkError')) {
-        throw authErr;
-      }
-    }
-
-    // 2. Fallback when remote services are offline (local mock credentials)
-    if (email === 'admin@lconq.ma' && password === 'admin123') {
-      const mockAdmin = {
-        id: 'local-admin-id',
-        uid: 'local-admin-id',
-        email: 'admin@lconq.ma',
-        name: 'Administrateur Local',
-        role: 'admin',
-        tier: 'premium',
-        joined: new Date().toISOString()
-      };
-      setUser(mockAdmin);
-      localStorage.setItem('user', JSON.stringify(mockAdmin));
-      return mockAdmin;
-    }
-
-    if (email === 'student@lconq.ma' && password === 'student123') {
-      const mockStudent = {
-        id: 'local-student-id',
-        uid: 'local-student-id',
-        email: 'student@lconq.ma',
-        name: 'Étudiant Local',
-        role: 'student',
-        tier: 'premium',
-        joined: new Date().toISOString()
-      };
-      setUser(mockStudent);
-      localStorage.setItem('user', JSON.stringify(mockStudent));
-      return mockStudent;
+      console.warn('[Auth] login error:', authErr.message);
+      throw authErr;
     }
 
     throw new Error('Identifiants incorrects.');

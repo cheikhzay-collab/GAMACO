@@ -126,7 +126,7 @@ export default function AdminSettings() {
   const [geminiSolveSolutions, setGeminiSolveSolutions] = useState(() => localStorage.getItem('gemini_solve_solutions') !== 'false');
 
   // DeepSeek API Key
-  const [deepseekKey, setDeepseekKey] = useState(() => localStorage.getItem('deepseekApiKey') || 'sk-12a7032f07d740348c607ef947a0a9f7');
+  const [deepseekKey, setDeepseekKey] = useState(() => localStorage.getItem('deepseekApiKey') || '');
   const [deepseekUrl, setDeepseekUrl] = useState(() => localStorage.getItem('deepseekApiUrl') || 'https://api.deepseek.com');
   const [showDeepseekKey, setShowDeepseekKey] = useState(false);
   const [deepseekKeySaved, setDeepseekKeySaved] = useState(false);

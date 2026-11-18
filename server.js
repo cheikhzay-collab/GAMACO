@@ -1,6 +1,7 @@
 import http from 'http';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import {
   getExtractionTasks,
@@ -36,6 +37,130 @@ try {
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const DATA_DIR = path.join(__dirname, 'data');
 const DIST_DIR = path.join(__dirname, 'dist');
+
+// ── Security: HMAC-SHA256 Signed Session Tokens & scrypt Password Hashing ──
+const AUTH_SECRET = process.env.AUTH_SECRET || crypto
+  .createHash('sha256')
+  .update(`${process.env.DB_PASSWORD || 'gamaco-db'}:${process.env.ADMIN_PASSWORD || 'admin123'}:gamaco-session-v2`)
+  .digest('hex');
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+function signSessionToken(payload) {
+  const data = {
+    uid: payload.uid,
+    role: payload.role || 'student',
+    email: payload.email || '',
+    exp: Date.now() + SESSION_TTL_MS,
+  };
+  const encoded = Buffer.from(JSON.stringify(data), 'utf8').toString('base64url');
+  const sig = crypto.createHmac('sha256', AUTH_SECRET).update(encoded).digest('base64url');
+  return `v2.${encoded}.${sig}`;
+}
+
+function verifySessionToken(token) {
+  if (!token || typeof token !== 'string' || !token.startsWith('v2.')) return null;
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  const [, encoded, sig] = parts;
+  const expected = crypto.createHmac('sha256', AUTH_SECRET).update(encoded).digest('base64url');
+  try {
+    const a = Buffer.from(sig);
+    const b = Buffer.from(expected);
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+    const parsed = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
+    if (!parsed?.uid || !parsed?.exp || Date.now() > parsed.exp) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function hashPassword(plain) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const derived = crypto.scryptSync(String(plain || ''), salt, 32).toString('hex');
+  return `scrypt$${salt}$${derived}`;
+}
+
+function verifyPassword(plain, stored) {
+  if (!stored) return { ok: false, needsUpgrade: false };
+  const s = String(stored);
+  if (s.startsWith('scrypt$')) {
+    const [, salt, hash] = s.split('$');
+    if (!salt || !hash) return { ok: false, needsUpgrade: false };
+    try {
+      const derived = crypto.scryptSync(String(plain || ''), salt, 32);
+      const storedBuf = Buffer.from(hash, 'hex');
+      if (derived.length !== storedBuf.length) return { ok: false, needsUpgrade: false };
+      return { ok: crypto.timingSafeEqual(derived, storedBuf), needsUpgrade: false };
+    } catch {
+      return { ok: false, needsUpgrade: false };
+    }
+  }
+  // Legacy plaintext compatibility: auto-upgrades to scrypt hash upon successful login
+  return { ok: String(plain || '') === s, needsUpgrade: true };
+}
+
+function stripSensitiveUser(u) {
+  if (!u || typeof u !== 'object') return u;
+  const { password, ...safe } = u;
+  return safe;
+}
+
+function parseCookies(req) {
+  const out = {};
+  const header = req.headers?.cookie;
+  if (!header) return out;
+  for (const part of header.split(';')) {
+    const idx = part.indexOf('=');
+    if (idx > 0) {
+      const k = part.slice(0, idx).trim();
+      const v = part.slice(idx + 1).trim();
+      out[k] = decodeURIComponent(v);
+    }
+  }
+  return out;
+}
+
+function getRequestSession(req) {
+  const authHeader = req.headers?.authorization || '';
+  if (authHeader.startsWith('Bearer ')) {
+    const verified = verifySessionToken(authHeader.slice(7).trim());
+    if (verified) return verified;
+  }
+  const cookies = parseCookies(req);
+  if (cookies.gamaco_session) {
+    return verifySessionToken(cookies.gamaco_session);
+  }
+  return null;
+}
+
+function setSessionCookie(req, res, token) {
+  const isHttps = req.headers['x-forwarded-proto'] === 'https' || req.socket?.encrypted;
+  const maxAgeSec = Math.floor(SESSION_TTL_MS / 1000);
+  const attrs = [
+    `gamaco_session=${encodeURIComponent(token)}`,
+    'Path=/',
+    'HttpOnly',
+    'SameSite=Lax',
+    `Max-Age=${maxAgeSec}`,
+    ...(isHttps ? ['Secure'] : []),
+  ];
+  res.setHeader('Set-Cookie', attrs.join('; '));
+}
+
+function clearSessionCookie(res) {
+  res.setHeader('Set-Cookie', 'gamaco_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0');
+}
+
+function filterPublicConfig(cfg = {}) {
+  const safe = {};
+  const secretRe = /(apikey|api_key|deepseek|gemini|openai|anthropic|secret|password|token|private)/i;
+  for (const [k, v] of Object.entries(cfg)) {
+    if (secretRe.test(k)) continue;
+    safe[k] = v;
+  }
+  return safe;
+}
 
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -802,11 +927,25 @@ const serveStatic = (res, filePath) => {
 
 // ── API Request Handler (used by both Vite dev middleware & production server) ──
 export const handleApiRequest = async (req, res, next) => {
-  // CORS Headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // CORS Headers (Restricted to trusted origins + same-origin credentials)
+  const reqOrigin = req.headers?.origin || '';
+  const allowedOrigins = new Set([
+    'https://firebrick-rail-798462.hostingersite.com',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    ...(process.env.ALLOWED_ORIGIN ? process.env.ALLOWED_ORIGIN.split(',').map(s => s.trim()) : []),
+  ]);
+  if (reqOrigin && (allowedOrigins.has(reqOrigin) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(reqOrigin))) {
+    res.setHeader('Access-Control-Allow-Origin', reqOrigin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Vary', 'Origin');
+  }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', '*');
-  res.setHeader('Access-Control-Allow-Private-Network', 'true');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
 
   if (req.method === 'OPTIONS') {
     res.writeHead(204);
@@ -833,6 +972,17 @@ export const handleApiRequest = async (req, res, next) => {
   }
 
   // 2. Authentication Endpoints
+  if (pathname === '/api/auth/logout' && req.method === 'POST') {
+    clearSessionCookie(res);
+    return sendJSON(res, 200, { success: true });
+  }
+
+  if (pathname === '/api/auth/me' && req.method === 'GET') {
+    const sess = getRequestSession(req);
+    if (!sess) return sendJSON(res, 401, { error: 'Non authentifié' });
+    return sendJSON(res, 200, { session: sess });
+  }
+
   if (pathname === '/api/auth/login' && req.method === 'POST') {
     try {
       const { email, password } = await getBody(req);
@@ -840,22 +990,22 @@ export const handleApiRequest = async (req, res, next) => {
       const adminEmail = (process.env.ADMIN_EMAIL || 'admin@lconq.ma').toLowerCase().trim();
       const adminPass = process.env.ADMIN_PASSWORD || 'admin123';
 
-      if (cleanEmail === adminEmail && password === adminPass) {
-        return sendJSON(res, 200, {
-          user: {
-            uid: 'admin-001',
-            id: 'admin-001',
-            name: 'Directeur Général',
-            email: cleanEmail,
-            role: 'admin',
-            tier: 'premium',
-            xp: 9999,
-            streak: 100,
-            rank: 1,
-            totalStudents: 1200
-          },
-          token: 'token-admin-gamaco'
-        });
+      if (cleanEmail === adminEmail && password && password === adminPass) {
+        const adminUser = {
+          uid: 'admin-001',
+          id: 'admin-001',
+          name: 'Directeur Général',
+          email: cleanEmail,
+          role: 'admin',
+          tier: 'premium',
+          xp: 9999,
+          streak: 100,
+          rank: 1,
+          totalStudents: 1200
+        };
+        const token = signSessionToken({ uid: 'admin-001', role: 'admin', email: cleanEmail });
+        setSessionCookie(req, res, token);
+        return sendJSON(res, 200, { user: adminUser, token });
       }
 
       // Check in MySQL or JSON
@@ -864,15 +1014,23 @@ export const handleApiRequest = async (req, res, next) => {
         const [rows] = await dbPool.query('SELECT * FROM tbl_users WHERE email = ?', [cleanEmail]);
         if (rows.length > 0) {
           const row = rows[0];
-          if (row.password === password) {
+          const check = verifyPassword(password, row.password);
+          if (check.ok) {
             user = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
+            // Transparently upgrade legacy plaintext password to scrypt hash
+            if (check.needsUpgrade && password) {
+              const upgraded = hashPassword(password);
+              const safeUserData = stripSensitiveUser(user);
+              dbPool.query('UPDATE tbl_users SET password = ?, data = ? WHERE id = ?', [upgraded, JSON.stringify(safeUserData), row.id]).catch(() => {});
+            }
           }
         }
       } else {
         const users = readDataFile('users.json', []);
         const found = users.find(u => (u.email || '').toLowerCase().trim() === cleanEmail);
-        if (found && (found.password === password || !found.password)) {
-          user = found;
+        if (found) {
+          const check = verifyPassword(password, found.password);
+          if (check.ok) user = found;
         }
       }
 
@@ -881,13 +1039,16 @@ export const handleApiRequest = async (req, res, next) => {
       }
 
       const uid = user.id || user.uid;
+      const role = user.role || 'student';
+      const token = signSessionToken({ uid, role, email: user.email });
+      setSessionCookie(req, res, token);
       return sendJSON(res, 200, {
         user: {
           uid,
           id: uid,
           name: user.name || 'Élève',
           email: user.email,
-          role: user.role || 'student',
+          role,
           tier: user.tier || 'freemium',
           xp: user.xp || 0,
           streak: user.streak || 0,
@@ -897,7 +1058,7 @@ export const handleApiRequest = async (req, res, next) => {
           classId: user.classId || null,
           school: user.school || null
         },
-        token: `token-${uid}`
+        token
       });
     } catch (err) {
       return sendJSON(res, 500, { error: err.message });
@@ -908,14 +1069,22 @@ export const handleApiRequest = async (req, res, next) => {
     try {
       const { name, email, password } = await getBody(req);
       const cleanEmail = (email || '').toLowerCase().trim();
-      const uid = 'usr_' + Math.random().toString(36).substring(2, 11);
+      if (!cleanEmail || !password || String(password).length < 4) {
+        return sendJSON(res, 400, { error: 'Email et mot de passe (min 4 caractères) requis.' });
+      }
+      const adminEmail = (process.env.ADMIN_EMAIL || 'admin@lconq.ma').toLowerCase().trim();
+      if (cleanEmail === adminEmail) {
+        return sendJSON(res, 403, { error: 'Inscription impossible avec cette adresse.' });
+      }
+
+      const uid = 'usr_' + crypto.randomBytes(6).toString('hex');
+      const hashedPassword = hashPassword(password);
 
       const newUser = {
         id: uid,
         uid,
         name: name || 'Élève',
         email: cleanEmail,
-        password,
         role: 'student',
         tier: 'freemium',
         xp: 0,
@@ -927,19 +1096,92 @@ export const handleApiRequest = async (req, res, next) => {
       };
 
       if (isMySqlActive) {
+        const [existing] = await dbPool.query('SELECT id FROM tbl_users WHERE email = ?', [cleanEmail]);
+        if (existing.length > 0) {
+          return sendJSON(res, 409, { error: 'Un compte existe déjà avec cet email.' });
+        }
         await dbPool.query(
           'INSERT INTO tbl_users (id, email, password, role, tier, data) VALUES (?, ?, ?, ?, ?, ?)',
-          [uid, cleanEmail, password, 'student', 'freemium', JSON.stringify(newUser)]
+          [uid, cleanEmail, hashedPassword, 'student', 'freemium', JSON.stringify(newUser)]
         );
       } else {
         const users = readDataFile('users.json', []);
-        users.push(newUser);
+        if (users.some(u => (u.email || '').toLowerCase().trim() === cleanEmail)) {
+          return sendJSON(res, 409, { error: 'Un compte existe déjà avec cet email.' });
+        }
+        users.push({ ...newUser, password: hashedPassword });
         writeDataFile('users.json', users);
       }
 
-      return sendJSON(res, 200, { user: newUser, token: `token-${uid}` });
+      const token = signSessionToken({ uid, role: 'student', email: cleanEmail });
+      setSessionCookie(req, res, token);
+      return sendJSON(res, 200, { user: newUser, token });
     } catch (err) {
       return sendJSON(res, 500, { error: err.message });
+    }
+  }
+
+  // ── Centralized Route Authorization Gate ──
+  const session = getRequestSession(req);
+  const isAdminSession = session?.role === 'admin';
+  const isWriteMethod = req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH' || req.method === 'DELETE';
+
+  // 1) All /api/admin/* endpoints strictly require Admin authentication
+  if (pathname.startsWith('/api/admin/')) {
+    if (!isAdminSession) {
+      return sendJSON(res, 401, { error: 'Accès administrateur requis. Veuillez vous reconnecter.' });
+    }
+  }
+
+  // 2) All DELETE endpoints strictly require Admin authentication
+  if (req.method === 'DELETE') {
+    if (!isAdminSession) {
+      return sendJSON(res, 401, { error: 'Authentification administrateur requise pour supprimer.' });
+    }
+  }
+
+  // 3) Extraction tasks & AI proxy endpoints require Admin authentication
+  if (
+    pathname.startsWith('/api/extraction-tasks') ||
+    pathname === '/api/gemini/generate' ||
+    pathname === '/api/openai/generate' ||
+    pathname === '/api/ai/solve'
+  ) {
+    if (!isAdminSession) {
+      return sendJSON(res, 401, { error: 'Authentification administrateur requise pour les outils IA.' });
+    }
+  }
+
+  // 4) Write operations on core content/config tables require Admin authentication
+  if (
+    isWriteMethod &&
+    (
+      pathname === '/api/exams' || pathname.startsWith('/api/exams/') ||
+      pathname === '/api/lessons' || pathname.startsWith('/api/lessons/') ||
+      pathname === '/api/classes' || pathname.startsWith('/api/classes/') ||
+      pathname === '/api/grades' || pathname.startsWith('/api/grades/') ||
+      pathname === '/api/devoir-prime' || pathname.startsWith('/api/devoir-prime/') ||
+      pathname === '/api/solutions' || pathname.startsWith('/api/solutions/') ||
+      pathname === '/api/assets' ||
+      pathname === '/api/config'
+    )
+  ) {
+    if (!isAdminSession) {
+      return sendJSON(res, 401, { error: 'Authentification administrateur requise pour modifier ces données.' });
+    }
+  }
+
+  // 5) Users endpoints: listing all users requires Admin; reading/updating single user requires Admin OR self
+  if (pathname === '/api/users' || pathname.startsWith('/api/users/')) {
+    const targetUid = pathname.startsWith('/api/users/') ? pathname.replace('/api/users/', '').trim() : null;
+    if (req.method === 'GET' && !targetUid && !isAdminSession) {
+      return sendJSON(res, 401, { error: 'Authentification administrateur requise.' });
+    }
+    if (req.method === 'GET' && targetUid && !isAdminSession && session?.uid !== targetUid) {
+      return sendJSON(res, 403, { error: 'Accès non autorisé.' });
+    }
+    if (req.method === 'POST' && !session) {
+      return sendJSON(res, 401, { error: 'Authentification requise.' });
     }
   }
 
@@ -1411,21 +1653,21 @@ export const handleApiRequest = async (req, res, next) => {
             const [rows] = await dbPool.query('SELECT data FROM tbl_users WHERE id = ?', [singleId]);
             if (rows.length > 0) {
               const u = safeJsonParse(rows[0].data, null);
-              if (u) return sendJSON(res, 200, u);
+              if (u) return sendJSON(res, 200, stripSensitiveUser(u));
             }
           } catch (_) {}
         }
         const users = readDataFile('users.json', []);
         const found = users.find(u => u.id === singleId || u.uid === singleId);
-        if (found) return sendJSON(res, 200, found);
+        if (found) return sendJSON(res, 200, stripSensitiveUser(found));
         return sendJSON(res, 404, { error: 'User not found' });
       }
 
-      const fileUsers = readDataFile('users.json', []);
+      const fileUsers = readDataFile('users.json', []).map(stripSensitiveUser);
       if (isMySqlActive) {
         try {
           const [rows] = await dbPool.query('SELECT data FROM tbl_users ORDER BY updated_at DESC');
-          const users = rows.map(r => safeJsonParse(r.data, null)).filter(Boolean);
+          const users = rows.map(r => stripSensitiveUser(safeJsonParse(r.data, null))).filter(Boolean);
           if (users.length > 0) return sendJSON(res, 200, users);
         } catch (_) {}
       }
@@ -1435,23 +1677,46 @@ export const handleApiRequest = async (req, res, next) => {
     if (req.method === 'POST') {
       try {
         const userObj = await getBody(req);
-        const id = userObj.id || userObj.uid || ('usr_' + Math.random().toString(36).substring(2, 11));
+        const id = userObj.id || userObj.uid || ('usr_' + crypto.randomBytes(6).toString('hex'));
+
+        // Non-admin users may only update their own non-privileged profile fields
+        if (!isAdminSession) {
+          if (session?.uid !== id) {
+            return sendJSON(res, 403, { error: 'Accès non autorisé.' });
+          }
+          delete userObj.role;
+          delete userObj.tier;
+          delete userObj.subscription;
+        }
+
         userObj.id = id;
         userObj.uid = id;
         userObj.updatedAt = new Date().toISOString();
 
+        const hashedPw = userObj.password ? hashPassword(userObj.password) : null;
+        const safeObj = stripSensitiveUser(userObj);
+
         if (isMySqlActive) {
           await dbPool.query(
-            'INSERT INTO tbl_users (id, email, password, role, tier, data) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE email = VALUES(email), password = COALESCE(VALUES(password), password), role = VALUES(role), tier = VALUES(tier), data = VALUES(data), updated_at = NOW()',
-            [id, userObj.email || `${id}@local.user`, userObj.password || 'student123', userObj.role || 'student', userObj.tier || 'freemium', JSON.stringify(userObj)]
+            'INSERT INTO tbl_users (id, email, password, role, tier, data) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE email = VALUES(email), password = COALESCE(VALUES(password), password), role = COALESCE(?, role), tier = COALESCE(?, tier), data = VALUES(data), updated_at = NOW()',
+            [
+              id,
+              safeObj.email || `${id}@local.user`,
+              hashedPw || hashPassword(crypto.randomBytes(12).toString('hex')),
+              isAdminSession ? (safeObj.role || 'student') : 'student',
+              isAdminSession ? (safeObj.tier || 'freemium') : 'freemium',
+              JSON.stringify(safeObj),
+              isAdminSession ? (safeObj.role || null) : null,
+              isAdminSession ? (safeObj.tier || null) : null,
+            ]
           );
         }
         const users = readDataFile('users.json', []);
         const idx = users.findIndex(u => u.id === id || u.uid === id);
-        if (idx > -1) users[idx] = { ...users[idx], ...userObj };
-        else users.unshift(userObj);
+        if (idx > -1) users[idx] = { ...users[idx], ...safeObj, ...(hashedPw ? { password: hashedPw } : {}) };
+        else users.unshift({ ...safeObj, ...(hashedPw ? { password: hashedPw } : {}) });
         writeDataFile('users.json', users);
-        return sendJSON(res, 200, { success: true, user: userObj });
+        return sendJSON(res, 200, { success: true, user: safeObj });
       } catch (err) {
         return sendJSON(res, 500, { error: err.message });
       }
@@ -1472,6 +1737,7 @@ export const handleApiRequest = async (req, res, next) => {
   if (pathname === '/api/config') {
     if (req.method === 'GET') {
       const fileConfig = readDataFile('config.json', {});
+      const sanitizeCfg = (c) => (isAdminSession ? c : filterPublicConfig(c));
       if (isMySqlActive) {
         try {
           const [rows] = await dbPool.query('SELECT key_name, value FROM tbl_config');
@@ -1479,13 +1745,13 @@ export const handleApiRequest = async (req, res, next) => {
           for (const row of rows) {
             dbConfig[row.key_name] = safeJsonParse(row.value, row.value);
           }
-          return sendJSON(res, 200, { ...fileConfig, ...dbConfig });
+          return sendJSON(res, 200, sanitizeCfg({ ...fileConfig, ...dbConfig }));
         } catch (dbErr) {
           console.warn('[Server] DB config read error, falling back to file config:', dbErr.message);
-          return sendJSON(res, 200, fileConfig);
+          return sendJSON(res, 200, sanitizeCfg(fileConfig));
         }
       }
-      return sendJSON(res, 200, fileConfig);
+      return sendJSON(res, 200, sanitizeCfg(fileConfig));
     }
 
     if (req.method === 'POST') {

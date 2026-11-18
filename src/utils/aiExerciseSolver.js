@@ -788,7 +788,7 @@ Format JSON EXACT attendu (tableau d'objets) :
 ]`;
 
   const provider = localStorage.getItem('aiImportProvider') || 'deepseek';
-  const deepseekKey = localStorage.getItem('deepseekApiKey') || 'sk-12a7032f07d740348c607ef947a0a9f7';
+  const deepseekKey = localStorage.getItem('deepseekApiKey') || '';
   const deepseekUrl = (localStorage.getItem('deepseekApiUrl') || 'https://api.deepseek.com').replace(/\/$/, '');
   const geminiKey = localStorage.getItem('geminiApiKey') || '';
   const claudeKey = localStorage.getItem('claudeApiKey') || '';

@@ -838,7 +838,7 @@ export default function AdminLessonsImport({ onBack }) {
   });
   const [proxyUrl, setProxyUrl] = useState(() => localStorage.getItem('claudeProxyUrl') || '');
 
-  const [deepseekKey, setDeepseekKey] = useState(() => localStorage.getItem('deepseekApiKey') || 'sk-12a7032f07d740348c607ef947a0a9f7');
+  const [deepseekKey, setDeepseekKey] = useState(() => localStorage.getItem('deepseekApiKey') || '');
   const [deepseekUrl, setDeepseekUrl] = useState(() => localStorage.getItem('deepseekApiUrl') || 'https://api.deepseek.com');
   const [deepseekModel, setDeepseekModel] = useState(() => {
     const m = localStorage.getItem('deepseekModel') || 'deepseek-reasoner';
