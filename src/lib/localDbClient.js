@@ -74,7 +74,9 @@ const request = async (endpoint, options = {}) => {
     companionAvailable = true;
     if (!response.ok) {
       const errBody = await response.json().catch(() => ({}));
-      throw new Error(errBody.error || `HTTP error! status: ${response.status}`);
+      const httpErr = new Error(errBody.error || `HTTP error! status: ${response.status}`);
+      httpErr.status = response.status;
+      throw httpErr;
     }
     return await response.json();
   } catch (error) {

@@ -449,8 +449,9 @@ export const addLesson = async (lessonData) => {
   saveLocalStorageLessons(rawLessons);
   saveSingleLessonToLocalStorage(mapped);
 
-  // 2. Invalidate cache
+  // 2. Invalidate caches (both admin & student lists)
   queryCache.invalidate('lessons_all');
+  queryCache.invalidate('lessons_active');
   queryCache.set(`lesson_detail_${id}`, mapped);
 
   // 3. Sync to Supabase
@@ -471,10 +472,18 @@ export const addLesson = async (lessonData) => {
     }
   }
 
-  // 4. Companion API
+  // 4. Primary MySQL API persistence (NEVER silently swallow 401/403 auth errors!)
   try {
     await localDb.post('/lessons', dbLesson);
-  } catch (err) {}
+    queryCache.invalidate('lessons_all');
+    queryCache.invalidate('lessons_active');
+  } catch (err) {
+    console.error('[lessonService] addLesson MySQL save failed:', err);
+    if (err?.status === 401 || err?.status === 403) {
+      throw new Error('انتهت صلاحية الجلسة — يرجى تسجيل الدخول مرة أخرى كأستاذ/أدمن لحفظ الدرس في قاعدة البيانات.');
+    }
+    throw err;
+  }
 
   return id;
 };
@@ -697,7 +706,12 @@ export const updateLesson = async (lessonId, updates) => {
     };
     await localDb.post(`/lessons/${lessonId}`, fullPayload);
     localDbSuccess = true;
-  } catch (err) {}
+  } catch (err) {
+    console.error('[lessonService] updateLesson MySQL save failed:', err);
+    if (err?.status === 401 || err?.status === 403) {
+      throw new Error('انتهت صلاحية الجلسة — يرجى تسجيل الدخول مرة أخرى لحفظ التعديلات في قاعدة البيانات.');
+    }
+  }
 
   return { 
     success: true, 

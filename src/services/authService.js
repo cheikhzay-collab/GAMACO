@@ -48,14 +48,35 @@ export const loginWithGoogle = async () => {
 };
 
 /**
- * Fetch currently cached session user from localStorage.
+ * Fetch currently verified session user.
+ * Verifies localStorage session against GET /api/auth/me so stale pre-upgrade
+ * unsigned tokens (e.g. legacy 'token-admin') are automatically cleared and re-authenticated.
  */
 export const getCurrentSessionUser = async () => {
   try {
     const cached = localStorage.getItem('user');
-    if (cached) {
-      return JSON.parse(cached);
+    if (!cached) return null;
+    const parsedUser = JSON.parse(cached);
+
+    // Verify token/cookie with live server (graceful offline fallback on network error)
+    try {
+      const token = localStorage.getItem('auth_token');
+      const res = await fetch('/api/auth/me', {
+        method: 'GET',
+        credentials: 'same-origin',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.status === 401 || res.status === 403) {
+        console.warn('[Auth] Stale or expired session detected — clearing local cache for fresh sign-in.');
+        localStorage.removeItem('user');
+        localStorage.removeItem('auth_token');
+        return null;
+      }
+    } catch (_) {
+      // Offline / network unavailable — keep cached session for read-only fallback
     }
+
+    return parsedUser;
   } catch (err) {
     console.warn('[Auth] Error getting session user:', err.message);
   }
