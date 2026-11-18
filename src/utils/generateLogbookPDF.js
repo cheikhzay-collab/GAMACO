@@ -472,6 +472,9 @@ export const generateLogbookHTML = (selectedClass, entries, profName, styleConfi
   const mainFont = isArMode ? arFont : frFont;
   
   const gridLineHeight = styleConfig.gridLineHeight || 20;
+  const showHoraire = styleConfig.showHoraire !== false;
+  const showComposant = styleConfig.showComposant !== false;
+  const initialColSpan = 3 + (showHoraire ? 1 : 0) + (showComposant ? 1 : 0);
 
   // Build rows HTML (automatically chunk multi-exercise/long sessions into compact sub-rows to prevent whitespace gaps in print)
   const rowsHtml = entries.flatMap(e => {
@@ -495,13 +498,13 @@ export const generateLogbookHTML = (selectedClass, entries, profName, styleConfi
           <td style="width:11%;text-align:center;font-weight:800;color:#0f172a;border:1px solid #cbd5e1;padding:6px 4px;font-size:0.8rem;vertical-align:middle;">
             ${dateText}
           </td>
-          <td style="width:11%;text-align:center;font-weight:600;color:#475569;border:1px solid #cbd5e1;padding:6px 4px;font-size:0.8rem;vertical-align:middle;">
+          <td class="col-horaire" style="width:11%;text-align:center;font-weight:600;color:#475569;border:1px solid #cbd5e1;padding:6px 4px;font-size:0.8rem;vertical-align:middle;">
             ${esc(e.time || '—')}
           </td>
-          <td style="width:12%;text-align:center;font-weight:700;color:#1e3a8a;border:1px solid #cbd5e1;padding:6px 4px;font-size:0.82rem;vertical-align:middle;">
+          <td class="col-composant" style="width:12%;text-align:center;font-weight:700;color:#1e3a8a;border:1px solid #cbd5e1;padding:6px 4px;font-size:0.82rem;vertical-align:middle;">
             <span class="comp-badge holiday">${esc(componentText)}</span>
           </td>
-          <td class="${cellClass}" style="width:54%;border:1px solid #cbd5e1;vertical-align:middle;position:relative;text-align:${alignment};padding:6px 10px;">
+          <td class="${cellClass} col-activity" style="width:54%;border:1px solid #cbd5e1;vertical-align:middle;position:relative;text-align:${alignment};padding:6px 10px;">
             <div class="holiday-absence-banner ${e.isHolidayEntry ? 'holiday' : 'absence'}">${esc(e.customContent.replace(/===/g, '').trim())}</div>
           </td>
           <td style="width:12%;text-align:center;border:1px solid #cbd5e1;vertical-align:middle;padding:6px 4px;${signatureStyle}">
@@ -538,13 +541,13 @@ export const generateLogbookHTML = (selectedClass, entries, profName, styleConfi
           <td style="width:11%;text-align:center;font-weight:800;color:#0f172a;border:1px solid #cbd5e1;padding:6px 4px;font-size:0.8rem;vertical-align:top;${borderTopStyle}">
             ${cellDateHtml}
           </td>
-          <td style="width:11%;text-align:center;font-weight:600;color:#475569;border:1px solid #cbd5e1;padding:6px 4px;font-size:0.8rem;vertical-align:top;${borderTopStyle}">
+          <td class="col-horaire" style="width:11%;text-align:center;font-weight:600;color:#475569;border:1px solid #cbd5e1;padding:6px 4px;font-size:0.8rem;vertical-align:top;${borderTopStyle}">
             ${cellTimeHtml}
           </td>
-          <td style="width:12%;text-align:center;font-weight:700;color:#1e3a8a;border:1px solid #cbd5e1;padding:6px 4px;font-size:0.82rem;vertical-align:top;${borderTopStyle}">
+          <td class="col-composant" style="width:12%;text-align:center;font-weight:700;color:#1e3a8a;border:1px solid #cbd5e1;padding:6px 4px;font-size:0.82rem;vertical-align:top;${borderTopStyle}">
             ${cellCompHtml}
           </td>
-          <td class="${cellClass}" style="width:54%;border:1px solid #cbd5e1;vertical-align:top;position:relative;text-align:${alignment};padding:5px 10px;${borderTopStyle}">
+          <td class="${cellClass} col-activity" style="width:54%;border:1px solid #cbd5e1;vertical-align:top;position:relative;text-align:${alignment};padding:5px 10px;${borderTopStyle}">
             ${renderActivityCellHTML(chunk, isFirst ? e.isHeaderSéance : false, isArMode, styleConfig)}
           </td>
           <td style="width:12%;text-align:center;border:1px solid #cbd5e1;vertical-align:top;padding:6px 4px;${signatureStyle}${borderTopStyle}">
@@ -571,6 +574,40 @@ export const generateLogbookHTML = (selectedClass, entries, profName, styleConfi
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
 
   <style>
+    /* Optional column visibility toggles (Horaire & Composant) */
+    body.hide-horaire .col-horaire { display: none !important; }
+    body.hide-composant .col-composant { display: none !important; }
+    body.hide-horaire:not(.hide-composant) .col-activity { width: 65% !important; }
+    body.hide-composant:not(.hide-horaire) .col-activity { width: 66% !important; }
+    body.hide-horaire.hide-composant .col-activity { width: 77% !important; }
+
+    .col-toggle-btn {
+      background: rgba(255,255,255,0.12);
+      color: rgba(255,255,255,0.85);
+      border: 1px solid rgba(255,255,255,0.22);
+      border-radius: 99px;
+      padding: 5px 12px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s;
+    }
+    .col-toggle-btn.active {
+      background: rgba(16, 185, 129, 0.28);
+      border-color: rgba(52, 211, 153, 0.65);
+      color: #ffffff;
+    }
+    .col-toggle-btn:not(.active) {
+      background: rgba(239, 68, 68, 0.22);
+      border-color: rgba(248, 113, 113, 0.5);
+      color: #fecaca;
+      text-decoration: line-through;
+    }
+
     /* Base resets */
     * {
       box-sizing: border-box;
@@ -1062,7 +1099,7 @@ export const generateLogbookHTML = (selectedClass, entries, profName, styleConfi
 
   </style>
 </head>
-<body>
+<body class="${!showHoraire ? 'hide-horaire' : ''} ${!showComposant ? 'hide-composant' : ''}">
 
 
   <div class="print-page-wrapper">
@@ -1147,7 +1184,7 @@ export const generateLogbookHTML = (selectedClass, entries, profName, styleConfi
         
         <!-- Print-only page header repeating row inside table -->
         <tr class="print-page-header-row">
-          <th colspan="5">
+          <th id="printHeaderTh" colspan="${initialColSpan}">
             <div style="display:flex;justify-content:space-between;align-items:center;width:100%;font-family:'Outfit','Cairo',sans-serif;direction:${dir};">
               <div style="display:flex;align-items:center;gap:6px;">
                 <span style="color:#ffffff;background:#4f46e5;font-weight:900;font-size:0.8rem;padding:2px 6px;border-radius:4px;">${logoText}</span>
@@ -1170,9 +1207,9 @@ export const generateLogbookHTML = (selectedClass, entries, profName, styleConfi
         <!-- Column Headers -->
         <tr>
           <th style="width:11%;">${isArMode ? 'التاريخ' : 'Date'}</th>
-          <th style="width:11%;">${isArMode ? 'التوقيت' : 'Horaire'}</th>
-          <th style="width:12%;">${isArMode ? 'المكون' : 'Composant'}</th>
-          <th style="width:54%;text-align:${alignment};">${isArMode ? 'طبيعة الأنشطة والدروس المنجزة تفصيلاً' : 'Nature des activités réalisées'}</th>
+          <th class="col-horaire" style="width:11%;">${isArMode ? 'التوقيت' : 'Horaire'}</th>
+          <th class="col-composant" style="width:12%;">${isArMode ? 'المكون' : 'Composant'}</th>
+          <th class="col-activity" style="width:54%;text-align:${alignment};">${isArMode ? 'طبيعة الأنشطة والدروس المنجزة تفصيلاً' : 'Nature des activités réalisées'}</th>
           <th style="width:12%;">${isArMode ? 'توقيع المراقبة' : 'Signature'}</th>
         </tr>
       </thead>
@@ -1228,7 +1265,15 @@ export const generateLogbookHTML = (selectedClass, entries, profName, styleConfi
         ${isArMode ? '| معاينة دفتر النصوص — اضغط "طباعة" عند الاستعداد' : '| Aperçu du Cahier de Textes — Cliquez sur "Imprimer" quand vous êtes prêt'}
       </span>
     </div>
-    <div style="display:flex;gap:10px;align-items:center;">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <button id="btnToggleHoraire" class="col-toggle-btn ${showHoraire ? 'active' : ''}" onclick="toggleLogbookCol('horaire')" title="${isArMode ? 'إظهار أو إخفاء عمود التوقيت' : 'Afficher / Masquer la colonne Horaire'}">
+        <span>${showHoraire ? '✓' : '✕'}</span>
+        <span>${isArMode ? 'التوقيت (Horaire)' : 'Horaire'}</span>
+      </button>
+      <button id="btnToggleComposant" class="col-toggle-btn ${showComposant ? 'active' : ''}" onclick="toggleLogbookCol('composant')" title="${isArMode ? 'إظهار أو إخفاء عمود المكون' : 'Afficher / Masquer la colonne Composant'}">
+        <span>${showComposant ? '✓' : '✕'}</span>
+        <span>${isArMode ? 'المكون (Composant)' : 'Composant'}</span>
+      </button>
       <button onclick="window.print()" style="
         background: linear-gradient(135deg, #6366f1, #4f46e5);
         color: #fff;
@@ -1263,6 +1308,22 @@ export const generateLogbookHTML = (selectedClass, entries, profName, styleConfi
   <script>
     // Add top padding to body to avoid content hiding behind the action bar
     document.body.style.paddingTop = '60px';
+    // Live toggle for Horaire & Composant columns
+    function toggleLogbookCol(col) {
+      const cls = col === 'horaire' ? 'hide-horaire' : 'hide-composant';
+      const hidden = document.body.classList.toggle(cls);
+      const btn = document.getElementById(col === 'horaire' ? 'btnToggleHoraire' : 'btnToggleComposant');
+      if (btn) {
+        btn.classList.toggle('active', !hidden);
+        const iconSpan = btn.querySelector('span');
+        if (iconSpan) iconSpan.textContent = hidden ? '✕' : '✓';
+      }
+      const th = document.getElementById('printHeaderTh');
+      if (th) {
+        const visibleCount = 3 + (document.body.classList.contains('hide-horaire') ? 0 : 1) + (document.body.classList.contains('hide-composant') ? 0 : 1);
+        th.setAttribute('colspan', String(visibleCount));
+      }
+    }
     // Hide action bar during actual print
     const bar = document.getElementById('printActionBar');
     window.addEventListener('beforeprint', () => { if (bar) bar.style.display = 'none'; document.body.style.paddingTop = '0'; });

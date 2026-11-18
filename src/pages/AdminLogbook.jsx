@@ -416,6 +416,29 @@ export default function AdminLogbook() {
   const [classes, setClasses] = useState([]);
   const [selectedClass, setSelectedClass] = useState(null);
   const [manualLanguage, setManualLanguage] = useState(null); // null = auto, 'ar', 'fr'
+  const [showHoraireCol, setShowHoraireCol] = useState(() => {
+    try { return localStorage.getItem('logbook_show_horaire') !== 'false'; } catch { return true; }
+  });
+  const [showComposantCol, setShowComposantCol] = useState(() => {
+    try { return localStorage.getItem('logbook_show_composant') !== 'false'; } catch { return true; }
+  });
+
+  const toggleHoraireCol = () => {
+    setShowHoraireCol(prev => {
+      const next = !prev;
+      try { localStorage.setItem('logbook_show_horaire', String(next)); } catch {}
+      return next;
+    });
+  };
+  const toggleComposantCol = () => {
+    setShowComposantCol(prev => {
+      const next = !prev;
+      try { localStorage.setItem('logbook_show_composant', String(next)); } catch {}
+      return next;
+    });
+  };
+  const visibleLogbookColCount = 4 + (showHoraireCol ? 1 : 0) + (showComposantCol ? 1 : 0);
+  const activityColWidth = `${52 + (showHoraireCol ? 0 : 12) + (showComposantCol ? 0 : 12)}%`;
 
   // Automatic RTL / Arabic mode detection with manual override option
   const isArMode = useMemo(() => {
@@ -1562,7 +1585,9 @@ export default function AdminLogbook() {
       colorInk,
       colorChapter,
       colorAxis,
-      colorExercise
+      colorExercise,
+      showHoraire: showHoraireCol,
+      showComposant: showComposantCol
     });
   };
 
@@ -2882,6 +2907,66 @@ export default function AdminLogbook() {
 
           {/* ── Timetable Logbook entries table ── */}
           <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: '24px', overflowX: 'auto', border: '1px solid var(--border)' }}>
+            {/* Column visibility toggle bar (Horaire & Composant) */}
+            <div className="no-print" style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '0.6rem',
+              marginBottom: '0.85rem',
+              paddingBottom: '0.7rem',
+              borderBottom: '1px dashed var(--border)',
+              direction: isArMode ? 'rtl' : 'ltr'
+            }}>
+              <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-muted)' }}>
+                {isArMode ? 'إظهار / إخفاء أعمدة الجدول (تُطبق أيضاً على الطباعة PDF):' : 'Colonnes optionnelles (appliquées aussi au PDF) :'}
+              </span>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={toggleHoraireCol}
+                  style={{
+                    padding: '0.32rem 0.8rem',
+                    borderRadius: '99px',
+                    fontSize: '0.78rem',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    border: `1.5px solid ${showHoraireCol ? 'rgba(16, 185, 129, 0.5)' : 'rgba(239, 68, 68, 0.4)'}`,
+                    background: showHoraireCol ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.08)',
+                    color: showHoraireCol ? '#059669' : '#dc2626',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    transition: 'all 0.15s'
+                  }}
+                >
+                  <span>{showHoraireCol ? '✓' : '✕'}</span>
+                  <span>{isArMode ? 'عمود التوقيت (Horaire)' : 'Horaire'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleComposantCol}
+                  style={{
+                    padding: '0.32rem 0.8rem',
+                    borderRadius: '99px',
+                    fontSize: '0.78rem',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    border: `1.5px solid ${showComposantCol ? 'rgba(16, 185, 129, 0.5)' : 'rgba(239, 68, 68, 0.4)'}`,
+                    background: showComposantCol ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.08)',
+                    color: showComposantCol ? '#059669' : '#dc2626',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    transition: 'all 0.15s'
+                  }}
+                >
+                  <span>{showComposantCol ? '✓' : '✕'}</span>
+                  <span>{isArMode ? 'عمود المكون (Composant)' : 'Composant'}</span>
+                </button>
+              </div>
+            </div>
             
             {/* Arabic Class Table (RTL) */}
             {isArMode ? (
@@ -2889,7 +2974,7 @@ export default function AdminLogbook() {
                 <thead>
                   {/* Print-only page header repeating row */}
                   <tr className="print-page-header-row" style={{ display: 'none' }}>
-                    <th colSpan={6} style={{ 
+                    <th colSpan={visibleLogbookColCount} style={{ 
                       padding: '10px 16px', 
                       backgroundColor: '#f8fafc', 
                       border: '1.5px solid #0f172a',
@@ -2917,9 +3002,9 @@ export default function AdminLogbook() {
                   </tr>
                   <tr style={{ background: getClassColor(selectedClass), borderBottom: `2px solid ${getClassColor(selectedClass)}` }}>
                     <th style={{ padding: '0.85rem', width: '12%', fontWeight: 800, border: '1px solid var(--border)', textAlign: 'center', color: '#ffffff' }}>التاريخ</th>
-                    <th style={{ padding: '0.85rem', width: '12%', fontWeight: 800, border: '1px solid var(--border)', textAlign: 'center', color: '#ffffff' }}>التوقيت</th>
-                    <th style={{ padding: '0.85rem', width: '12%', fontWeight: 800, border: '1px solid var(--border)', textAlign: 'center', color: '#ffffff' }}>المكون</th>
-                    <th style={{ padding: '0.85rem', width: '52%', fontWeight: 800, border: '1px solid var(--border)', color: '#ffffff' }}>طبيعة الأنشطة المنجزة</th>
+                    {showHoraireCol && <th style={{ padding: '0.85rem', width: '12%', fontWeight: 800, border: '1px solid var(--border)', textAlign: 'center', color: '#ffffff' }}>التوقيت</th>}
+                    {showComposantCol && <th style={{ padding: '0.85rem', width: '12%', fontWeight: 800, border: '1px solid var(--border)', textAlign: 'center', color: '#ffffff' }}>المكون</th>}
+                    <th style={{ padding: '0.85rem', width: activityColWidth, fontWeight: 800, border: '1px solid var(--border)', color: '#ffffff' }}>طبيعة الأنشطة المنجزة</th>
                     <th style={{ padding: '0.85rem', width: '12%', fontWeight: 800, border: '1px solid var(--border)', textAlign: 'center', color: '#ffffff' }}>التوقيع</th>
                     <th className="no-print" style={{ padding: '0.85rem', width: '100px', fontWeight: 800, border: '1px solid var(--border)', textAlign: 'center', color: 'var(--text-main)' }}>إجراءات</th>
                   </tr>
@@ -2930,22 +3015,26 @@ export default function AdminLogbook() {
                       <td style={{ padding: '0.75rem', border: '1px solid var(--border)', textAlign: 'center', fontWeight: 700, color: 'var(--text-main)', fontSize: e.displayDate ? '0.8rem' : 'inherit' }}>
                         {e.displayDate ? e.displayDate : new Date(e.date).toLocaleDateString('fr-FR')}
                       </td>
-                      <td style={{ padding: '0.75rem', border: '1px solid var(--border)', textAlign: 'center', fontWeight: 600, color: 'var(--text-muted)' }}>
-                        {e.time || '—'}
-                      </td>
-                      <td style={{ padding: '0.75rem', border: '1px solid var(--border)', textAlign: 'center', fontWeight: 600, color: 'var(--text-muted)' }}>
-                        {e.isHolidayEntry ? (
-                          <span style={{ background: 'rgba(22, 163, 74, 0.12)', color: '#15803d', padding: '3px 8px', borderRadius: '6px', fontWeight: 800, fontSize: '0.76rem' }}>
-                            عطلة مدرسية
-                          </span>
-                        ) : e.isAbsenceEntry ? (
-                          <span style={{ background: 'rgba(239, 68, 68, 0.12)', color: '#b91c1c', padding: '3px 8px', borderRadius: '6px', fontWeight: 800, fontSize: '0.76rem' }}>
-                            رخصة
-                          </span>
-                        ) : (
-                          getTranslatedComponent(e.component, true)
-                        )}
-                      </td>
+                      {showHoraireCol && (
+                        <td style={{ padding: '0.75rem', border: '1px solid var(--border)', textAlign: 'center', fontWeight: 600, color: 'var(--text-muted)' }}>
+                          {e.time || '—'}
+                        </td>
+                      )}
+                      {showComposantCol && (
+                        <td style={{ padding: '0.75rem', border: '1px solid var(--border)', textAlign: 'center', fontWeight: 600, color: 'var(--text-muted)' }}>
+                          {e.isHolidayEntry ? (
+                            <span style={{ background: 'rgba(22, 163, 74, 0.12)', color: '#15803d', padding: '3px 8px', borderRadius: '6px', fontWeight: 800, fontSize: '0.76rem' }}>
+                              عطلة مدرسية
+                            </span>
+                          ) : e.isAbsenceEntry ? (
+                            <span style={{ background: 'rgba(239, 68, 68, 0.12)', color: '#b91c1c', padding: '3px 8px', borderRadius: '6px', fontWeight: 800, fontSize: '0.76rem' }}>
+                              رخصة
+                            </span>
+                          ) : (
+                            getTranslatedComponent(e.component, true)
+                          )}
+                        </td>
+                      )}
                       <td className={e.isHolidayEntry || e.isAbsenceEntry ? "normal-cell" : "squared-grid-cell"} style={{ border: '1px solid var(--border)', verticalAlign: 'middle' }}>
                         {e.isHolidayEntry ? (
                           <div style={{
@@ -3009,7 +3098,7 @@ export default function AdminLogbook() {
                   ))}
                   {entries.length === 0 && (
                     <tr>
-                      <td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                      <td colSpan={visibleLogbookColCount} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                         لا توجد حصص مسجلة في دفتر النصوص حالياً. اضغط على "إضافة حصة" لبدء التعبئة.
                       </td>
                     </tr>
@@ -3022,7 +3111,7 @@ export default function AdminLogbook() {
                 <thead>
                   {/* Print-only page header repeating row */}
                   <tr className="print-page-header-row" style={{ display: 'none' }}>
-                    <th colSpan={6} style={{ 
+                    <th colSpan={visibleLogbookColCount} style={{ 
                       padding: '10px 16px', 
                       backgroundColor: '#f8fafc', 
                       border: '1.5px solid #0f172a',
@@ -3050,9 +3139,9 @@ export default function AdminLogbook() {
                   </tr>
                   <tr style={{ background: getClassColor(selectedClass), borderBottom: `2px solid ${getClassColor(selectedClass)}` }}>
                     <th style={{ padding: '0.85rem', width: '12%', fontWeight: 800, border: '1px solid var(--border)', textAlign: 'center', color: '#ffffff' }}>Date</th>
-                    <th style={{ padding: '0.85rem', width: '12%', fontWeight: 800, border: '1px solid var(--border)', textAlign: 'center', color: '#ffffff' }}>Horaire</th>
-                    <th style={{ padding: '0.85rem', width: '12%', fontWeight: 800, border: '1px solid var(--border)', textAlign: 'center', color: '#ffffff' }}>Composant</th>
-                    <th style={{ padding: '0.85rem', width: '52%', fontWeight: 800, border: '1px solid var(--border)', color: '#ffffff' }}>Nature des activités réalisées</th>
+                    {showHoraireCol && <th style={{ padding: '0.85rem', width: '12%', fontWeight: 800, border: '1px solid var(--border)', textAlign: 'center', color: '#ffffff' }}>Horaire</th>}
+                    {showComposantCol && <th style={{ padding: '0.85rem', width: '12%', fontWeight: 800, border: '1px solid var(--border)', textAlign: 'center', color: '#ffffff' }}>Composant</th>}
+                    <th style={{ padding: '0.85rem', width: activityColWidth, fontWeight: 800, border: '1px solid var(--border)', color: '#ffffff' }}>Nature des activités réalisées</th>
                     <th style={{ padding: '0.85rem', width: '12%', fontWeight: 800, border: '1px solid var(--border)', textAlign: 'center', color: '#ffffff' }}>Signature</th>
                     <th className="no-print" style={{ padding: '0.85rem', width: '100px', fontWeight: 800, border: '1px solid var(--border)', textAlign: 'center', color: 'var(--text-main)' }}>Actions</th>
                   </tr>
@@ -3063,22 +3152,26 @@ export default function AdminLogbook() {
                       <td style={{ padding: '0.75rem', border: '1px solid var(--border)', textAlign: 'center', fontWeight: 700, color: 'var(--text-main)', fontSize: e.displayDate ? '0.8rem' : 'inherit' }}>
                         {e.displayDate ? e.displayDate : new Date(e.date).toLocaleDateString('fr-FR')}
                       </td>
-                      <td style={{ padding: '0.75rem', border: '1px solid var(--border)', textAlign: 'center', fontWeight: 600, color: 'var(--text-muted)' }}>
-                        {e.time || '—'}
-                      </td>
-                      <td style={{ padding: '0.75rem', border: '1px solid var(--border)', textAlign: 'center', fontWeight: 600, color: 'var(--text-muted)' }}>
-                        {e.isHolidayEntry ? (
-                          <span style={{ background: 'rgba(22, 163, 74, 0.12)', color: '#15803d', padding: '3px 8px', borderRadius: '6px', fontWeight: 800, fontSize: '0.76rem' }}>
-                            Vacances scolaires
-                          </span>
-                        ) : e.isAbsenceEntry ? (
-                          <span style={{ background: 'rgba(239, 68, 68, 0.12)', color: '#b91c1c', padding: '3px 8px', borderRadius: '6px', fontWeight: 800, fontSize: '0.76rem' }}>
-                            Absence
-                          </span>
-                        ) : (
-                          getTranslatedComponent(e.component, false)
-                        )}
-                      </td>
+                      {showHoraireCol && (
+                        <td style={{ padding: '0.75rem', border: '1px solid var(--border)', textAlign: 'center', fontWeight: 600, color: 'var(--text-muted)' }}>
+                          {e.time || '—'}
+                        </td>
+                      )}
+                      {showComposantCol && (
+                        <td style={{ padding: '0.75rem', border: '1px solid var(--border)', textAlign: 'center', fontWeight: 600, color: 'var(--text-muted)' }}>
+                          {e.isHolidayEntry ? (
+                            <span style={{ background: 'rgba(22, 163, 74, 0.12)', color: '#15803d', padding: '3px 8px', borderRadius: '6px', fontWeight: 800, fontSize: '0.76rem' }}>
+                              Vacances scolaires
+                            </span>
+                          ) : e.isAbsenceEntry ? (
+                            <span style={{ background: 'rgba(239, 68, 68, 0.12)', color: '#b91c1c', padding: '3px 8px', borderRadius: '6px', fontWeight: 800, fontSize: '0.76rem' }}>
+                              Absence
+                            </span>
+                          ) : (
+                            getTranslatedComponent(e.component, false)
+                          )}
+                        </td>
+                      )}
                       <td className={e.isHolidayEntry || e.isAbsenceEntry ? "normal-cell" : "squared-grid-cell"} style={{ border: '1px solid var(--border)', verticalAlign: 'middle' }}>
                         {e.isHolidayEntry ? (
                           <div style={{
@@ -3142,7 +3235,7 @@ export default function AdminLogbook() {
                   ))}
                   {entries.length === 0 && (
                     <tr>
-                      <td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                      <td colSpan={visibleLogbookColCount} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                         Aucune séance enregistrée pour le moment. Cliquez sur "Ajouter une séance" pour commencer.
                       </td>
                     </tr>
