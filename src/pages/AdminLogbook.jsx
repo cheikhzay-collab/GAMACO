@@ -658,7 +658,51 @@ export default function AdminLogbook() {
   const [missingPanelOpen, setMissingPanelOpen] = useState(false);
   const [programDrawerOpen, setProgramDrawerOpen] = useState(false);
   const [previewSections, setPreviewSections] = useState({});
-  const [sectionFilterMode, setSectionFilterMode] = useState('all'); // 'all' | 'uncovered' | 'covered'
+
+  const getSectionKey = (s, idx) => (s?.id ? String(s.id) : `sec_idx_${idx}`);
+
+  const getLessonCoverage = (targetLessonId, excludeEntryId = null) => {
+    const coveredIds = new Set();
+    const coveredTitlesLegacy = new Set();
+    const coveredHeaders = new Set();
+
+    entries.forEach(e => {
+      if (!e || e.isHoliday || e.isAbsence) return;
+      if (excludeEntryId && e.id === excludeEntryId) return;
+      if (selectedClass && e.classId && e.classId !== selectedClass.id) return;
+      // Scope coverage to the same lesson when lessonId is recorded
+      if (targetLessonId && e.lessonId && e.lessonId !== targetLessonId) return;
+
+      const hasIds = Array.isArray(e.selectedSectionIds) && e.selectedSectionIds.length > 0;
+      if (hasIds) {
+        e.selectedSectionIds.forEach(id => coveredIds.add(String(id)));
+      }
+      if (Array.isArray(e.selectedSections)) {
+        e.selectedSections.forEach(title => {
+          coveredHeaders.add(title);
+          if (!hasIds) {
+            coveredTitlesLegacy.add(title);
+          }
+        });
+      }
+    });
+
+    return {
+      coveredIds,
+      coveredTitlesLegacy,
+      coveredHeaders,
+      isSectionCovered: (sec, idx) => {
+        const key = getSectionKey(sec, idx);
+        if (coveredIds.has(key)) return true;
+        if (sec?.title && coveredTitlesLegacy.has(sec.title)) return true;
+        return false;
+      },
+      isHeaderCovered: (headerTitle) => {
+        if (!headerTitle) return false;
+        return coveredIds.has(`axe::${headerTitle}`) || coveredHeaders.has(headerTitle);
+      }
+    };
+  };
 
   const toggleSectionPreview = (sectionId) => {
     setPreviewSections(prev => ({
@@ -696,15 +740,21 @@ export default function AdminLogbook() {
     });
   };
 
-  const insertSectionContent = (s, mode = 'full') => {
+  const insertSectionContent = (s, mode = 'full', secKey = null) => {
     const rawTitle = (s.title || '').replace(/\*\*/g, '').trim();
+    const resolvedKey = secKey || (s._secKey ? String(s._secKey) : (s.id ? String(s.id) : null));
     if (mode === 'title') {
       insertTextToContent(rawTitle, true);
       setFormData(prev => ({
         ...prev,
         selectedSections: prev.selectedSections.includes(s.title)
           ? prev.selectedSections
-          : [...prev.selectedSections, s.title]
+          : [...prev.selectedSections, s.title],
+        selectedSectionIds: resolvedKey
+          ? ((prev.selectedSectionIds || []).includes(resolvedKey)
+              ? prev.selectedSectionIds
+              : [...(prev.selectedSectionIds || []), resolvedKey])
+          : (prev.selectedSectionIds || [])
       }));
       return;
     }
@@ -727,10 +777,15 @@ export default function AdminLogbook() {
       const nextSections = prev.selectedSections.includes(s.title)
         ? prev.selectedSections
         : [...prev.selectedSections, s.title];
+      const prevIds = prev.selectedSectionIds || [];
+      const nextSectionIds = resolvedKey
+        ? (prevIds.includes(resolvedKey) ? prevIds : [...prevIds, resolvedKey])
+        : prevIds;
 
       return {
         ...prev,
         selectedSections: nextSections,
+        selectedSectionIds: nextSectionIds,
         customContent: currentContent
       };
     });
@@ -747,6 +802,7 @@ export default function AdminLogbook() {
     subject: 'Mathématiques',
     lessonId: '',
     selectedSections: [],
+    selectedSectionIds: [],
     customContent: '',
     isHeaderSéance: false
   });
@@ -1161,19 +1217,18 @@ export default function AdminLogbook() {
         let customContent = '';
         let isHeader = false;
         let suggestedSections = [];
+        let suggestedSectionIds = [];
 
         if (progItem.lessonId) {
           const lesson = lessons.find(l => l.id === progItem.lessonId);
-          const coveredSections = new Set();
-          entries.forEach(e => {
-            if (e.selectedSections && Array.isArray(e.selectedSections)) {
-              e.selectedSections.forEach(s => coveredSections.add(s));
-            }
-          });
+          const coverage = getLessonCoverage(progItem.lessonId, editingEntry?.id || null);
           const allSections = lesson?.content?.sections || [];
-          const uncovered = allSections.filter(s => !coveredSections.has(s.title));
+          const uncovered = allSections
+            .map((s, idx) => ({ ...s, _origIdx: idx, _secKey: getSectionKey(s, idx) }))
+            .filter(s => !coverage.isSectionCovered(s, s._origIdx));
           if (uncovered.length > 0) {
             suggestedSections = [uncovered[0].title];
+            suggestedSectionIds = [uncovered[0]._secKey];
             customContent = `• ${uncovered[0].title}`;
             if (uncovered.length === allSections.length) {
               isHeader = true;
@@ -1193,6 +1248,7 @@ export default function AdminLogbook() {
           lessonId: progItem.lessonId || '',
           selectedProgramItemId: itemId,
           selectedSections: suggestedSections,
+          selectedSectionIds: suggestedSectionIds,
           customContent: customContent,
           component: comp,
           isHeaderSéance: isHeader
@@ -1203,18 +1259,33 @@ export default function AdminLogbook() {
         ...prev,
         lessonId: val,
         selectedProgramItemId: '',
-        selectedSections: []
+        selectedSections: [],
+        selectedSectionIds: []
       }));
     }
   };
 
   // Toggle section checkbox selection incrementally
-  const handleToggleSection = (sectionTitle) => {
+  const handleToggleSection = (sectionTitle, sectionKey = null) => {
     setFormData(prev => {
-      const isSelected = prev.selectedSections.includes(sectionTitle);
+      const prevIds = prev.selectedSectionIds || [];
+      const key = sectionKey ? String(sectionKey) : `axe::${sectionTitle}`;
+      const isSelected = prevIds.includes(key) || (prevIds.length === 0 && prev.selectedSections.includes(sectionTitle));
+
+      const nextSectionIds = isSelected
+        ? prevIds.filter(k => k !== key)
+        : Array.from(new Set([...prevIds, key]));
+
+      let titleStillNeeded = false;
+      if (isSelected && prev.lessonId) {
+        const lsn = lessons.find(l => l.id === prev.lessonId);
+        const secs = lsn?.content?.sections || [];
+        titleStillNeeded = secs.some((sec, i) => nextSectionIds.includes(getSectionKey(sec, i)) && sec.title === sectionTitle);
+      }
+
       const nextSections = isSelected
-        ? prev.selectedSections.filter(s => s !== sectionTitle)
-        : [...prev.selectedSections, sectionTitle];
+        ? (titleStillNeeded ? prev.selectedSections : prev.selectedSections.filter(s => s !== sectionTitle))
+        : (prev.selectedSections.includes(sectionTitle) ? prev.selectedSections : [...prev.selectedSections, sectionTitle]);
       
       let currentContent = prev.customContent || '';
       const cleanTitle = sectionTitle.replace(/\*\*/g, '').trim();
@@ -1241,6 +1312,7 @@ export default function AdminLogbook() {
       return {
         ...prev,
         selectedSections: nextSections,
+        selectedSectionIds: nextSectionIds,
         customContent: currentContent
       };
     });
@@ -1249,12 +1321,15 @@ export default function AdminLogbook() {
   const handleSelectAllVisibleSections = (sectionsList) => {
     if (!sectionsList || sectionsList.length === 0) return;
     setFormData(prev => {
-      const currentSelected = new Set(prev.selectedSections);
+      const currentSelectedTitles = new Set(prev.selectedSections);
+      const currentSelectedIds = new Set(prev.selectedSectionIds || []);
       let content = prev.customContent || '';
       
-      sectionsList.forEach(s => {
-        if (!currentSelected.has(s.title)) {
-          currentSelected.add(s.title);
+      sectionsList.forEach((s, idx) => {
+        const secKey = s._secKey || getSectionKey(s, idx);
+        if (!currentSelectedIds.has(secKey)) {
+          currentSelectedIds.add(secKey);
+          currentSelectedTitles.add(s.title);
           const cleanTitle = (s.title || '').replace(/\*\*/g, '').trim();
           const line = `• ${cleanTitle}`;
           if (content.trim() === '') {
@@ -1267,7 +1342,8 @@ export default function AdminLogbook() {
       
       return {
         ...prev,
-        selectedSections: Array.from(currentSelected),
+        selectedSections: Array.from(currentSelectedTitles),
+        selectedSectionIds: Array.from(currentSelectedIds),
         customContent: content
       };
     });
@@ -1276,6 +1352,7 @@ export default function AdminLogbook() {
   const handleDeselectAllVisibleSections = (sectionsList) => {
     if (!sectionsList || sectionsList.length === 0) return;
     setFormData(prev => {
+      const idsToRemove = new Set(sectionsList.map((s, idx) => s._secKey || getSectionKey(s, idx)));
       const titlesToRemove = new Set(sectionsList.map(s => s.title));
       let content = prev.customContent || '';
       
@@ -1290,6 +1367,7 @@ export default function AdminLogbook() {
       return {
         ...prev,
         selectedSections: prev.selectedSections.filter(t => !titlesToRemove.has(t)),
+        selectedSectionIds: (prev.selectedSectionIds || []).filter(id => !idsToRemove.has(id)),
         customContent: content
       };
     });
@@ -1314,13 +1392,6 @@ export default function AdminLogbook() {
   // Get status details of a specific program item
   const getProgramItemStatus = (item) => {
     if (!item) return { label: 'Non commencé', color: 'var(--text-muted)', bg: 'rgba(255,255,255,0.03)', isDone: false, pct: 0 };
-    
-    const coveredSections = new Set();
-    entries.forEach(e => {
-      if (e.selectedSections && Array.isArray(e.selectedSections)) {
-        e.selectedSections.forEach(s => coveredSections.add(s));
-      }
-    });
 
     if (item.type === 'custom' || !item.lessonId) {
       const isLogged = entries.some(e => 
@@ -1350,7 +1421,8 @@ export default function AdminLogbook() {
         : { label: isArMode ? 'لم يبدأ' : 'Non commencé', color: 'var(--text-muted)', bg: 'rgba(255,255,255,0.03)', isDone: false, pct: 0 };
     }
 
-    const completedCount = sections.filter(sec => coveredSections.has(sec.title)).length;
+    const coverage = getLessonCoverage(item.lessonId);
+    const completedCount = sections.filter((sec, idx) => coverage.isSectionCovered(sec, idx)).length;
     const pct = Math.round((completedCount / sections.length) * 100);
     if (completedCount === sections.length) {
       return { label: isArMode ? 'مكتمل' : 'Terminé', color: 'var(--emerald)', bg: 'rgba(16, 185, 129, 0.08)', isDone: true, count: completedCount, total: sections.length, pct: 100 };
@@ -1399,15 +1471,11 @@ export default function AdminLogbook() {
   const getNextPlannedItem = () => {
     if (!selectedClass || !selectedClass.program || selectedClass.program.length === 0) return null;
     
-    // Get all covered sections and program item ids from logbook entries
-    const coveredSections = new Set();
+    // Get all completed program item ids from logbook entries
     const completedProgItemIds = new Set();
     entries.forEach(e => {
       if (e.selectedProgramItemId) {
         completedProgItemIds.add(e.selectedProgramItemId);
-      }
-      if (e.selectedSections && Array.isArray(e.selectedSections)) {
-        e.selectedSections.forEach(s => coveredSections.add(s));
       }
     });
 
@@ -1426,9 +1494,9 @@ export default function AdminLogbook() {
           continue;
         }
         const sections = lesson.content?.sections || [];
-        const completedCount = sections.filter(sec => coveredSections.has(sec.title)).length;
-        if (completedCount < sections.length) {
-          const uncoveredSections = sections.filter(sec => !coveredSections.has(sec.title));
+        const coverage = getLessonCoverage(item.lessonId);
+        const uncoveredSections = sections.filter((sec, idx) => !coverage.isSectionCovered(sec, idx));
+        if (uncoveredSections.length > 0) {
           return {
             ...item,
             lesson,
@@ -1449,21 +1517,20 @@ export default function AdminLogbook() {
     if (item.type === 'homework' || item.type === 'exam' || item.title.includes('فرض') || item.title.toUpperCase().includes('CONTRÔLE')) docTypeComponent = 'Contrôle';
 
     let suggestedSections = [];
+    let suggestedSectionIds = [];
     let customContent = '';
     let isHeaderSéance = false;
 
     if (item.lessonId) {
       const lesson = lessons.find(l => l.id === item.lessonId);
-      const coveredSections = new Set();
-      entries.forEach(e => {
-        if (e.selectedSections && Array.isArray(e.selectedSections)) {
-          e.selectedSections.forEach(s => coveredSections.add(s));
-        }
-      });
+      const coverage = getLessonCoverage(item.lessonId);
       const allSections = lesson?.content?.sections || [];
-      const uncovered = allSections.filter(s => !coveredSections.has(s.title));
+      const uncovered = allSections
+        .map((s, idx) => ({ ...s, _origIdx: idx, _secKey: getSectionKey(s, idx) }))
+        .filter(s => !coverage.isSectionCovered(s, s._origIdx));
       if (uncovered.length > 0) {
         suggestedSections = [uncovered[0].title];
+        suggestedSectionIds = [uncovered[0]._secKey];
         customContent = `• ${uncovered[0].title}`;
         if (uncovered.length === allSections.length) {
           isHeaderSéance = true;
@@ -1489,6 +1556,7 @@ export default function AdminLogbook() {
       lessonId: item.lessonId || '',
       selectedProgramItemId: item.id,
       selectedSections: suggestedSections,
+      selectedSectionIds: suggestedSectionIds,
       customContent: customContent,
       isHeaderSéance: isHeaderSéance
     });
@@ -1511,6 +1579,7 @@ export default function AdminLogbook() {
         lessonId: '',
         selectedProgramItemId: '',
         selectedSections: [],
+        selectedSectionIds: [],
         customContent: '',
         isHeaderSéance: false
       });
@@ -1533,6 +1602,7 @@ export default function AdminLogbook() {
       lessonId: '',
       selectedProgramItemId: '',
       selectedSections: [],
+      selectedSectionIds: [],
       customContent: '',
       isHeaderSéance: false
     });
@@ -1543,6 +1613,22 @@ export default function AdminLogbook() {
   const handleOpenEditModal = (entry) => {
     setIsProgramOnlyMode(false);
     setEditingEntry(entry);
+
+    // Hydrate selectedSectionIds cleanly for both new and legacy entries
+    let initialSectionIds = Array.isArray(entry.selectedSectionIds) ? [...entry.selectedSectionIds] : [];
+    if (initialSectionIds.length === 0 && entry.lessonId && Array.isArray(entry.selectedSections) && entry.selectedSections.length > 0) {
+      const lesson = lessons.find(l => l.id === entry.lessonId);
+      const secs = lesson?.content?.sections || [];
+      const titleSet = new Set(entry.selectedSections);
+      secs.forEach((sec, idx) => {
+        if (titleSet.has(sec.title)) initialSectionIds.push(getSectionKey(sec, idx));
+        if (sec.section_header && titleSet.has(sec.section_header)) {
+          initialSectionIds.push(`axe::${sec.section_header}`);
+        }
+      });
+      initialSectionIds = Array.from(new Set(initialSectionIds));
+    }
+
     setFormData({
       date: entry.date,
       time: entry.time,
@@ -1551,6 +1637,7 @@ export default function AdminLogbook() {
       lessonId: entry.lessonId || '',
       selectedProgramItemId: entry.selectedProgramItemId || '',
       selectedSections: entry.selectedSections || [],
+      selectedSectionIds: initialSectionIds,
       customContent: entry.customContent || entry.activities?.join('\n') || '',
       isHeaderSéance: entry.isHeaderSéance || false
     });
@@ -1607,6 +1694,7 @@ export default function AdminLogbook() {
       lessonId: formData.lessonId,
       selectedProgramItemId: formData.selectedProgramItemId || null,
       selectedSections: formData.selectedSections,
+      selectedSectionIds: formData.selectedSectionIds || [],
       customContent: formData.customContent,
       isHeaderSéance: formData.isHeaderSéance,
       activities: formData.customContent.split('\n').filter(line => line.trim().length > 0)
@@ -2384,6 +2472,7 @@ export default function AdminLogbook() {
                 subject: 'Mathématiques',
                 lessonId: '',
                 selectedSections: [],
+                selectedSectionIds: [],
                 customContent: '',
                 isHeaderSéance: false
               });
@@ -2566,6 +2655,7 @@ export default function AdminLogbook() {
                         subject: 'Mathématiques',
                         lessonId: '',
                         selectedSections: [],
+                        selectedSectionIds: [],
                         customContent: '',
                         isHeaderSéance: false
                       });
@@ -4019,26 +4109,18 @@ export default function AdminLogbook() {
                       return <span style={{ fontSize: '0.8rem', color: 'var(--text-subtle)' }}>Aucune section dans cette fiche.</span>;
                     }
 
-                    // Find all sections covered in other entries for this class
-                    const coveredInOtherEntries = new Set();
-                    entries.forEach(e => {
-                      if (editingEntry && e.id === editingEntry.id) return; // Skip the current entry we are editing
-                      if (selectedClass && e.classId && e.classId !== selectedClass.id) return; // Only for current class
-                      if (e.selectedSections && Array.isArray(e.selectedSections)) {
-                        e.selectedSections.forEach(title => coveredInOtherEntries.add(title));
-                      }
-                    });
+                    // Hide all sections & Axes already selected in previous sessions for this class & lesson
+                    const coverage = getLessonCoverage(formData.lessonId, editingEntry?.id || null);
+                    const annotatedSections = sections.map((s, idx) => ({
+                      ...s,
+                      _origIdx: idx,
+                      _secKey: getSectionKey(s, idx)
+                    }));
+                    const remainingSections = annotatedSections.filter(s => !coverage.isSectionCovered(s, s._origIdx));
 
                     const totalCount = sections.length;
-                    const uncoveredCount = sections.filter(s => !coveredInOtherEntries.has(s.title)).length;
-                    const coveredCount = sections.filter(s => coveredInOtherEntries.has(s.title)).length;
-
-                    let filteredSections = sections;
-                    if (sectionFilterMode === 'uncovered') {
-                      filteredSections = sections.filter(s => !coveredInOtherEntries.has(s.title));
-                    } else if (sectionFilterMode === 'covered') {
-                      filteredSections = sections.filter(s => coveredInOtherEntries.has(s.title));
-                    }
+                    const remainingCount = remainingSections.length;
+                    const coveredCount = totalCount - remainingCount;
 
                     // Detect block type from text prefix
                     const getBlockType = (s) => {
@@ -4121,126 +4203,108 @@ export default function AdminLogbook() {
                           </div>
                         </div>
 
-                        {/* Filter Tabs & Bulk Actions */}
+                        {/* Remaining Progress Summary & Bulk Actions */}
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                            <button
-                              type="button"
-                              onClick={() => setSectionFilterMode('all')}
-                              style={{
-                                fontSize: '0.72rem',
-                                fontWeight: sectionFilterMode === 'all' ? 800 : 500,
-                                padding: '0.22rem 0.65rem',
-                                borderRadius: '7px',
-                                border: '1px solid',
-                                borderColor: sectionFilterMode === 'all' ? 'var(--violet)' : 'var(--border)',
-                                background: sectionFilterMode === 'all' ? 'rgba(99, 102, 241, 0.16)' : 'rgba(255, 255, 255, 0.02)',
-                                color: sectionFilterMode === 'all' ? 'var(--violet)' : 'var(--text-muted)',
-                                cursor: 'pointer',
-                                transition: 'all 0.18s'
-                              }}
-                            >
-                              {isArMode ? `الكل (${totalCount})` : `Tous (${totalCount})`}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setSectionFilterMode('uncovered')}
-                              style={{
-                                fontSize: '0.72rem',
-                                fontWeight: sectionFilterMode === 'uncovered' ? 800 : 500,
-                                padding: '0.22rem 0.65rem',
-                                borderRadius: '7px',
-                                border: '1px solid',
-                                borderColor: sectionFilterMode === 'uncovered' ? 'var(--violet)' : 'var(--border)',
-                                background: sectionFilterMode === 'uncovered' ? 'rgba(99, 102, 241, 0.16)' : 'rgba(255, 255, 255, 0.02)',
-                                color: sectionFilterMode === 'uncovered' ? 'var(--violet)' : 'var(--text-muted)',
-                                cursor: 'pointer',
-                                transition: 'all 0.18s'
-                              }}
-                            >
-                              {isArMode ? `غير منجزة (${uncoveredCount})` : `Non abordés (${uncoveredCount})`}
-                            </button>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                            <span style={{
+                              fontSize: '0.72rem',
+                              fontWeight: 800,
+                              padding: '0.22rem 0.65rem',
+                              borderRadius: '7px',
+                              border: '1px solid rgba(99, 102, 241, 0.35)',
+                              background: 'rgba(99, 102, 241, 0.12)',
+                              color: 'var(--violet)'
+                            }}>
+                              {isArMode ? `العناصر المتبقية (${remainingCount} / ${totalCount})` : `Éléments restants (${remainingCount} / ${totalCount})`}
+                            </span>
                             {coveredCount > 0 && (
-                              <button
-                                type="button"
-                                onClick={() => setSectionFilterMode('covered')}
-                                style={{
-                                  fontSize: '0.72rem',
-                                  fontWeight: sectionFilterMode === 'covered' ? 800 : 500,
-                                  padding: '0.22rem 0.65rem',
-                                  borderRadius: '7px',
-                                  border: '1px solid',
-                                  borderColor: sectionFilterMode === 'covered' ? 'var(--violet)' : 'var(--border)',
-                                  background: sectionFilterMode === 'covered' ? 'rgba(99, 102, 241, 0.16)' : 'rgba(255, 255, 255, 0.02)',
-                                  color: sectionFilterMode === 'covered' ? 'var(--violet)' : 'var(--text-muted)',
-                                  cursor: 'pointer',
-                                  transition: 'all 0.18s'
-                                }}
-                              >
-                                {isArMode ? `منجزة (${coveredCount})` : `Déjà abordés (${coveredCount})`}
-                              </button>
-                            )}
-                          </div>
-
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                            <button
-                              type="button"
-                              onClick={() => handleSelectAllVisibleSections(filteredSections)}
-                              style={{
+                              <span style={{
                                 fontSize: '0.68rem',
                                 fontWeight: 700,
                                 padding: '0.2rem 0.55rem',
-                                borderRadius: '6px',
-                                background: 'rgba(99, 102, 241, 0.09)',
-                                border: '1px solid rgba(99, 102, 241, 0.25)',
-                                color: 'var(--violet)',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              {isArMode ? 'تحديد الكل' : 'Tout sélectionner'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeselectAllVisibleSections(filteredSections)}
-                              style={{
-                                fontSize: '0.68rem',
-                                fontWeight: 600,
-                                padding: '0.2rem 0.55rem',
-                                borderRadius: '6px',
-                                background: 'rgba(255, 255, 255, 0.03)',
-                                border: '1px solid var(--border)',
-                                color: 'var(--text-subtle)',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              {isArMode ? 'إلغاء التحديد' : 'Tout désélectionner'}
-                            </button>
+                                borderRadius: '7px',
+                                background: 'rgba(16, 185, 129, 0.1)',
+                                border: '1px solid rgba(16, 185, 129, 0.25)',
+                                color: '#059669'
+                              }}>
+                                {isArMode ? `✓ ${coveredCount} منجزة ومخفية` : `✓ ${coveredCount} déjà abordé${coveredCount > 1 ? 's' : ''}`}
+                              </span>
+                            )}
                           </div>
+
+                          {remainingSections.length > 0 && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                              <button
+                                type="button"
+                                onClick={() => handleSelectAllVisibleSections(remainingSections)}
+                                style={{
+                                  fontSize: '0.68rem',
+                                  fontWeight: 700,
+                                  padding: '0.2rem 0.55rem',
+                                  borderRadius: '6px',
+                                  background: 'rgba(99, 102, 241, 0.09)',
+                                  border: '1px solid rgba(99, 102, 241, 0.25)',
+                                  color: 'var(--violet)',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                {isArMode ? 'تحديد الكل' : 'Tout sélectionner'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeselectAllVisibleSections(remainingSections)}
+                                style={{
+                                  fontSize: '0.68rem',
+                                  fontWeight: 600,
+                                  padding: '0.2rem 0.55rem',
+                                  borderRadius: '6px',
+                                  background: 'rgba(255, 255, 255, 0.03)',
+                                  border: '1px solid var(--border)',
+                                  color: 'var(--text-subtle)',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                {isArMode ? 'إلغاء التحديد' : 'Tout désélectionner'}
+                              </button>
+                            </div>
+                          )}
                         </div>
 
-                        {/* List of Sections */}
-                        {filteredSections.length === 0 ? (
-                          <div style={{ padding: '1rem', textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-subtle)', background: 'rgba(255,255,255,0.01)', borderRadius: '8px' }}>
-                            {sectionFilterMode === 'uncovered'
-                              ? (isArMode ? 'تم إنجاز جميع عناصر هذا الدرس أو السلسلة في حصص سابقة!' : 'Toutes les sections ont été abordées dans des séances précédentes !')
-                              : (isArMode ? 'لا توجد عناصر مطابقة.' : 'Aucun élément correspondant.')}
+                        {/* List of Remaining (Uncovered) Sections Only */}
+                        {remainingSections.length === 0 ? (
+                          <div style={{
+                            padding: '1rem',
+                            textAlign: 'center',
+                            fontSize: '0.8rem',
+                            fontWeight: 700,
+                            color: '#059669',
+                            background: 'rgba(16, 185, 129, 0.08)',
+                            border: '1px solid rgba(16, 185, 129, 0.25)',
+                            borderRadius: '10px'
+                          }}>
+                            {isArMode
+                              ? '✓ تم إنجاز جميع عناصر هذا الدرس في الحصص السابقة'
+                              : '✓ Tous les éléments de cette fiche ont été abordés dans les séances précédentes'}
                           </div>
                         ) : (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', maxHeight: '280px', overflowY: 'auto', paddingRight: '0.25rem' }}>
-                            {filteredSections.map(s => {
-                              const isChecked = formData.selectedSections.includes(s.title);
-                              const isPreviewOpen = !!previewSections[s.id || s.title];
-                              const isCovered = coveredInOtherEntries.has(s.title);
+                            {remainingSections.map(s => {
+                              const secKey = s._secKey;
+                              const selectedIds = formData.selectedSectionIds || [];
+                              const isChecked = selectedIds.includes(secKey) || (selectedIds.length === 0 && formData.selectedSections.includes(s.title));
+                              const isPreviewOpen = !!previewSections[secKey];
                               const blockType = getBlockType(s);
-                              const showHeader = s.section_header && s.section_header !== lastHeader;
-                              if (showHeader) lastHeader = s.section_header;
+                              const isNewHeader = Boolean(s.section_header && s.section_header !== lastHeader);
+                              if (isNewHeader) lastHeader = s.section_header;
+                              const showHeader = isNewHeader && !coverage.isHeaderCovered(s.section_header);
 
                               return (
-                                <div key={s.id || s.title} style={{ marginBottom: '0.35rem' }}>
-                                  {/* Section Header (Axe) */}
+                                <div key={secKey} style={{ marginBottom: '0.35rem' }}>
+                                  {/* Section Header (Axe) — hidden completely if already selected in a previous session */}
                                   {showHeader && (() => {
                                     const headerTitle = s.section_header;
-                                    const isHeaderChecked = formData.selectedSections.includes(headerTitle);
+                                    const headerKey = `axe::${headerTitle}`;
+                                    const isHeaderChecked = selectedIds.includes(headerKey) || formData.selectedSections.includes(headerTitle);
                                     return (
                                       <div
                                         style={{
@@ -4272,7 +4336,7 @@ export default function AdminLogbook() {
                                           <input
                                             type="checkbox"
                                             checked={isHeaderChecked}
-                                            onChange={() => handleToggleSection(headerTitle)}
+                                            onChange={() => handleToggleSection(headerTitle, headerKey)}
                                             style={{ accentColor: 'var(--violet)', width: '14px', height: '14px', flexShrink: 0 }}
                                           />
                                           <span style={{
@@ -4293,9 +4357,15 @@ export default function AdminLogbook() {
                                               e.preventDefault();
                                               e.stopPropagation();
                                               insertTextToContent(headerTitle, true);
-                                              if (!formData.selectedSections.includes(headerTitle)) {
-                                                setFormData(prev => ({ ...prev, selectedSections: [...prev.selectedSections, headerTitle] }));
-                                              }
+                                              setFormData(prev => ({
+                                                ...prev,
+                                                selectedSections: prev.selectedSections.includes(headerTitle)
+                                                  ? prev.selectedSections
+                                                  : [...prev.selectedSections, headerTitle],
+                                                selectedSectionIds: (prev.selectedSectionIds || []).includes(headerKey)
+                                                  ? prev.selectedSectionIds
+                                                  : [...(prev.selectedSectionIds || []), headerKey]
+                                              }));
                                             }}
                                             style={{
                                               background: 'rgba(99, 102, 241, 0.1)',
@@ -4348,7 +4418,7 @@ export default function AdminLogbook() {
                                         <input
                                           type="checkbox"
                                           checked={isChecked}
-                                          onChange={() => handleToggleSection(s.title)}
+                                          onChange={() => handleToggleSection(s.title, secKey)}
                                           style={{ accentColor: 'var(--violet)', width: '15px', height: '15px', flexShrink: 0 }}
                                         />
                                         <span style={{
@@ -4364,28 +4434,13 @@ export default function AdminLogbook() {
                                       </label>
 
                                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexShrink: 0 }}>
-                                        {/* Covered badge */}
-                                        {isCovered && (
-                                          <span style={{
-                                            fontSize: '0.6rem',
-                                            fontWeight: 700,
-                                            color: '#059669',
-                                            background: 'rgba(16, 185, 129, 0.12)',
-                                            padding: '0.1rem 0.4rem',
-                                            borderRadius: '4px',
-                                            whiteSpace: 'nowrap'
-                                          }}>
-                                            ✓ {isArMode ? 'منجز سابقاً' : 'Déjà abordé'}
-                                          </span>
-                                        )}
-
                                         {/* Insert Title Button */}
                                         <button
                                           type="button"
                                           onClick={(e) => {
                                             e.preventDefault();
                                             e.stopPropagation();
-                                            insertSectionContent(s, 'title');
+                                            insertSectionContent(s, 'title', secKey);
                                           }}
                                           style={{
                                             background: 'rgba(99, 102, 241, 0.08)',
@@ -4414,7 +4469,7 @@ export default function AdminLogbook() {
                                             onClick={(e) => {
                                               e.preventDefault();
                                               e.stopPropagation();
-                                              insertSectionContent(s, 'full');
+                                              insertSectionContent(s, 'full', secKey);
                                             }}
                                             style={{
                                               background: 'rgba(16, 185, 129, 0.08)',
@@ -4444,7 +4499,7 @@ export default function AdminLogbook() {
                                             onClick={(e) => {
                                               e.preventDefault();
                                               e.stopPropagation();
-                                              toggleSectionPreview(s.id || s.title);
+                                              toggleSectionPreview(secKey);
                                             }}
                                             style={{
                                               border: 'none',
