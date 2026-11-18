@@ -2,8 +2,7 @@
 // Dedicated persistence layer for saving and hydrating exercise/question solutions
 // and DEVOIR PRIME edits directly into MySQL (`tbl_solutions` and `tbl_devoir_prime`).
 
-import { localDb } from './localDbClient';
-
+const API_BASE = '/api';
 const SOLUTIONS_LS_KEY = 'gamaco_solutions_cache_v1';
 const DP_LS_KEY = 'gamaco_devoir_prime_cache_v1';
 
@@ -54,8 +53,12 @@ export async function saveSolution({
 
   // Sync to MySQL via /api/solutions
   try {
-    await localDb.post('/solutions', payload);
-    return { success: true, id, synced: true };
+    const res = await fetch(`${API_BASE}/solutions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return { success: true, id, synced: res.ok };
   } catch (err) {
     console.warn('[solutionService] /api/solutions sync warning:', err?.message || err);
     return { success: true, id, synced: false };
@@ -68,7 +71,7 @@ export async function saveSolution({
 export async function getSolutionsByLesson(lessonId) {
   if (!lessonId) return [];
   try {
-    const res = await fetch(`/api/solutions?lesson_id=${encodeURIComponent(lessonId)}`);
+    const res = await fetch(`${API_BASE}/solutions?lesson_id=${encodeURIComponent(lessonId)}`);
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data)) return data;
@@ -105,8 +108,12 @@ export async function saveDevoirPrimeSheet({
   writeMap(DP_LS_KEY, cache);
 
   try {
-    await localDb.post(`/devoir-prime/${lessonId}`, payload);
-    return { success: true, synced: true };
+    const res = await fetch(`${API_BASE}/devoir-prime/${encodeURIComponent(lessonId)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return { success: true, synced: res.ok };
   } catch (err) {
     console.warn('[solutionService] /api/devoir-prime sync warning:', err?.message || err);
     return { success: true, synced: false };
@@ -119,7 +126,7 @@ export async function saveDevoirPrimeSheet({
 export async function getDevoirPrimeSheet(lessonId) {
   if (!lessonId) return null;
   try {
-    const res = await fetch(`/api/devoir-prime/${encodeURIComponent(lessonId)}`);
+    const res = await fetch(`${API_BASE}/devoir-prime/${encodeURIComponent(lessonId)}`);
     if (res.ok) {
       const data = await res.json();
       if (data && (data.exercises || data.meta)) return data;
