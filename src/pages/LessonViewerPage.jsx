@@ -4197,7 +4197,7 @@ export default function LessonViewerPage() {
                         return (
                           <div className="homework-table" style={isArabic ? { fontFamily: arabicFont } : {}}>
                             <div className="homework-header-row">
-                              <div className="homework-bareme-header">{calculateTotalPoints(sec.content, isArabic, sec.section_header || sec.title)}</div>
+                              <div className="homework-bareme-header">{calculateTotalPoints(sec.content, isArabic, `${sec.points ? `(${sec.points} pts) ` : ''}${sec.title || ''} ${sec.section_header || ''}`.trim())}</div>
                               <div className="homework-content-header">
                                 {isArabic ? 'تمرين' : 'Exercice'} {exeNumber} {exeLabel ? ` : ${exeLabel}` : ''}
                               </div>

@@ -1634,17 +1634,26 @@ export const generateLessonHTML = (lesson, settings = {}) => {
       }
 
       if (isHomeworkSec) {
+        const totalPointsFallback = `${sec.points ? `(${sec.points} pts) ` : ''}${sec.title || ''} ${sec.section_header || ''}`.trim();
         sectionsHtml += `
           <div class="homework-table" ${isArabic ? `style="font-family:${arabicFontFamily}"` : ''}>
             <div class="homework-header-row">
-              <div class="homework-bareme-header">${calculateTotalPoints(sec.content, isArabic, sec.section_header || sec.title)}</div>
+              <div class="homework-bareme-header">${calculateTotalPoints(sec.content, isArabic, totalPointsFallback)}</div>
               <div class="homework-content-header">
                 ${isArabic ? 'تمرين' : 'Exercice'} ${esc(exeNumber)} ${exeLabel ? ` : ${esc(exeLabel)}` : ''}
               </div>
             </div>
-            ${exerciseBeforeHtml ? `<div class="homework-row" style="padding: 0.5rem 1rem;">${exerciseBeforeHtml}</div>` : ''}
+            ${exerciseBeforeHtml ? `
+            <div class="homework-row homework-media-row">
+              <div class="homework-bareme-cell"></div>
+              <div class="homework-content-cell homework-media-cell">${exerciseBeforeHtml}</div>
+            </div>` : ''}
             ${renderHomeworkBody(sec.content, isArabic)}
-            ${exerciseAfterHtml ? `<div class="homework-row" style="padding: 0.5rem 1rem;">${exerciseAfterHtml}</div>` : ''}
+            ${exerciseAfterHtml ? `
+            <div class="homework-row homework-media-row">
+              <div class="homework-bareme-cell"></div>
+              <div class="homework-content-cell homework-media-cell">${exerciseAfterHtml}</div>
+            </div>` : ''}
             ${sec.solution ? `
             <div class="homework-row homework-solution-row" style="background: rgba(16,185,129,0.01);">
               <div class="homework-bareme-cell" style="background: rgba(16,185,129,0.03); color: #059669; border-top: 1px solid rgba(16,185,129,0.15)">📖</div>
@@ -3388,6 +3397,19 @@ html[dir="rtl"] .section-header-row {
   line-height: 1.6;
   color: #0f172a;
 }
+.homework-media-cell {
+  text-align: center;
+  padding: 0.55rem 0.85rem;
+}
+.homework-media-cell .modern-figure-wrapper {
+  width: 100%;
+  margin: 0.2rem auto !important;
+}
+.homework-media-cell img {
+  max-width: 100% !important;
+  height: auto !important;
+  object-fit: contain;
+}
 .homework-table .katex,
 .homework-content-cell .katex,
 .homework-subq-item .katex,
@@ -4035,8 +4057,9 @@ function _applyPrintStyles() {
     );
   } else {
     css.push(
-      '.solution-block, .modern-solution-block, .homework-solution-row { display: block !important; }',
-      '@media print { .solution-block, .modern-solution-block, .homework-solution-row { display: block !important; } }'
+      '.solution-block, .modern-solution-block { display: block !important; }',
+      '.homework-solution-row { display: flex !important; }',
+      '@media print { .solution-block, .modern-solution-block { display: block !important; } .homework-solution-row { display: table-row !important; } }'
     );
   }
 
