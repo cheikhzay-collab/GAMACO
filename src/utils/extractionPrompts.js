@@ -262,9 +262,13 @@ SCHÉMA JSON OBLIGATOIRE
   "header": {
     "prep_title": "Titre si présent",
     "subject": "Matière",
-    "fiche_title": "Titre du chapitre ou du devoir",
-    "teacher": "Nom du professeur",
+    "fiche_title": "Titre du chapitre ou du devoir (sans étoiles **)",
+    "chapter_number": "01",
+    "teacher": "Nom du professeur (laisser vide si absent du document)",
     "phone": "",
+    "capacites_attendues": "Pour un cours : capacités attendues selon les orientations pédagogiques marocaines",
+    "contenus": "Pour un cours : grands axes du contenu",
+    "prerequisites": "Pour un cours : prérequis nécessaires",
     "doc_type": "'course' | 'homework' | 'exercises' | 'concours' | 'summary' | 'national'",
     "detected_level": "'common_core_sci' | 'common_core_arts' | '1bac_sci' | '1bac_arts' | '2bac_sm' | '2bac_pc_svt' | '2bac_arts'",
     "total_points": 20,
@@ -282,19 +286,21 @@ SCHÉMA JSON OBLIGATOIRE
   "sections": [
     {
       "id": "sec-1",
-      "section_header": "I. Grand titre",
-      "title": "Sous-titre ou énoncé",
-      "type": "content | definition | property | theorem | example | remark | activity | exercise",
+      "section_header": "I. Grand titre du chapitre",
+      "title": "Sous-titre propre SANS étoiles ** et SANS répéter le mot Définition/Propriété",
+      "type": "content | definition | property | theorem | corollary | methode | demonstration | example | remark | activity | exercise",
       "section_number": "I",
       "accent_text": "",
-      "items": [
-        { "type": "text", "text": "..." },
-        { "type": "highlight_box", "text": "..." },
-        { "type": "bullet", "text": "..." }
-      ]
+      "content": "Texte intégral de la section avec formules LaTeX entre $...$ ou $$...$$ (obligatoire)",
+      "solution": "Correction / démonstration si présente pour un exemple, activité, théorème ou exercice",
+      "items": []
     }
   ]
 }
+RÈGLES SPÉCIFIQUES AUX COURS ('course') :
+- Ne mets JAMAIS de balises ** dans les titres ("title" ou "fiche_title").
+- Place toujours le corps de chaque définition, théorème, propriété, corollaire, méthode, démonstration, exemple, remarque ou activité dans "content" (utilise "items" uniquement pour les tableaux structurés ou figures).
+- Ne génère AUCUNE section vide (chaque section doit contenir un texte ou un tableau réel).
 Retourne UNIQUEMENT le JSON brut sans balises Markdown.`;
 
 /**

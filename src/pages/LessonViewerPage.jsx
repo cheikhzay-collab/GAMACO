@@ -19,10 +19,13 @@ import NationalExamTemplate from '../components/NationalExamTemplate';
 import CourseSummaryTemplate from '../components/CourseSummaryTemplate';
 import EbookTemplate from '../components/EbookTemplate';
 import DevoirPrimeTemplate from '../components/DevoirPrimeTemplate';
+import CourseMasterTemplate from '../components/CourseMasterTemplate';
 import { openNationalExamPrintWindow } from '../utils/generateNationalExamPDF';
 import { openCourseSummaryPrintWindow } from '../utils/generateCourseSummaryPDF';
 import { openEbookTemplatePrintWindow } from '../utils/generateEbookTemplatePDF';
 import { openDevoirPrimePrintWindow } from '../utils/generateDevoirPrimePDF';
+import { openCoursePrintWindow } from '../utils/generateCoursePDF';
+import { isCourseDocument } from '../utils/courseHelpers';
 import { buildPointsTableFromPrimeExercises } from '../utils/devoirPrimeHelpers';
 
 /**
@@ -1264,6 +1267,12 @@ export default function LessonViewerPage() {
       } else if (viewSummaryMode) {
         // Mode 3 Colonnes actif -> Impression au format Résumé (3 Colonnes)
         openCourseSummaryPrintWindow(lesson.content || lesson);
+      } else if (!isSeriesOrHomework && isCourseDocument(lesson)) {
+        // Dedicated Academic Textbook PDF Engine for Courses (COUR)
+        openCoursePrintWindow(lesson, {
+          showSolutions: includeSolutionsInPdf,
+          academicYear: profAcademicYear
+        });
       } else {
         // Mode Standard actif -> Impression au format Standard (Strictement 1 colonne pour les devoirs)
         const effectiveCols = isHomeworkPdf ? 1 : seriesColumns;
@@ -3109,6 +3118,20 @@ export default function LessonViewerPage() {
         }}>
           <CourseSummaryTemplate data={lesson} />
         </div>
+      ) : (isCourseDocument(lesson) && !isDirectEdit) ? (
+        /* ── COURSE MASTER TEMPLATE (ACADEMIC TEXTBOOK VIEW) ── */
+        <div style={{ marginBottom: '2rem' }}>
+          <CourseMasterTemplate
+            lesson={lesson}
+            isAdmin={user?.role === 'admin'}
+            onEditClick={() => navigate(`/admin/lessons/${id}/edit`, { state: { from: window.location.pathname } })}
+            onSolveSection={(origIdx) => {
+              const targetSec = (lesson?.content?.sections || lesson?.sections || [])[origIdx];
+              if (targetSec) handleGenerateAiSolutionForSection(targetSec.id, targetSec);
+            }}
+            solvingSectionId={solvingSecId}
+          />
+        </div>
       ) : (
 
       /* ── MAIN WORKsheet CONTAINER — ref used by html2canvas PDF export ── */
@@ -3988,7 +4011,7 @@ export default function LessonViewerPage() {
                           return (
                             <div key={itemIdx} style={{ margin: '1.25rem 0', width: '100%' }}>
                               <SmartTableRenderer
-                                table={item.table || item.data || item.text || item}
+                                table={item.table_data || item.table || item.data || item.text || item}
                                 title={item.title}
                               />
                             </div>

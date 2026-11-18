@@ -17,11 +17,14 @@ import SmartTableRenderer from '../SmartTableRenderer';
 
 const SECTION_TYPES = [
   { id: 'content', label: 'فقرة درس', labelFr: 'Paragraphe', color: '#2563eb', bg: 'rgba(37, 99, 235, 0.1)' },
-  { id: 'definition', label: 'تعريف', labelFr: 'Définition', color: '#7c3aed', bg: 'rgba(124, 58, 237, 0.1)' },
-  { id: 'property', label: 'خاصية', labelFr: 'Propriété', color: '#0284c7', bg: 'rgba(2, 132, 199, 0.1)' },
-  { id: 'theorem', label: 'مبرهنة', labelFr: 'Théorème', color: '#059669', bg: 'rgba(5, 150, 105, 0.1)' },
-  { id: 'example', label: 'مثال', labelFr: 'Exemple', color: '#d97706', bg: 'rgba(217, 119, 6, 0.1)' },
-  { id: 'remark', label: 'ملاحظة', labelFr: 'Remarque', color: '#64748b', bg: 'rgba(100, 116, 139, 0.1)' },
+  { id: 'definition', label: 'تعريف', labelFr: 'Définition', color: '#4338ca', bg: 'rgba(67, 56, 202, 0.1)' },
+  { id: 'theorem', label: 'مبرهنة', labelFr: 'Théorème', color: '#b91c1c', bg: 'rgba(185, 28, 28, 0.1)' },
+  { id: 'property', label: 'خاصية', labelFr: 'Propriété', color: '#0369a1', bg: 'rgba(3, 105, 161, 0.1)' },
+  { id: 'corollary', label: 'نتيجة', labelFr: 'Corollaire', color: '#0f766e', bg: 'rgba(15, 118, 110, 0.1)' },
+  { id: 'methode', label: 'منهجية', labelFr: 'Méthode', color: '#b45309', bg: 'rgba(180, 83, 9, 0.1)' },
+  { id: 'demonstration', label: 'برهان', labelFr: 'Démonstration', color: '#475569', bg: 'rgba(71, 85, 105, 0.12)' },
+  { id: 'example', label: 'مثال', labelFr: 'Exemple', color: '#047857', bg: 'rgba(4, 120, 87, 0.1)' },
+  { id: 'remark', label: 'ملاحظة', labelFr: 'Remarque', color: '#d97706', bg: 'rgba(217, 119, 6, 0.1)' },
   { id: 'activity', label: 'نشاط', labelFr: 'Activité', color: '#0d9488', bg: 'rgba(13, 148, 136, 0.1)' },
   { id: 'exercise', label: 'تمرين', labelFr: 'Exercice', color: '#dc2626', bg: 'rgba(220, 38, 38, 0.1)' },
 ];

@@ -36,6 +36,7 @@ import { openNationalExamPrintWindow } from '../utils/generateNationalExamPDF';
 import { openCourseSummaryPrintWindow } from '../utils/generateCourseSummaryPDF';
 import { openEbookTemplatePrintWindow } from '../utils/generateEbookTemplatePDF';
 import { openDevoirPrimePrintWindow } from '../utils/generateDevoirPrimePDF';
+import { openCoursePrintWindow } from '../utils/generateCoursePDF';
 
 import LessonEditorOutline from '../components/editor/LessonEditorOutline';
 import LessonEditorSettingsDrawer, { DOC_TYPES } from '../components/editor/LessonEditorSettingsDrawer';
@@ -297,18 +298,26 @@ export default function AdminLessonEdit() {
 
   // Build live lesson payload preserving ALL extra metadata (national_exam_meta, summary_meta, devoir_prime_meta, etc.)
   const buildLessonPayload = useCallback((customSections = sections) => {
-    const cleanedSections = (customSections || []).map((sec, idx) => ({
-      ...sec,
-      id: sec.id || `sec-${idx + 1}-${sec.type || 'content'}`,
-      bgColor: sec.bgColor || sec.bg_color || 'transparent',
-      bg_color: sec.bgColor || sec.bg_color || 'transparent',
-      fontSize: sec.fontSize || sec.font_size || '',
-      font_size: sec.fontSize || sec.font_size || '',
-      lineHeight: sec.lineHeight || sec.line_height || '',
-      line_height: sec.lineHeight || sec.line_height || '',
-      content: autoRepairMathText(sec.content || ''),
-      solution: autoRepairMathText(sec.solution || ''),
-    }));
+    const cleanedSections = (customSections || []).map((sec, idx) => {
+      const cleanedContent = autoRepairMathText(sec.content || '');
+      // Keep rich non-text items (images, tables, notation_grid, grid_items); drop stale legacy text items when content is present
+      const cleanedItems = cleanedContent.trim()
+        ? (sec.items || []).filter(it => ['image', 'table', 'notation_grid', 'grid_items'].includes(it?.type))
+        : (sec.items || []);
+      return {
+        ...sec,
+        id: sec.id || `sec-${idx + 1}-${sec.type || 'content'}`,
+        bgColor: sec.bgColor || sec.bg_color || 'transparent',
+        bg_color: sec.bgColor || sec.bg_color || 'transparent',
+        fontSize: sec.fontSize || sec.font_size || '',
+        font_size: sec.fontSize || sec.font_size || '',
+        lineHeight: sec.lineHeight || sec.line_height || '',
+        line_height: sec.lineHeight || sec.line_height || '',
+        content: cleanedContent,
+        solution: autoRepairMathText(sec.solution || ''),
+        items: cleanedItems,
+      };
+    });
 
     const pointsTable = extractPointsTableFromSections(cleanedSections);
 
@@ -596,8 +605,11 @@ export default function AdminLessonEdit() {
       exercise: `Exercice ${sections.filter(s => s.type === 'exercise').length + 1}`,
       content: 'Nouvelle Section',
       definition: 'Définition',
-      property: 'Propriété',
       theorem: 'Théorème',
+      property: 'Propriété',
+      corollary: 'Corollaire',
+      methode: 'Méthode',
+      demonstration: 'Démonstration',
       example: 'Exemple',
       remark: 'Remarque',
       activity: 'Activité',
@@ -891,6 +903,8 @@ export default function AdminLessonEdit() {
     const hasSolutions = sections.some(s => s.solution && String(s.solution).trim());
     if (docType === 'devoir_prime') {
       openDevoirPrimePrintWindow(liveLesson, { showSolutions: true });
+    } else if (docType === 'course') {
+      openCoursePrintWindow(liveLesson, { showSolutions: hasSolutions });
     } else if (docType === 'ebook') {
       openEbookTemplatePrintWindow(liveLesson, { showSolutions: hasSolutions, columnsCount: Number(columnsCount) || 3 });
     } else if (docType === 'national') {

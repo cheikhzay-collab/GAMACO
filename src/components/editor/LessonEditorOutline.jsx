@@ -9,11 +9,14 @@ import {
 import { validateExercisePoints } from '../../utils/scoreBalancingValidator';
 
 const TYPE_META = {
-  definition: { label: 'تعريف', color: '#7c3aed', bg: 'rgba(124, 58, 237, 0.12)' },
-  property: { label: 'خاصية', color: '#0284c7', bg: 'rgba(2, 132, 199, 0.12)' },
-  theorem: { label: 'مبرهنة', color: '#059669', bg: 'rgba(5, 150, 105, 0.12)' },
-  example: { label: 'مثال', color: '#d97706', bg: 'rgba(217, 119, 6, 0.12)' },
-  remark: { label: 'ملاحظة', color: '#64748b', bg: 'rgba(100, 116, 139, 0.12)' },
+  definition: { label: 'تعريف', color: '#4338ca', bg: 'rgba(67, 56, 202, 0.12)' },
+  theorem: { label: 'مبرهنة', color: '#b91c1c', bg: 'rgba(185, 28, 28, 0.12)' },
+  property: { label: 'خاصية', color: '#0369a1', bg: 'rgba(3, 105, 161, 0.12)' },
+  corollary: { label: 'نتيجة', color: '#0f766e', bg: 'rgba(15, 118, 110, 0.12)' },
+  methode: { label: 'منهجية', color: '#b45309', bg: 'rgba(180, 83, 9, 0.12)' },
+  demonstration: { label: 'برهان', color: '#475569', bg: 'rgba(71, 85, 105, 0.14)' },
+  example: { label: 'مثال', color: '#047857', bg: 'rgba(4, 120, 87, 0.12)' },
+  remark: { label: 'ملاحظة', color: '#d97706', bg: 'rgba(217, 119, 6, 0.12)' },
   activity: { label: 'نشاط', color: '#0d9488', bg: 'rgba(13, 148, 136, 0.12)' },
   exercise: { label: 'تمرين', color: '#dc2626', bg: 'rgba(220, 38, 38, 0.12)' },
   content: { label: 'فقرة', color: '#2563eb', bg: 'rgba(37, 99, 235, 0.12)' },
