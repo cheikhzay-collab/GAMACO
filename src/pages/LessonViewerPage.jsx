@@ -9,6 +9,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { getLessonById, updateLesson } from '../services/lessonService';
 import { extractPointsTableFromSections, saveGrade, calculateTotalPointsFromTable } from '../services/gradeService';
+import { saveSolution, saveDevoirPrimeSheet } from '../services/solutionService';
 import { solveExerciseWithAI } from '../utils/aiExerciseSolver';
 import { Sparkles, Loader2 } from 'lucide-react';
 import { renderWithMath } from '../utils/mathRenderer';
@@ -700,6 +701,12 @@ export default function LessonViewerPage() {
           sections: updatedSections,
           content: { ...(lesson.content || {}), sections: updatedSections }
         });
+        await saveSolution({
+          lessonId: lesson.id,
+          sectionId: secId,
+          docType: lesson?.docType || lesson?.doc_type || 'course',
+          solutionText: generated.trim(),
+        }).catch(() => {});
       }
     } catch (err) {
       console.error('[LessonViewer] AI Solution error:', err);
@@ -1409,6 +1416,13 @@ export default function LessonViewerPage() {
       docType: nextDocType,
       content: updatedContent,
     });
+
+    await saveDevoirPrimeSheet({
+      lessonId: lesson.id,
+      meta: primeMeta,
+      exercises: primeExercises,
+      totalPoints: primeTotalPts,
+    }).catch((e) => console.warn('[DEVOIR PRIME] tbl_devoir_prime sync warning:', e));
 
     if (primePointsTable.length > 0) {
       try {

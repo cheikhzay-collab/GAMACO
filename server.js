@@ -364,6 +364,23 @@ const initMySQL = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS tbl_solutions (
+        id VARCHAR(128) PRIMARY KEY,
+        lesson_id VARCHAR(64) NOT NULL,
+        section_id VARCHAR(128) NOT NULL,
+        question_id VARCHAR(128) DEFAULT '',
+        doc_type VARCHAR(64) DEFAULT 'homework',
+        solution_text LONGTEXT,
+        solution_json LONGTEXT,
+        updated_by VARCHAR(100) DEFAULT 'admin',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_sol_lesson (lesson_id),
+        INDEX idx_sol_section (lesson_id, section_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
     // Run safe column migrations to upgrade existing tables without dropping data
     const safeAlters = [
       "ALTER TABLE tbl_lessons MODIFY COLUMN title TEXT",
@@ -384,7 +401,9 @@ const initMySQL = async () => {
       "ALTER TABLE tbl_grades MODIFY COLUMN doc_type VARCHAR(64) DEFAULT 'homework'",
       "ALTER TABLE tbl_grades MODIFY COLUMN data LONGTEXT NOT NULL",
       "ALTER TABLE tbl_devoir_prime MODIFY COLUMN meta_json LONGTEXT",
-      "ALTER TABLE tbl_devoir_prime MODIFY COLUMN exercises_json LONGTEXT NOT NULL"
+      "ALTER TABLE tbl_devoir_prime MODIFY COLUMN exercises_json LONGTEXT NOT NULL",
+      "ALTER TABLE tbl_solutions MODIFY COLUMN solution_text LONGTEXT",
+      "ALTER TABLE tbl_solutions MODIFY COLUMN solution_json LONGTEXT"
     ];
     for (const alt of safeAlters) {
       await connection.query(alt).catch(() => {});
@@ -673,8 +692,21 @@ const initMySQL = async () => {
           ).catch(() => {});
           dpSyncedCount++;
         }
+
+        // Backfill existing section solutions into tbl_solutions
+        const secs = Array.isArray(parsed.content?.sections) ? parsed.content.sections : (Array.isArray(parsed.sections) ? parsed.sections : []);
+        for (const sec of secs) {
+          if (sec && sec.id && sec.solution && String(sec.solution).trim()) {
+            const solId = `sol-${lr.id}-${sec.id}`.slice(0, 128);
+            await connection.query(
+              `INSERT IGNORE INTO tbl_solutions (id, lesson_id, section_id, question_id, doc_type, solution_text, solution_json)
+               VALUES (?, ?, ?, '', ?, ?, NULL)`,
+              [solId, lr.id, String(sec.id).slice(0, 128), resolvedDocType, String(sec.solution)]
+            ).catch(() => {});
+          }
+        }
       }
-      console.log(`[Server] Verified tbl_lessons.doc_type and synced ${dpSyncedCount} DEVOIR PRIME sheets.`);
+      console.log(`[Server] Verified tbl_lessons.doc_type, tbl_solutions, and synced ${dpSyncedCount} DEVOIR PRIME sheets.`);
     } catch (_) {}
 
     connection.release();
@@ -1005,6 +1037,30 @@ export const handleApiRequest = async (req, res, next) => {
                 lesson.doc_type = docType;
                 lesson.isActive = isActive;
                 lesson.is_active = isActive;
+
+                // Hydrate latest DEVOIR PRIME edits & solutions from tbl_devoir_prime if present
+                try {
+                  const [dpRows] = await dbPool.query('SELECT meta_json, exercises_json, updated_at FROM tbl_devoir_prime WHERE lesson_id = ? ORDER BY updated_at DESC LIMIT 1', [singleId]);
+                  if (dpRows.length > 0) {
+                    const dpMeta = safeJsonParse(dpRows[0].meta_json, null);
+                    const dpExs = safeJsonParse(dpRows[0].exercises_json, null);
+                    lesson.content = lesson.content || {};
+                    if (dpMeta && Object.keys(dpMeta).length > 0) lesson.content.devoir_prime_meta = dpMeta;
+                    if (Array.isArray(dpExs) && dpExs.length > 0) lesson.content.devoir_prime_exercises = dpExs;
+                  }
+                } catch (_) {}
+
+                // Hydrate latest saved section solutions from tbl_solutions if missing in lesson JSON
+                try {
+                  const [solRows] = await dbPool.query('SELECT section_id, question_id, solution_text FROM tbl_solutions WHERE lesson_id = ? AND (question_id IS NULL OR question_id = \'\')', [singleId]);
+                  if (solRows.length > 0) {
+                    const solMap = new Map(solRows.map(r => [r.section_id, r.solution_text]));
+                    const applySols = (arr) => Array.isArray(arr) ? arr.map(s => (s && s.id && solMap.has(s.id) && (!s.solution || !String(s.solution).trim())) ? { ...s, solution: solMap.get(s.id) } : s) : arr;
+                    if (lesson.content?.sections) lesson.content.sections = applySols(lesson.content.sections);
+                    if (lesson.sections) lesson.sections = applySols(lesson.sections);
+                  }
+                } catch (_) {}
+
                 return sendJSON(res, 200, lesson);
               }
             }
@@ -1095,7 +1151,7 @@ export const handleApiRequest = async (req, res, next) => {
             [targetId, lesson.title || '', lesson.subject || '', lesson.level || '', docType, JSON.stringify(lesson)]
           );
 
-          // Auto-sync DEVOIR PRIME documents into dedicated tbl_devoir_prime table
+          // Auto-sync DEVOIR PRIME documents into dedicated tbl_devoir_prime table & tbl_solutions
           if (docType === 'devoir_prime' || lesson.content?.devoir_prime_exercises) {
             const dpMeta = lesson.content?.devoir_prime_meta || {};
             const dpExercises = lesson.content?.devoir_prime_exercises || [];
@@ -1117,6 +1173,37 @@ export const handleApiRequest = async (req, res, next) => {
                 JSON.stringify(dpExercises)
               ]
             ).catch(() => {});
+
+            for (const ex of dpExercises) {
+              for (const q of (ex.questions || [])) {
+                if (!q || q.isStem) continue;
+                const hasSol = (Array.isArray(q.steps) && q.steps.length > 0) || Boolean(q.finalBox) || (Array.isArray(q.leftSteps) && q.leftSteps.length > 0) || (Array.isArray(q.rightSteps) && q.rightSteps.length > 0);
+                if (hasSol) {
+                  const solId = `dp-sol-${targetId}-${q.id}`.slice(0, 128);
+                  const solText = [...(q.steps || []), ...(q.leftSteps || []), ...(q.rightSteps || []), q.finalBox || ''].filter(Boolean).join('\n');
+                  await dbPool.query(
+                    `INSERT INTO tbl_solutions (id, lesson_id, section_id, question_id, doc_type, solution_text, solution_json)
+                     VALUES (?, ?, ?, ?, 'devoir_prime', ?, ?)
+                     ON DUPLICATE KEY UPDATE solution_text = VALUES(solution_text), solution_json = VALUES(solution_json), updated_at = NOW()`,
+                    [solId, targetId, String(ex.id || 'ex').slice(0, 128), String(q.id || '').slice(0, 128), solText, JSON.stringify(q)]
+                  ).catch(() => {});
+                }
+              }
+            }
+          }
+
+          // Auto-sync standard section solutions into tbl_solutions
+          const secs = Array.isArray(lesson.content?.sections) ? lesson.content.sections : (Array.isArray(lesson.sections) ? lesson.sections : []);
+          for (const sec of secs) {
+            if (sec && sec.id && sec.solution && String(sec.solution).trim()) {
+              const solId = `sol-${targetId}-${sec.id}`.slice(0, 128);
+              await dbPool.query(
+                `INSERT INTO tbl_solutions (id, lesson_id, section_id, question_id, doc_type, solution_text, solution_json)
+                 VALUES (?, ?, ?, '', ?, ?, NULL)
+                 ON DUPLICATE KEY UPDATE solution_text = VALUES(solution_text), doc_type = VALUES(doc_type), updated_at = NOW()`,
+                [solId, targetId, String(sec.id).slice(0, 128), docType, String(sec.solution)]
+              ).catch(() => {});
+            }
           }
         }
         const lessons = readDataFile('lessons.json', []);
@@ -1135,6 +1222,7 @@ export const handleApiRequest = async (req, res, next) => {
       if (isMySqlActive) {
         await dbPool.query('DELETE FROM tbl_lessons WHERE id = ?', [id]);
         await dbPool.query('DELETE FROM tbl_devoir_prime WHERE lesson_id = ?', [id]).catch(() => {});
+        await dbPool.query('DELETE FROM tbl_solutions WHERE lesson_id = ?', [id]).catch(() => {});
         await dbPool.query('DELETE FROM tbl_grades WHERE lesson_id = ?', [id]).catch(() => {});
       }
       const lessons = readDataFile('lessons.json', []).filter(l => l.id !== id);
@@ -1494,6 +1582,8 @@ export const handleApiRequest = async (req, res, next) => {
       let classes = [];
       let users = [];
       let grades = [];
+      let devoirPrime = [];
+      let solutions = [];
       let config = {};
 
       if (isMySqlActive) {
@@ -1512,6 +1602,16 @@ export const handleApiRequest = async (req, res, next) => {
         const [gradeRows] = await dbPool.query('SELECT data FROM tbl_grades').catch(() => [[]]);
         grades = gradeRows.map(r => safeJsonParse(r.data, {}));
 
+        const [dpRows] = await dbPool.query('SELECT * FROM tbl_devoir_prime').catch(() => [[]]);
+        devoirPrime = dpRows.map(r => ({
+          ...r,
+          meta: safeJsonParse(r.meta_json, {}),
+          exercises: safeJsonParse(r.exercises_json, [])
+        }));
+
+        const [solRows] = await dbPool.query('SELECT * FROM tbl_solutions').catch(() => [[]]);
+        solutions = solRows;
+
         const [configRows] = await dbPool.query('SELECT key_name, value FROM tbl_config');
         for (const row of configRows) {
           config[row.key_name] = safeJsonParse(row.value, row.value);
@@ -1522,24 +1622,30 @@ export const handleApiRequest = async (req, res, next) => {
         classes = readDataFile('classes.json', []);
         users = readDataFile('users.json', []);
         grades = readDataFile('grades.json', []);
+        devoirPrime = readDataFile('devoir_prime.json', []);
+        solutions = readDataFile('solutions.json', []);
         config = readDataFile('config.json', {});
       }
 
       const backup = {
-        version: '1.0',
+        version: '1.1',
         timestamp: new Date().toISOString(),
         stats: {
           examsCount: exams.length,
           lessonsCount: lessons.length,
           classesCount: classes.length,
           usersCount: users.length,
-          gradesCount: grades.length
+          gradesCount: grades.length,
+          devoirPrimeCount: devoirPrime.length,
+          solutionsCount: solutions.length
         },
         exams,
         lessons,
         classes,
         users,
         grades,
+        devoirPrime,
+        solutions,
         config
       };
 
@@ -1552,7 +1658,7 @@ export const handleApiRequest = async (req, res, next) => {
   if (pathname === '/api/admin/restore-full' && req.method === 'POST') {
     try {
       const payload = await getBody(req);
-      const { exams = [], lessons = [], classes = [], users = [], grades = [], config = {} } = payload || {};
+      const { exams = [], lessons = [], classes = [], users = [], grades = [], devoirPrime = [], solutions = [], config = {} } = payload || {};
 
       if (isMySqlActive) {
         if (Array.isArray(exams) && exams.length > 0) {
@@ -1568,9 +1674,10 @@ export const handleApiRequest = async (req, res, next) => {
         if (Array.isArray(lessons) && lessons.length > 0) {
           for (const l of lessons) {
             if (l.id) {
+              const dt = l.docType || l.doc_type || l.content?.doc_type || 'course';
               await dbPool.query(
-                'INSERT INTO tbl_lessons (id, title, subject, level, data) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE title = VALUES(title), subject = VALUES(subject), level = VALUES(level), data = VALUES(data), updated_at = NOW()',
-                [l.id, l.title || '', l.subject || '', l.level || '', JSON.stringify(l)]
+                'INSERT INTO tbl_lessons (id, title, subject, level, doc_type, data) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE title = VALUES(title), subject = VALUES(subject), level = VALUES(level), doc_type = VALUES(doc_type), data = VALUES(data), updated_at = NOW()',
+                [l.id, l.title || '', l.subject || '', l.level || '', dt, JSON.stringify(l)]
               );
             }
           }
@@ -1606,6 +1713,26 @@ export const handleApiRequest = async (req, res, next) => {
             }
           }
         }
+        if (Array.isArray(devoirPrime) && devoirPrime.length > 0) {
+          for (const dp of devoirPrime) {
+            if (dp.id && dp.lesson_id) {
+              await dbPool.query(
+                'INSERT INTO tbl_devoir_prime (id, lesson_id, title, level, semester, academic_year, teacher, total_points, meta_json, exercises_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE title = VALUES(title), level = VALUES(level), semester = VALUES(semester), academic_year = VALUES(academic_year), teacher = VALUES(teacher), total_points = VALUES(total_points), meta_json = VALUES(meta_json), exercises_json = VALUES(exercises_json), updated_at = NOW()',
+                [dp.id, dp.lesson_id, dp.title || '', dp.level || '', dp.semester || '', dp.academic_year || '', dp.teacher || '', parseFloat(dp.total_points) || 20, typeof dp.meta_json === 'string' ? dp.meta_json : JSON.stringify(dp.meta || {}), typeof dp.exercises_json === 'string' ? dp.exercises_json : JSON.stringify(dp.exercises || [])]
+              ).catch(() => {});
+            }
+          }
+        }
+        if (Array.isArray(solutions) && solutions.length > 0) {
+          for (const s of solutions) {
+            if (s.id && s.lesson_id) {
+              await dbPool.query(
+                'INSERT INTO tbl_solutions (id, lesson_id, section_id, question_id, doc_type, solution_text, solution_json) VALUES (?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE doc_type = VALUES(doc_type), solution_text = VALUES(solution_text), solution_json = VALUES(solution_json), updated_at = NOW()',
+                [s.id, s.lesson_id, s.section_id || 'sec-1', s.question_id || '', s.doc_type || 'homework', s.solution_text || '', s.solution_json || null]
+              ).catch(() => {});
+            }
+          }
+        }
         if (config && typeof config === 'object') {
           for (const [k, v] of Object.entries(config)) {
             await dbPool.query(
@@ -1621,6 +1748,8 @@ export const handleApiRequest = async (req, res, next) => {
       if (Array.isArray(classes)) writeDataFile('classes.json', classes);
       if (Array.isArray(users)) writeDataFile('users.json', users);
       if (Array.isArray(grades)) writeDataFile('grades.json', grades);
+      if (Array.isArray(devoirPrime)) writeDataFile('devoir_prime.json', devoirPrime);
+      if (Array.isArray(solutions)) writeDataFile('solutions.json', solutions);
       if (config && typeof config === 'object') {
         const curr = readDataFile('config.json', {});
         writeDataFile('config.json', { ...curr, ...config });
@@ -1633,7 +1762,9 @@ export const handleApiRequest = async (req, res, next) => {
           lessons: lessons.length,
           classes: classes.length,
           users: users.length,
-          grades: grades.length
+          grades: grades.length,
+          devoirPrime: devoirPrime.length,
+          solutions: solutions.length
         }
       });
     } catch (err) {
@@ -1641,7 +1772,7 @@ export const handleApiRequest = async (req, res, next) => {
     }
   }
 
-  // DEVOIR PRIME Dedicated Endpoint
+  // DEVOIR PRIME Dedicated Endpoint (GET + POST/PUT)
   if (pathname === '/api/devoir-prime' || pathname.startsWith('/api/devoir-prime/')) {
     const lessonIdParam = pathname.startsWith('/api/devoir-prime/') ? pathname.replace('/api/devoir-prime/', '').trim() : parsedUrl.searchParams.get('lesson_id');
     if (req.method === 'GET') {
@@ -1662,11 +1793,153 @@ export const handleApiRequest = async (req, res, next) => {
           const [rows] = await dbPool.query('SELECT id, lesson_id, title, level, semester, academic_year, teacher, total_points, created_at, updated_at FROM tbl_devoir_prime ORDER BY updated_at DESC');
           return sendJSON(res, 200, rows);
         }
-        const lessons = readDataFile('lessons.json', []).filter(l => (l.docType || l.doc_type || l.content?.doc_type) === 'devoir_prime');
-        return sendJSON(res, 200, lessons);
+        const dpList = readDataFile('devoir_prime.json', []);
+        if (lessonIdParam) {
+          const found = dpList.find(d => d.lesson_id === lessonIdParam || d.id === lessonIdParam);
+          if (found) return sendJSON(res, 200, found);
+          return sendJSON(res, 404, { error: 'DEVOIR PRIME not found' });
+        }
+        return sendJSON(res, 200, dpList);
       } catch (err) {
         return sendJSON(res, 500, { error: err.message });
       }
+    }
+
+    if (req.method === 'POST' || req.method === 'PUT') {
+      try {
+        const body = await getBody(req);
+        const lessonId = lessonIdParam || body.lesson_id || body.lessonId;
+        if (!lessonId) return sendJSON(res, 400, { error: 'lesson_id is required' });
+        const dpId = body.id || `dp-${lessonId}`;
+        const meta = body.meta || body.devoir_prime_meta || {};
+        const exercises = Array.isArray(body.exercises) ? body.exercises : (Array.isArray(body.devoir_prime_exercises) ? body.devoir_prime_exercises : []);
+        const totalPoints = parseFloat(body.total_points || body.totalPoints) || 20;
+        const now = new Date().toISOString();
+
+        if (isMySqlActive) {
+          await dbPool.query(
+            `INSERT INTO tbl_devoir_prime (id, lesson_id, title, level, semester, academic_year, teacher, total_points, meta_json, exercises_json)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE title = VALUES(title), level = VALUES(level), semester = VALUES(semester), academic_year = VALUES(academic_year), teacher = VALUES(teacher), total_points = VALUES(total_points), meta_json = VALUES(meta_json), exercises_json = VALUES(exercises_json), updated_at = NOW()`,
+            [
+              dpId,
+              lessonId,
+              meta.title || body.title || '',
+              meta.level || body.level || '',
+              meta.semester || '',
+              meta.academicYear || '',
+              meta.teacher || '',
+              totalPoints,
+              JSON.stringify(meta),
+              JSON.stringify(exercises)
+            ]
+          );
+
+          // Mirror every question solution into tbl_solutions
+          for (const ex of exercises) {
+            for (const q of (ex.questions || [])) {
+              if (!q || q.isStem) continue;
+              const hasSol = (Array.isArray(q.steps) && q.steps.length > 0) || Boolean(q.finalBox) || (Array.isArray(q.leftSteps) && q.leftSteps.length > 0) || (Array.isArray(q.rightSteps) && q.rightSteps.length > 0);
+              if (hasSol) {
+                const solId = `dp-sol-${lessonId}-${q.id}`.slice(0, 128);
+                const solText = [...(q.steps || []), ...(q.leftSteps || []), ...(q.rightSteps || []), q.finalBox || ''].filter(Boolean).join('\n');
+                await dbPool.query(
+                  `INSERT INTO tbl_solutions (id, lesson_id, section_id, question_id, doc_type, solution_text, solution_json)
+                   VALUES (?, ?, ?, ?, 'devoir_prime', ?, ?)
+                   ON DUPLICATE KEY UPDATE solution_text = VALUES(solution_text), solution_json = VALUES(solution_json), updated_at = NOW()`,
+                  [solId, lessonId, String(ex.id || 'ex').slice(0, 128), String(q.id || '').slice(0, 128), solText, JSON.stringify(q)]
+                ).catch(() => {});
+              }
+            }
+          }
+        }
+
+        const dpRecord = { id: dpId, lesson_id: lessonId, title: meta.title || body.title || '', meta, exercises, total_points: totalPoints, updated_at: now };
+        const dpList = readDataFile('devoir_prime.json', []);
+        const idx = dpList.findIndex(d => d.lesson_id === lessonId || d.id === dpId);
+        if (idx > -1) dpList[idx] = dpRecord;
+        else dpList.unshift(dpRecord);
+        writeDataFile('devoir_prime.json', dpList);
+
+        return sendJSON(res, 200, { success: true, id: dpId, lesson_id: lessonId, updated_at: now });
+      } catch (err) {
+        return sendJSON(res, 500, { error: err.message });
+      }
+    }
+  }
+
+  // Dedicated Solutions Persistence Endpoint (tbl_solutions <-> solutions.json)
+  if (pathname === '/api/solutions' || pathname.startsWith('/api/solutions/')) {
+    const singleId = pathname.startsWith('/api/solutions/') ? pathname.replace('/api/solutions/', '').trim() : null;
+
+    if (req.method === 'GET') {
+      try {
+        const lessonFilter = parsedUrl.searchParams.get('lesson_id');
+        if (isMySqlActive) {
+          if (singleId) {
+            const [rows] = await dbPool.query('SELECT * FROM tbl_solutions WHERE id = ?', [singleId]);
+            if (rows.length > 0) return sendJSON(res, 200, rows[0]);
+            return sendJSON(res, 404, { error: 'Solution not found' });
+          }
+          const [rows] = lessonFilter
+            ? await dbPool.query('SELECT * FROM tbl_solutions WHERE lesson_id = ? ORDER BY updated_at DESC', [lessonFilter])
+            : await dbPool.query('SELECT * FROM tbl_solutions ORDER BY updated_at DESC LIMIT 500');
+          return sendJSON(res, 200, rows);
+        }
+        const sols = readDataFile('solutions.json', []);
+        if (singleId) {
+          const found = sols.find(s => s.id === singleId);
+          return found ? sendJSON(res, 200, found) : sendJSON(res, 404, { error: 'Solution not found' });
+        }
+        return sendJSON(res, 200, lessonFilter ? sols.filter(s => s.lesson_id === lessonFilter) : sols);
+      } catch (err) {
+        return sendJSON(res, 500, { error: err.message });
+      }
+    }
+
+    if (req.method === 'POST' || req.method === 'PUT') {
+      try {
+        const body = await getBody(req);
+        const lessonId = body.lesson_id || body.lessonId;
+        const sectionId = body.section_id || body.sectionId || 'sec-1';
+        const questionId = body.question_id || body.questionId || '';
+        if (!lessonId) return sendJSON(res, 400, { error: 'lesson_id is required' });
+        const solId = (singleId || body.id || `sol-${lessonId}-${sectionId}${questionId ? '-' + questionId : ''}`).slice(0, 128);
+        const docType = body.doc_type || body.docType || 'homework';
+        const solutionText = body.solution_text !== undefined ? String(body.solution_text) : (body.solution !== undefined ? String(body.solution) : '');
+        const solutionJson = body.solution_json ? (typeof body.solution_json === 'string' ? body.solution_json : JSON.stringify(body.solution_json)) : null;
+        const now = new Date().toISOString();
+
+        if (isMySqlActive) {
+          await dbPool.query(
+            `INSERT INTO tbl_solutions (id, lesson_id, section_id, question_id, doc_type, solution_text, solution_json)
+             VALUES (?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE doc_type = VALUES(doc_type), solution_text = VALUES(solution_text), solution_json = VALUES(solution_json), updated_at = NOW()`,
+            [solId, lessonId, String(sectionId).slice(0, 128), String(questionId).slice(0, 128), docType, solutionText, solutionJson]
+          );
+        }
+
+        const record = { id: solId, lesson_id: lessonId, section_id: sectionId, question_id: questionId, doc_type: docType, solution_text: solutionText, solution_json: solutionJson, updated_at: now };
+        const sols = readDataFile('solutions.json', []);
+        const idx = sols.findIndex(s => s.id === solId);
+        if (idx > -1) sols[idx] = record;
+        else sols.unshift(record);
+        writeDataFile('solutions.json', sols);
+
+        return sendJSON(res, 200, { success: true, solution: record });
+      } catch (err) {
+        return sendJSON(res, 500, { error: err.message });
+      }
+    }
+
+    if (req.method === 'DELETE') {
+      const id = singleId || parsedUrl.searchParams.get('id');
+      if (isMySqlActive && id) {
+        await dbPool.query('DELETE FROM tbl_solutions WHERE id = ?', [id]).catch(() => {});
+      }
+      const sols = readDataFile('solutions.json', []).filter(s => s.id !== id);
+      writeDataFile('solutions.json', sols);
+      return sendJSON(res, 200, { success: true });
     }
   }
 
@@ -1684,7 +1957,8 @@ export const handleApiRequest = async (req, res, next) => {
         'tbl_config',
         'tbl_assets',
         'tbl_grades',
-        'tbl_devoir_prime'
+        'tbl_devoir_prime',
+        'tbl_solutions'
       ];
       const report = {};
       if (isMySqlActive && dbPool) {
@@ -1731,6 +2005,7 @@ export const handleApiRequest = async (req, res, next) => {
         await dbPool.query('DELETE FROM tbl_users');
         await dbPool.query('DELETE FROM tbl_grades');
         await dbPool.query('DELETE FROM tbl_devoir_prime').catch(() => {});
+        await dbPool.query('DELETE FROM tbl_solutions').catch(() => {});
         await dbPool.query('DELETE FROM tbl_assets');
         if (includeConfig) {
           await dbPool.query('DELETE FROM tbl_config');
@@ -1747,6 +2022,8 @@ export const handleApiRequest = async (req, res, next) => {
       writeDataFile('classes.json', []);
       writeDataFile('users.json', []);
       writeDataFile('grades.json', []);
+      writeDataFile('devoir_prime.json', []);
+      writeDataFile('solutions.json', []);
       writeDataFile('extraction_tasks.json', []);
 
       if (includeConfig) {

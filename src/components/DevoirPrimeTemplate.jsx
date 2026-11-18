@@ -1,7 +1,7 @@
 // src/components/DevoirPrimeTemplate.jsx
 // Interactive viewer, editor, concise AI solver, and print controller for DEVOIR PRIME.
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import QRCode from 'qrcode';
 import {
   Printer, Sparkles, Settings, Save, Eye, EyeOff,
@@ -47,21 +47,42 @@ export default function DevoirPrimeTemplate({
   const [solvingStatus, setSolvingStatus] = useState('');
   const [solvingQKey, setSolvingQKey] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [autoSaveState, setAutoSaveState] = useState('idle'); // 'idle' | 'saving' | 'saved'
   const [saveToast, setSaveToast] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [qrMap, setQrMap] = useState({});
+  const hasEditedRef = useRef(false);
+  const autoSaveTimerRef = useRef(null);
 
   // Re-sync if parent switches to a different lesson id
   useEffect(() => {
+    hasEditedRef.current = false;
     setMeta(getDefaultDevoirPrimeMeta(lesson));
     setExercises(normalizeToDevoirPrimeExercises(lesson));
   }, [lesson?.id]);
 
-  // Notify parent when meta or exercises change (for AdminLessonsImport live sync)
+  // Notify parent when meta or exercises change + debounced auto-save to MySQL
   useEffect(() => {
     if (typeof onChange === 'function') {
       onChange(meta, exercises);
     }
+    if (!hasEditedRef.current || !editable || typeof onSave !== 'function') return;
+
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    setAutoSaveState('saving');
+    autoSaveTimerRef.current = setTimeout(async () => {
+      try {
+        await onSave(meta, exercises, false);
+        setAutoSaveState('saved');
+      } catch (e) {
+        console.warn('[DEVOIR PRIME] Auto-save warning:', e?.message || e);
+        setAutoSaveState('idle');
+      }
+    }, 1200);
+
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
   }, [meta, exercises]);
 
   // Generate QR codes for every question asynchronously
@@ -111,6 +132,7 @@ export default function DevoirPrimeTemplate({
   }, [exercises]);
 
   const updateMetaField = (field, value) => {
+    hasEditedRef.current = true;
     setMeta(prev => {
       const next = { ...prev, [field]: value };
       try {
@@ -122,6 +144,7 @@ export default function DevoirPrimeTemplate({
   };
 
   const updateQuestion = (eIdx, qIdx, patch) => {
+    hasEditedRef.current = true;
     setExercises(prev => prev.map((ex, ei) => {
       if (ei !== eIdx) return ex;
       const updatedQs = (ex.questions || []).map((q, qi) => (qi === qIdx ? { ...q, ...patch } : q));
@@ -155,6 +178,7 @@ export default function DevoirPrimeTemplate({
   };
 
   const mergeWithNextQuestion = (eIdx, qIdx) => {
+    hasEditedRef.current = true;
     setExercises(prev => prev.map((ex, ei) => {
       if (ei !== eIdx) return ex;
       const qs = [...(ex.questions || [])];
@@ -186,6 +210,7 @@ export default function DevoirPrimeTemplate({
   };
 
   const addQuestionToExercise = (eIdx) => {
+    hasEditedRef.current = true;
     setExercises(prev => prev.map((ex, ei) => {
       if (ei !== eIdx) return ex;
       const nextNum = (ex.questions?.length || 0) + 1;
@@ -217,6 +242,7 @@ export default function DevoirPrimeTemplate({
   };
 
   const deleteQuestion = (eIdx, qIdx) => {
+    hasEditedRef.current = true;
     setExercises(prev => prev.map((ex, ei) => {
       if (ei !== eIdx) return ex;
       return {
@@ -300,11 +326,22 @@ export default function DevoirPrimeTemplate({
               };
             }),
           };
+          hasEditedRef.current = true;
           setExercises([...updated]);
         }
       }
       setShowSolutions(true);
       setSolvingStatus('');
+      // Immediately persist all generated concise solutions to MySQL
+      if (editable && typeof onSave === 'function') {
+        setAutoSaveState('saving');
+        try {
+          await onSave(meta, updated, false);
+          setAutoSaveState('saved');
+        } catch (saveErr) {
+          console.warn('[DEVOIR PRIME] Immediate post-solve save warning:', saveErr);
+        }
+      }
     } catch (err) {
       setErrorMsg(err.message || 'Erreur lors de la génération des solutions.');
       setSolvingStatus('');
@@ -378,6 +415,33 @@ export default function DevoirPrimeTemplate({
             }}>
               {totalPoints} pts • ~{estimatedPages} صفحات
             </span>
+            {autoSaveState === 'saving' && (
+              <span style={{
+                fontSize: '0.73rem',
+                padding: '0.15rem 0.6rem',
+                borderRadius: '99px',
+                background: 'rgba(251, 191, 36, 0.2)',
+                color: '#fde68a',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.3rem',
+              }}>
+                <Loader2 size={11} className="spin" /> جاري الحفظ في قاعدة البيانات...
+              </span>
+            )}
+            {autoSaveState === 'saved' && (
+              <span style={{
+                fontSize: '0.73rem',
+                padding: '0.15rem 0.6rem',
+                borderRadius: '99px',
+                background: 'rgba(16, 185, 129, 0.22)',
+                color: '#6ee7b7',
+                fontWeight: 800,
+              }}>
+                ✅ محفوظ في قاعدة البيانات
+              </span>
+            )}
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
