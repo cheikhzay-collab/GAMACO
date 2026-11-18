@@ -37,6 +37,7 @@ import { loadPdfDocument, renderPdfPageToCanvas, cropPdfRegion } from '../utils/
 import { buildPageSnapshotsMap, attachImagesToSections } from '../utils/pdfImageExtractor';
 import { validateExercisePoints, sanitizeMoroccanLatex } from '../utils/scoreBalancingValidator';
 import { getEffectiveLessonPrompt } from '../utils/extractionPrompts';
+import { parseAiJsonResponse } from '../utils/safeJsonParser';
 import * as pdfjsLib from 'pdfjs-dist';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.mjs', import.meta.url).href;
@@ -1859,38 +1860,30 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
       }
 
       let parsed;
-      let cleanText = rawText.trim();
-      if (cleanText.includes('</think>')) {
-        cleanText = cleanText.split('</think>').pop().trim();
-      }
-      cleanText = sanitizeLatexJson(cleanText);
-
-      const parseStrategies = [
-        // Strategy 1: Direct JSON parse of the extracted JSON block
-        (txt) => JSON.parse(extractJsonFromText(txt)),
-        
-        // Strategy 2: Escape literal newlines inside strings
-        (txt) => JSON.parse(escapeLiteralNewlinesInJson(extractJsonFromText(txt))),
-        
-        // Strategy 3: Escape literal newlines + escape unescaped inner quotes
-        (txt) => JSON.parse(escapeUnescapedQuotesInJson(escapeLiteralNewlinesInJson(extractJsonFromText(txt)))),
-        
-        // Strategy 4: Escape literal newlines + escape unescaped inner quotes + repair truncation
-        (txt) => JSON.parse(repairTruncatedJson(escapeUnescapedQuotesInJson(escapeLiteralNewlinesInJson(extractJsonFromText(txt))))),
-        
-        // Strategy 5: LaTeX sanitize + escape literal newlines + escape unescaped inner quotes + repair truncation
-        (txt) => JSON.parse(repairTruncatedJson(escapeUnescapedQuotesInJson(escapeLiteralNewlinesInJson(sanitizeLatexJson(extractJsonFromText(txt))))))
-      ];
-
       let parseError = null;
-      for (let i = 0; i < parseStrategies.length; i++) {
-        try {
-          parsed = parseStrategies[i](cleanText);
-          console.log(`[JSON Parse] Strategy ${i + 1} succeeded!`);
-          break;
-        } catch (e) {
-          console.warn(`[JSON Parse] Strategy ${i + 1} failed:`, e.message);
-          parseError = e;
+      try {
+        const res = parseAiJsonResponse(rawText);
+        parsed = res.parsed;
+        console.log(`[JSON Parse] Succeeded via strategy: ${res.strategyUsed}`);
+      } catch (e) {
+        parseError = e;
+        console.warn('[JSON Parse] safeJsonParser failed, trying legacy fallback:', e.message);
+        let cleanText = rawText.trim();
+        if (cleanText.includes('</think>')) cleanText = cleanText.split('</think>').pop().trim();
+        cleanText = sanitizeLatexJson(cleanText);
+        const legacyStrategies = [
+          (txt) => JSON.parse(extractJsonFromText(txt)),
+          (txt) => JSON.parse(escapeLiteralNewlinesInJson(extractJsonFromText(txt))),
+          (txt) => JSON.parse(escapeUnescapedQuotesInJson(escapeLiteralNewlinesInJson(extractJsonFromText(txt)))),
+          (txt) => JSON.parse(repairTruncatedJson(escapeUnescapedQuotesInJson(escapeLiteralNewlinesInJson(extractJsonFromText(txt)))))
+        ];
+        for (let i = 0; i < legacyStrategies.length; i++) {
+          try {
+            parsed = legacyStrategies[i](cleanText);
+            break;
+          } catch (le) {
+            parseError = le;
+          }
         }
       }
 
@@ -2426,21 +2419,16 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
       });
       fetchTasksList();
 
-      let cleanText = rawText.trim();
-      if (cleanText.includes('</think>')) {
-        cleanText = cleanText.split('</think>').pop().trim();
-      }
-      cleanText = sanitizeLatexJson(cleanText);
-
       let parsed = null;
       try {
-        parsed = JSON.parse(extractJsonFromText(cleanText));
+        parsed = parseAiJsonResponse(rawText).parsed;
       } catch {
-        try {
-          parsed = JSON.parse(escapeLiteralNewlinesInJson(extractJsonFromText(cleanText)));
-        } catch {
-          parsed = JSON.parse(repairTruncatedJson(escapeUnescapedQuotesInJson(escapeLiteralNewlinesInJson(cleanText))));
+        let cleanText = rawText.trim();
+        if (cleanText.includes('</think>')) {
+          cleanText = cleanText.split('</think>').pop().trim();
         }
+        cleanText = sanitizeLatexJson(cleanText);
+        parsed = JSON.parse(repairTruncatedJson(escapeUnescapedQuotesInJson(escapeLiteralNewlinesInJson(cleanText))));
       }
 
       if (!parsed) {

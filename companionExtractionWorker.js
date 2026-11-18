@@ -5,6 +5,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { parseAiJsonResponse } from './src/utils/safeJsonParser.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1361,7 +1362,12 @@ export const processQueue = async () => {
       // Model returned text: parse and strictly validate content
       try {
         onProgress(baseProgress + 10, `Validation et contrôle qualité du contenu extrait (${currentModel})...`);
-        const parsed = parseJsonWithResilience(rawText);
+        let parsed;
+        try {
+          parsed = parseAiJsonResponse(rawText).parsed;
+        } catch (_) {
+          parsed = parseJsonWithResilience(rawText);
+        }
         const validatedDoc = validateExtractedDocument(parsed);
 
         // Document is verified NON-EMPTY with real sections!
