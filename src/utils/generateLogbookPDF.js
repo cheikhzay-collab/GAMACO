@@ -517,40 +517,34 @@ export const generateLogbookHTML = (selectedClass, entries, profName, styleConfi
     const chunks = chunkActivityContent(e.customContent);
     return chunks.map((chunk, chunkIdx) => {
       const isFirst = chunkIdx === 0;
-      const borderTopStyle = isFirst ? '' : 'border-top:1px dashed rgba(186, 230, 253, 0.8) !important;';
-      const rowClass = isFirst ? '' : 'logbook-subrow';
+      const isLast = chunkIdx === chunks.length - 1;
+      const rowClasses = [
+        isFirst ? '' : 'logbook-subrow',
+        isLast ? '' : 'logbook-has-next'
+      ].filter(Boolean).join(' ');
 
-      const cellDateHtml = isFirst 
-        ? dateText 
-        : `<span style="color:#64748b;font-size:0.75rem;font-weight:600;">↳ ${isArMode ? 'تتمة' : 'suite'}</span>`;
-
-      const cellTimeHtml = isFirst 
-        ? esc(e.time || '—') 
-        : `<span style="color:#94a3b8;font-size:0.75rem;">—</span>`;
-
-      const cellCompHtml = isFirst 
+      const cellDateHtml = isFirst ? dateText : '';
+      const cellTimeHtml = isFirst ? esc(e.time || '—') : '';
+      const cellCompHtml = isFirst
         ? `<span class="comp-badge ${e.component && e.component.toLowerCase().includes('contrôle') ? 'contrôle' : ''}">${esc(componentText)}</span>`
-        : `<span class="comp-badge" style="opacity:0.65;font-size:0.72rem;">${esc(componentText)}</span>`;
-
-      const cellSigHtml = isFirst 
-        ? signatureText 
-        : `<span style="color:#94a3b8;font-size:0.75rem;">—</span>`;
+        : '';
+      const cellSigHtml = isFirst ? signatureText : '';
 
       return `
-        <tr class="${rowClass}">
-          <td style="width:11%;text-align:center;font-weight:800;color:#0f172a;border:1px solid #cbd5e1;padding:6px 4px;font-size:0.8rem;vertical-align:top;${borderTopStyle}">
+        <tr class="${rowClasses}">
+          <td style="width:11%;text-align:center;font-weight:800;color:#0f172a;padding:6px 4px;font-size:0.8rem;vertical-align:top;">
             ${cellDateHtml}
           </td>
-          <td class="col-horaire" style="width:11%;text-align:center;font-weight:600;color:#475569;border:1px solid #cbd5e1;padding:6px 4px;font-size:0.8rem;vertical-align:top;${borderTopStyle}">
+          <td class="col-horaire" style="width:11%;text-align:center;font-weight:600;color:#475569;padding:6px 4px;font-size:0.8rem;vertical-align:top;">
             ${cellTimeHtml}
           </td>
-          <td class="col-composant" style="width:12%;text-align:center;font-weight:700;color:#1e3a8a;border:1px solid #cbd5e1;padding:6px 4px;font-size:0.82rem;vertical-align:top;${borderTopStyle}">
+          <td class="col-composant" style="width:12%;text-align:center;font-weight:700;color:#1e3a8a;padding:6px 4px;font-size:0.82rem;vertical-align:top;">
             ${cellCompHtml}
           </td>
-          <td class="${cellClass} col-activity" style="width:54%;border:1px solid #cbd5e1;vertical-align:top;position:relative;text-align:${alignment};padding:5px 10px;${borderTopStyle}">
+          <td class="${cellClass} col-activity" style="width:54%;vertical-align:top;position:relative;text-align:${alignment};padding:5px 10px;">
             ${renderActivityCellHTML(chunk, isFirst ? e.isHeaderSéance : false, isArMode, styleConfig)}
           </td>
-          <td style="width:12%;text-align:center;border:1px solid #cbd5e1;vertical-align:top;padding:6px 4px;${signatureStyle}${borderTopStyle}">
+          <td style="width:12%;text-align:center;vertical-align:top;padding:6px 4px;${signatureStyle}">
             ${cellSigHtml}
           </td>
         </tr>
@@ -924,6 +918,16 @@ export const generateLogbookHTML = (selectedClass, entries, profName, styleConfi
       border: 1px solid #cbd5e1 !important;
       color: #0f172a;
       font-size: 12px;
+    }
+
+    /* Seamless continuation chunks within the SAME session (no cut lines, no "suite" repeats) */
+    .logbook-table tr.logbook-has-next td {
+      border-bottom: none !important;
+      padding-bottom: 0 !important;
+    }
+    .logbook-table tr.logbook-subrow td {
+      border-top: none !important;
+      padding-top: 0 !important;
     }
 
     .logbook-table tr {
