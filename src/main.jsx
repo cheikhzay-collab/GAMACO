@@ -80,3 +80,15 @@ requestAnimationFrame(() => {
     }
   });
 });
+
+// ── Auto-reload once when a new PWA Service Worker takes control ───────────
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+  let swReloading = false;
+  const hadController = Boolean(navigator.serviceWorker.controller);
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (hadController && !swReloading) {
+      swReloading = true;
+      window.location.reload();
+    }
+  });
+}

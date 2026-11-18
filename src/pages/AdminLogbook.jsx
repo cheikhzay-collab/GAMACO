@@ -669,9 +669,9 @@ export default function AdminLogbook() {
     entries.forEach(e => {
       if (!e || e.isHoliday || e.isAbsence) return;
       if (excludeEntryId && e.id === excludeEntryId) return;
-      if (selectedClass && e.classId && e.classId !== selectedClass.id) return;
-      // Scope coverage to the same lesson when lessonId is recorded
-      if (targetLessonId && e.lessonId && e.lessonId !== targetLessonId) return;
+      if (selectedClass && e.classId && String(e.classId) !== String(selectedClass.id)) return;
+      // Strictly require an exact lessonId match so sections from another lesson/série (e.g. "Exercice 05" in Série 1 vs Série 2) NEVER bleed across lessons
+      if (!targetLessonId || !e.lessonId || String(e.lessonId) !== String(targetLessonId)) return;
 
       const hasIds = Array.isArray(e.selectedSectionIds) && e.selectedSectionIds.length > 0;
       if (hasIds) {

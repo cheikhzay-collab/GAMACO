@@ -735,7 +735,7 @@ const initMySQL = async () => {
           await connection.query(
             'INSERT IGNORE INTO tbl_logbook (id, class_id, entry_date, data) VALUES (?, ?, ?, ?)',
             [String(item.id).slice(0, 128), item.classId || item.class_id || null, item.date || null, JSON.stringify(item)]
-          ).catch(() => {});
+          ).catch(() => { });
           consolidatedLogbook.set(item.id, item);
         }
       }
@@ -862,7 +862,7 @@ const MIME_TYPES = {
 const serveStatic = (res, filePath) => {
   fs.stat(filePath, (err, stats) => {
     if (err || !stats.isFile()) {
-      // Fallback to index.html for SPA routing
+      // Fallback to index.html for SPA routing (never cache HTML shell so new deploys appear immediately)
       const indexPath = path.join(DIST_DIR, 'index.html');
       fs.readFile(indexPath, (readErr, content) => {
         if (res.headersSent || res.writableEnded) return;
@@ -870,7 +870,12 @@ const serveStatic = (res, filePath) => {
           res.writeHead(404, { 'Content-Type': 'text/plain' });
           res.end('404 Not Found');
         } else {
-          res.writeHead(200, { 'Content-Type': 'text/html' });
+          res.writeHead(200, {
+            'Content-Type': 'text/html; charset=utf-8',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          });
           res.end(content);
         }
       });
@@ -878,15 +883,30 @@ const serveStatic = (res, filePath) => {
     }
 
     const ext = path.extname(filePath).toLowerCase();
+    const baseName = path.basename(filePath).toLowerCase();
     const contentType = MIME_TYPES[ext] || 'application/octet-stream';
-    const isImmutable = filePath.includes('assets') || ext === '.woff2' || ext === '.woff' || ext === '.ttf';
-    const cacheControl = isImmutable ? 'public, max-age=31536000, immutable' : 'public, max-age=3600';
+    const isNoCacheShell =
+      ext === '.html' ||
+      baseName === 'sw.js' ||
+      baseName === 'registersw.js' ||
+      baseName === 'manifest.webmanifest' ||
+      baseName.startsWith('workbox-');
+    const isImmutable = !isNoCacheShell && (filePath.includes('assets') || ext === '.woff2' || ext === '.woff' || ext === '.ttf');
+    const cacheControl = isNoCacheShell
+      ? 'no-cache, no-store, must-revalidate'
+      : (isImmutable ? 'public, max-age=31536000, immutable' : 'public, max-age=300');
 
-    res.writeHead(200, {
+    const headers = {
       'Content-Type': contentType,
       'Content-Length': stats.size,
       'Cache-Control': cacheControl
-    });
+    };
+    if (isNoCacheShell) {
+      headers['Pragma'] = 'no-cache';
+      headers['Expires'] = '0';
+    }
+
+    res.writeHead(200, headers);
 
     const stream = fs.createReadStream(filePath);
     stream.pipe(res);
@@ -1907,9 +1927,9 @@ export const handleApiRequest = async (req, res, next) => {
         if (isMySqlActive) {
           const [delRes] = await dbPool.query('DELETE FROM tbl_lessons WHERE id = ?', [id]);
           deletedRows = delRes?.affectedRows || 0;
-          await dbPool.query('DELETE FROM tbl_devoir_prime WHERE lesson_id = ?', [id]).catch(() => {});
-          await dbPool.query('DELETE FROM tbl_solutions WHERE lesson_id = ?', [id]).catch(() => {});
-          await dbPool.query('DELETE FROM tbl_grades WHERE lesson_id = ?', [id]).catch(() => {});
+          await dbPool.query('DELETE FROM tbl_devoir_prime WHERE lesson_id = ?', [id]).catch(() => { });
+          await dbPool.query('DELETE FROM tbl_solutions WHERE lesson_id = ?', [id]).catch(() => { });
+          await dbPool.query('DELETE FROM tbl_grades WHERE lesson_id = ?', [id]).catch(() => { });
         }
 
         const lessons = readDataFile('lessons.json', []).filter(l => l.id !== id);
@@ -1988,7 +2008,7 @@ export const handleApiRequest = async (req, res, next) => {
 
         if (isMySqlActive) {
           await dbPool.query('DELETE FROM tbl_classes WHERE id = ?', [id]);
-          await dbPool.query('DELETE FROM tbl_logbook WHERE class_id = ?', [id]).catch(() => {});
+          await dbPool.query('DELETE FROM tbl_logbook WHERE class_id = ?', [id]).catch(() => { });
         }
         const classes = readDataFile('classes.json', []).filter(c => c.id !== id);
         writeDataFile('classes.json', classes);
@@ -2017,7 +2037,7 @@ export const handleApiRequest = async (req, res, next) => {
               const entry = safeJsonParse(rows[0].data, null);
               if (entry) return sendJSON(res, 200, entry);
             }
-          } catch (_) {}
+          } catch (_) { }
         }
         const localEntries = readDataFile('logbook.json', []);
         const found = localEntries.find(e => e.id === singleId);
