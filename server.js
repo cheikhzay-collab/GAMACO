@@ -1270,6 +1270,8 @@ export const handleApiRequest = async (req, res, next) => {
                 const updatedAt = lesson.updatedAt || lesson.updated_at || (rows[0].updated_at ? new Date(rows[0].updated_at).toISOString() : null) || createdAt;
                 const docType = lesson.docType || lesson.doc_type || lesson.content?.doc_type || 'course';
                 const isActive = lesson.isActive !== undefined ? Boolean(lesson.isActive) : (lesson.is_active !== undefined ? Boolean(lesson.is_active) : true);
+                const isArchived = lesson.isArchived !== undefined ? Boolean(lesson.isArchived) : (lesson.is_archived !== undefined ? Boolean(lesson.is_archived) : false);
+                const archivedAt = lesson.archivedAt || lesson.archived_at || null;
 
                 lesson.createdAt = createdAt;
                 lesson.created_at = createdAt;
@@ -1279,6 +1281,10 @@ export const handleApiRequest = async (req, res, next) => {
                 lesson.doc_type = docType;
                 lesson.isActive = isActive;
                 lesson.is_active = isActive;
+                lesson.isArchived = isArchived;
+                lesson.is_archived = isArchived;
+                lesson.archivedAt = archivedAt;
+                lesson.archived_at = archivedAt;
 
                 // Hydrate latest DEVOIR PRIME edits & solutions from tbl_devoir_prime if present
                 try {
@@ -1329,6 +1335,8 @@ export const handleApiRequest = async (req, res, next) => {
             const updatedAt = l.updatedAt || l.updated_at || (r.updated_at ? new Date(r.updated_at).toISOString() : null) || createdAt;
             const docType = l.docType || l.doc_type || l.content?.doc_type || 'course';
             const isActive = l.isActive !== undefined ? Boolean(l.isActive) : (l.is_active !== undefined ? Boolean(l.is_active) : true);
+            const isArchived = l.isArchived !== undefined ? Boolean(l.isArchived) : (l.is_archived !== undefined ? Boolean(l.is_archived) : false);
+            const archivedAt = l.archivedAt || l.archived_at || null;
 
             l.createdAt = createdAt;
             l.created_at = createdAt;
@@ -1338,6 +1346,10 @@ export const handleApiRequest = async (req, res, next) => {
             l.doc_type = docType;
             l.isActive = isActive;
             l.is_active = isActive;
+            l.isArchived = isArchived;
+            l.is_archived = isArchived;
+            l.archivedAt = archivedAt;
+            l.archived_at = archivedAt;
             return l;
           }).filter(Boolean);
           if (lessons.length > 0) return sendJSON(res, 200, lessons);
@@ -1379,13 +1391,19 @@ export const handleApiRequest = async (req, res, next) => {
         lesson.createdAt = createdAt;
         lesson.created_at = createdAt;
 
-        // Normalize docType and isActive
+        // Normalize docType, isActive and isArchived
         const docType = lesson.docType || lesson.doc_type || lesson.content?.doc_type || 'course';
         lesson.docType = docType;
         lesson.doc_type = docType;
         const isActive = lesson.isActive !== undefined ? Boolean(lesson.isActive) : (lesson.is_active !== undefined ? Boolean(lesson.is_active) : true);
         lesson.isActive = isActive;
         lesson.is_active = isActive;
+        const isArchived = lesson.isArchived !== undefined ? Boolean(lesson.isArchived) : (lesson.is_archived !== undefined ? Boolean(lesson.is_archived) : false);
+        lesson.isArchived = isArchived;
+        lesson.is_archived = isArchived;
+        const archivedAt = isArchived ? (lesson.archivedAt || lesson.archived_at || now) : null;
+        lesson.archivedAt = archivedAt;
+        lesson.archived_at = archivedAt;
 
         if (isMySqlActive) {
           await dbPool.query(

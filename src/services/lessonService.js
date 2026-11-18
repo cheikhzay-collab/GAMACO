@@ -241,6 +241,7 @@ const mapDBToLesson = (row) => {
   const docType = row.docType || row.doc_type || parsedContent?.doc_type || 'course';
   const isActive = row.isActive !== undefined ? Boolean(row.isActive) : (row.is_active !== undefined ? Boolean(row.is_active) : true);
   const isArchived = row.isArchived !== undefined ? Boolean(row.isArchived) : (row.is_archived !== undefined ? Boolean(row.is_archived) : false);
+  const archivedAt = row.archivedAt || row.archived_at || null;
   const chapterNumber = row.chapterNumber !== undefined ? row.chapterNumber : (row.chapter_number !== undefined ? row.chapter_number : '');
   const createdAt = row.createdAt || row.created_at || (parsedContent?.header?.date ? new Date(parsedContent.header.date).toISOString() : null) || row.updatedAt || row.updated_at || new Date().toISOString();
   const updatedAt = row.updatedAt || row.updated_at || createdAt;
@@ -263,6 +264,8 @@ const mapDBToLesson = (row) => {
     is_active: isActive,
     isArchived,
     is_archived: isArchived,
+    archivedAt,
+    archived_at: archivedAt,
     createdAt,
     created_at: createdAt,
     updatedAt,
@@ -347,7 +350,7 @@ export const getActiveLessons = async (options = {}) => {
     }
 
     const allLessons = await getAllLessons(options);
-    return allLessons.filter(l => l.isActive === true);
+    return allLessons.filter(l => l.isActive === true && !l.isArchived && !l.is_archived);
   }, {
     forceRefresh,
     staleTime: 1000 * 60 * 3,
@@ -513,6 +516,9 @@ export const updateLesson = async (lessonId, updates) => {
     const level = updates.level || updates.content?.level || original.level;
     const isActive = updates.isActive !== undefined ? Boolean(updates.isActive) : (updates.is_active !== undefined ? Boolean(updates.is_active) : (original.isActive !== undefined ? Boolean(original.isActive) : true));
     const isArchived = updates.isArchived !== undefined ? Boolean(updates.isArchived) : (updates.is_archived !== undefined ? Boolean(updates.is_archived) : (original.isArchived !== undefined ? Boolean(original.isArchived) : false));
+    const archivedAt = isArchived
+      ? (updates.archivedAt || updates.archived_at || original.archivedAt || original.archived_at || now)
+      : null;
     const chapterNumber = updates.chapterNumber !== undefined ? updates.chapterNumber : (updates.chapter_number !== undefined ? updates.chapter_number : (original.chapterNumber || original.chapter_number || ''));
     const createdAt = original.createdAt || original.created_at || updates.createdAt || updates.created_at || (original.content?.header?.date ? new Date(original.content.header.date).toISOString() : null) || now;
 
@@ -531,6 +537,8 @@ export const updateLesson = async (lessonId, updates) => {
       is_active: isActive,
       isArchived,
       is_archived: isArchived,
+      archivedAt,
+      archived_at: archivedAt,
       chapterNumber,
       chapter_number: chapterNumber,
       createdAt,
@@ -549,6 +557,7 @@ export const updateLesson = async (lessonId, updates) => {
     const level = updates.level || updates.content?.level;
     const isActive = updates.isActive !== undefined ? Boolean(updates.isActive) : (updates.is_active !== undefined ? Boolean(updates.is_active) : true);
     const isArchived = updates.isArchived !== undefined ? Boolean(updates.isArchived) : (updates.is_archived !== undefined ? Boolean(updates.is_archived) : false);
+    const archivedAt = isArchived ? (updates.archivedAt || updates.archived_at || now) : null;
     const chapterNumber = updates.chapterNumber !== undefined ? updates.chapterNumber : (updates.chapter_number !== undefined ? updates.chapter_number : '');
     const createdAt = updates.createdAt || updates.created_at || now;
 
@@ -567,6 +576,8 @@ export const updateLesson = async (lessonId, updates) => {
       is_active: isActive,
       isArchived,
       is_archived: isArchived,
+      archivedAt,
+      archived_at: archivedAt,
       chapterNumber,
       chapter_number: chapterNumber,
       createdAt,
@@ -608,7 +619,7 @@ export const updateLesson = async (lessonId, updates) => {
     const cachedActive = queryCache.get('lessons_active');
     if (Array.isArray(cachedActive) && cachedActive.length > 0) {
       let nextActive;
-      if (updatedRecord.isActive) {
+      if (updatedRecord.isActive && !updatedRecord.isArchived) {
         const actIdx = cachedActive.findIndex(l => l.id === lessonId);
         if (actIdx > -1) {
           nextActive = [...cachedActive];
@@ -646,6 +657,14 @@ export const updateLesson = async (lessonId, updates) => {
   if (updates.isActive      !== undefined) {
     dbUpdates.is_active = Boolean(updates.isActive);
     dbUpdates.isActive  = Boolean(updates.isActive);
+  }
+  if (updates.isArchived    !== undefined || updates.is_archived !== undefined) {
+    const archVal = Boolean(updates.isArchived !== undefined ? updates.isArchived : updates.is_archived);
+    dbUpdates.is_archived = archVal;
+    dbUpdates.isArchived  = archVal;
+    const archTs = archVal ? (updates.archivedAt || updates.archived_at || now) : null;
+    dbUpdates.archived_at = archTs;
+    dbUpdates.archivedAt  = archTs;
   }
   if (updates.content !== undefined) {
     dbUpdates.content = {
@@ -699,6 +718,10 @@ export const updateLesson = async (lessonId, updates) => {
       doc_type: updatedRecord?.docType || updates.docType || 'course',
       isActive: updatedRecord?.isActive !== undefined ? Boolean(updatedRecord.isActive) : true,
       is_active: updatedRecord?.isActive !== undefined ? Boolean(updatedRecord.isActive) : true,
+      isArchived: updatedRecord?.isArchived !== undefined ? Boolean(updatedRecord.isArchived) : false,
+      is_archived: updatedRecord?.isArchived !== undefined ? Boolean(updatedRecord.isArchived) : false,
+      archivedAt: updatedRecord?.archivedAt || dbUpdates.archivedAt || null,
+      archived_at: updatedRecord?.archivedAt || dbUpdates.archivedAt || null,
       createdAt: updatedRecord?.createdAt || now,
       created_at: updatedRecord?.createdAt || now,
       updatedAt: now,
@@ -728,6 +751,21 @@ export const updateLesson = async (lessonId, updates) => {
  */
 export const toggleLessonStatus = async (lessonId, currentStatus) => {
   return updateLesson(lessonId, { isActive: !currentStatus });
+};
+
+/**
+ * Archive or restore a lesson.
+ * Archiving automatically hides the file from students (isActive: false) and records archivedAt.
+ */
+export const archiveLesson = async (lessonId, shouldArchive = true) => {
+  const now = new Date().toISOString();
+  return updateLesson(lessonId, {
+    isArchived: Boolean(shouldArchive),
+    is_archived: Boolean(shouldArchive),
+    archivedAt: shouldArchive ? now : null,
+    archived_at: shouldArchive ? now : null,
+    ...(shouldArchive ? { isActive: false, is_active: false } : {})
+  });
 };
 
 /**

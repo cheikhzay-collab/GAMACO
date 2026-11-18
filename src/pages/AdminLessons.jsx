@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
-  getAllLessons, getLessonById, toggleLessonStatus, deleteLesson, updateLesson
+  getAllLessons, getLessonById, toggleLessonStatus, deleteLesson, updateLesson, archiveLesson
 } from '../services/lessonService';
 import { queryCache } from '../services/queryCache';
 import { getAllClasses } from '../services/classService';
@@ -12,7 +12,7 @@ import {
   Edit3, CheckSquare, Square, MinusSquare, X, Check, Filter, Layers,
   CheckCheck, HelpCircle, Loader2, Calendar, ArrowUpDown,
   LayoutGrid, List, User, ChevronRight, RotateCcw,
-  Download, FileCode, Printer
+  Download, FileCode, Printer, Archive, ArchiveRestore
 } from 'lucide-react';
 import TranslateModal from '../components/TranslateModal';
 import LessonBulkEditModal from '../components/LessonBulkEditModal';
@@ -102,6 +102,8 @@ export default function AdminLessons() {
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   const [isBulkDownloading, setIsBulkDownloading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'active' | 'inactive'
+  const [archiveView, setArchiveView] = useState('active_lib'); // 'active_lib' | 'archived'
+  const [archivingLessonId, setArchivingLessonId] = useState(null);
   const [sortOrder, setSortOrder] = useState('newest'); // 'newest' | 'oldest'
   const [viewMode, setViewMode] = useState('table'); // 'table' | 'cards'
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -372,6 +374,84 @@ ${sectionsContentText}
     }
   };
 
+  // Helper: Check if a lesson is archived
+  const isLessonArchived = (l) => Boolean(l?.isArchived || l?.is_archived);
+
+  // Switch between active library and archive tab
+  const handleSwitchArchiveView = (mode) => {
+    setArchiveView(mode);
+    setSelectedLessonIds([]);
+    if (mode === 'archived') {
+      setStatusFilter('all');
+    }
+  };
+
+  // Handle Archive / Restore single lesson
+  const handleToggleArchive = async (lessonId, shouldArchive) => {
+    setArchivingLessonId(lessonId);
+    setError('');
+    try {
+      const now = new Date().toISOString();
+      await archiveLesson(lessonId, shouldArchive);
+      setLessons(prev => prev.map(l => l.id === lessonId ? {
+        ...l,
+        isArchived: shouldArchive,
+        is_archived: shouldArchive,
+        archivedAt: shouldArchive ? now : null,
+        archived_at: shouldArchive ? now : null,
+        ...(shouldArchive ? { isActive: false, is_active: false } : {})
+      } : l));
+      setSelectedLessonIds(prev => prev.filter(id => id !== lessonId));
+      setSuccess(
+        shouldArchive
+          ? 'Fiche déplacée vers les archives (masquée pour les élèves).'
+          : 'Fiche restaurée dans la bibliothèque active.'
+      );
+      setTimeout(() => setSuccess(''), 3500);
+    } catch (err) {
+      console.error(err);
+      setError(err?.message || "Impossible de modifier l'état d'archivage de la fiche.");
+      setTimeout(() => setError(''), 4500);
+    } finally {
+      setArchivingLessonId(null);
+    }
+  };
+
+  // Handle Bulk Archive / Restore
+  const handleBulkArchive = async (shouldArchive) => {
+    if (selectedLessonIds.length === 0) return;
+    setIsBulkProcessing(true);
+    setError('');
+    try {
+      const now = new Date().toISOString();
+      const targetIds = [...selectedLessonIds];
+      await Promise.all(
+        targetIds.map(id => archiveLesson(id, shouldArchive))
+      );
+      setLessons(prev => prev.map(l => targetIds.includes(l.id) ? {
+        ...l,
+        isArchived: shouldArchive,
+        is_archived: shouldArchive,
+        archivedAt: shouldArchive ? now : null,
+        archived_at: shouldArchive ? now : null,
+        ...(shouldArchive ? { isActive: false, is_active: false } : {})
+      } : l));
+      setSuccess(
+        shouldArchive
+          ? `${targetIds.length} fiche(s) déplacée(s) vers les archives.`
+          : `${targetIds.length} fiche(s) restaurée(s) dans la bibliothèque active.`
+      );
+      setTimeout(() => setSuccess(''), 3500);
+      handleClearSelection();
+    } catch (err) {
+      console.error(err);
+      setError(err?.message || "Erreur lors de l'archivage en masse.");
+      setTimeout(() => setError(''), 4500);
+    } finally {
+      setIsBulkProcessing(false);
+    }
+  };
+
   // Handle Delete
   const handleDeleteLesson = async () => {
     if (!showConfirmDelete) return;
@@ -401,6 +481,10 @@ ${sectionsContentText}
   // Filtering Logic (All lessons are Mathematics)
   const filteredLessons = lessons
     .filter(l => {
+      const archived = isLessonArchived(l);
+      const matchesArchive = archiveView === 'archived' ? archived : !archived;
+      if (!matchesArchive) return false;
+
       const matchesSearch = l.title?.toLowerCase().includes(searchTerm.toLowerCase()) || 
                             l.teacher?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesLevel = selectedLevelFilter === 'Tous' || normalizeLevel(l.level) === selectedLevelFilter;
@@ -409,14 +493,19 @@ ${sectionsContentText}
                             docTypeVal === selectedDocTypeFilter ||
                             (selectedDocTypeFilter === 'course' && (docTypeVal === 'summary' || !docTypeVal));
       const isActiveVal = l.isActive !== undefined ? Boolean(l.isActive) : (l.is_active !== undefined ? Boolean(l.is_active) : true);
-      const matchesStatus = statusFilter === 'all' || 
+      const matchesStatus = archiveView === 'archived' ||
+                            statusFilter === 'all' || 
                             (statusFilter === 'active' && isActiveVal) || 
                             (statusFilter === 'inactive' && !isActiveVal);
       return matchesSearch && matchesLevel && matchesDocType && matchesStatus;
     })
     .sort((a, b) => {
-      const timeA = a.updatedAt || a.updated_at || a.createdAt || a.created_at;
-      const timeB = b.updatedAt || b.updated_at || b.createdAt || b.created_at;
+      const timeA = archiveView === 'archived'
+        ? (a.archivedAt || a.archived_at || a.updatedAt || a.updated_at || a.createdAt || a.created_at)
+        : (a.updatedAt || a.updated_at || a.createdAt || a.created_at);
+      const timeB = archiveView === 'archived'
+        ? (b.archivedAt || b.archived_at || b.updatedAt || b.updated_at || b.createdAt || b.created_at)
+        : (b.updatedAt || b.updated_at || b.createdAt || b.created_at);
       const dateA = timeA ? new Date(timeA).getTime() : 0;
       const dateB = timeB ? new Date(timeB).getTime() : 0;
       return sortOrder === 'newest' ? dateB - dateA : dateA - dateB;
@@ -611,11 +700,14 @@ ${sectionsContentText}
     });
   };
 
-  // Stats
-  const totalCount = lessons.length;
-  const activeCount = lessons.filter(l => l.isActive).length;
+  // Stats (separated cleanly between active library and archives)
+  const nonArchivedLessons = lessons.filter(l => !isLessonArchived(l));
+  const archivedLessons = lessons.filter(l => isLessonArchived(l));
+  const totalCount = nonArchivedLessons.length;
+  const activeCount = nonArchivedLessons.filter(l => l.isActive).length;
   const inactiveCount = totalCount - activeCount;
-  const uniqueLevelsCount = new Set(lessons.map(l => normalizeLevel(l.level)).filter(Boolean)).size;
+  const archivedCount = archivedLessons.length;
+  const uniqueLevelsCount = new Set(nonArchivedLessons.map(l => normalizeLevel(l.level)).filter(Boolean)).size;
 
   // Role Guard (Must run after all hooks)
   if (!loading && user?.role !== 'admin') {
@@ -782,11 +874,139 @@ ${sectionsContentText}
           </div>
         )}
 
+        {/* ── Library vs Archive Mode Switcher ── */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '0.75rem',
+          marginBottom: '1.25rem'
+        }}>
+          <div style={{
+            display: 'inline-flex',
+            background: 'var(--bg-glass)',
+            border: '1px solid var(--border)',
+            borderRadius: '14px',
+            padding: '4px',
+            gap: '4px'
+          }}>
+            <button
+              type="button"
+              onClick={() => handleSwitchArchiveView('active_lib')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.55rem 1rem',
+                borderRadius: '10px',
+                border: 'none',
+                cursor: 'pointer',
+                fontWeight: 800,
+                fontSize: '0.84rem',
+                background: archiveView === 'active_lib' ? 'linear-gradient(135deg, var(--violet), #6366f1)' : 'transparent',
+                color: archiveView === 'active_lib' ? '#ffffff' : 'var(--text-muted)',
+                boxShadow: archiveView === 'active_lib' ? '0 4px 12px rgba(99, 102, 241, 0.28)' : 'none',
+                transition: 'all 0.18s ease'
+              }}
+            >
+              <Library size={15} />
+              <span>Bibliothèque active</span>
+              <span style={{
+                padding: '0.1rem 0.48rem',
+                borderRadius: '999px',
+                fontSize: '0.72rem',
+                fontWeight: 800,
+                background: archiveView === 'active_lib' ? 'rgba(255,255,255,0.22)' : 'rgba(99,102,241,0.1)',
+                color: archiveView === 'active_lib' ? '#ffffff' : 'var(--violet)'
+              }}>
+                {totalCount}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleSwitchArchiveView('archived')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.55rem 1rem',
+                borderRadius: '10px',
+                border: 'none',
+                cursor: 'pointer',
+                fontWeight: 800,
+                fontSize: '0.84rem',
+                background: archiveView === 'archived' ? 'linear-gradient(135deg, #d97706, #f59e0b)' : 'transparent',
+                color: archiveView === 'archived' ? '#ffffff' : 'var(--text-muted)',
+                boxShadow: archiveView === 'archived' ? '0 4px 12px rgba(245, 158, 11, 0.28)' : 'none',
+                transition: 'all 0.18s ease'
+              }}
+            >
+              <Archive size={15} />
+              <span>Archives</span>
+              <span style={{
+                padding: '0.1rem 0.48rem',
+                borderRadius: '999px',
+                fontSize: '0.72rem',
+                fontWeight: 800,
+                background: archiveView === 'archived' ? 'rgba(255,255,255,0.25)' : 'rgba(245,158,11,0.14)',
+                color: archiveView === 'archived' ? '#ffffff' : '#d97706'
+              }}>
+                {archivedCount}
+              </span>
+            </button>
+          </div>
+
+          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+            {uniqueLevelsCount} niveau{uniqueLevelsCount > 1 ? 'x' : ''} géré{uniqueLevelsCount > 1 ? 's' : ''} · {lessons.length} fiche{lessons.length > 1 ? 's' : ''} au total
+          </div>
+        </div>
+
+        {/* ── Archive Mode Banner ── */}
+        {archiveView === 'archived' && (
+          <div style={{
+            background: 'rgba(245, 158, 11, 0.08)',
+            border: '1px solid rgba(245, 158, 11, 0.3)',
+            borderRadius: '14px',
+            padding: '0.9rem 1.15rem',
+            marginBottom: '1.5rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '0.75rem'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', color: '#b45309' }}>
+              <Archive size={19} style={{ flexShrink: 0, color: '#d97706' }} />
+              <div style={{ fontSize: '0.86rem', fontWeight: 600, color: 'var(--text-main)' }}>
+                <strong>Espace Archives</strong> — Les fiches archivées sont conservées en sécurité dans la base de données, masquées pour les élèves, et restaurables en un clic.
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleSwitchArchiveView('active_lib')}
+              style={{
+                padding: '0.45rem 0.85rem',
+                borderRadius: '9px',
+                border: '1px solid rgba(245, 158, 11, 0.35)',
+                background: 'var(--bg-card)',
+                color: 'var(--text-main)',
+                fontWeight: 700,
+                fontSize: '0.8rem',
+                cursor: 'pointer'
+              }}
+            >
+              ← Retour à la bibliothèque
+            </button>
+          </div>
+        )}
+
         {/* ── Stats Indicators (Clickable Filters) ── */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
           {/* Total Fiches */}
           <div 
-            onClick={() => setStatusFilter('all')}
+            onClick={() => { handleSwitchArchiveView('active_lib'); setStatusFilter('all'); }}
             className="glass-panel" 
             style={{ 
               padding: '1.25rem', 
@@ -794,12 +1014,12 @@ ${sectionsContentText}
               alignItems: 'center', 
               gap: '1rem',
               cursor: 'pointer',
-              border: statusFilter === 'all' ? '1.5px solid var(--violet)' : '1px solid var(--border)',
-              background: statusFilter === 'all' ? 'rgba(99, 102, 241, 0.05)' : undefined,
-              boxShadow: statusFilter === 'all' ? '0 4px 20px rgba(99, 102, 241, 0.12)' : undefined,
+              border: archiveView === 'active_lib' && statusFilter === 'all' ? '1.5px solid var(--violet)' : '1px solid var(--border)',
+              background: archiveView === 'active_lib' && statusFilter === 'all' ? 'rgba(99, 102, 241, 0.05)' : undefined,
+              boxShadow: archiveView === 'active_lib' && statusFilter === 'all' ? '0 4px 20px rgba(99, 102, 241, 0.12)' : undefined,
               transition: 'all 0.2s ease'
             }}
-            title="Afficher toutes les fiches de cours"
+            title="Afficher toutes les fiches de la bibliothèque active"
           >
             <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: 'var(--violet-soft)', color: 'var(--violet)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <BookOpen size={20} />
@@ -812,7 +1032,14 @@ ${sectionsContentText}
           
           {/* Fiches Actives */}
           <div 
-            onClick={() => setStatusFilter(prev => prev === 'active' ? 'all' : 'active')}
+            onClick={() => {
+              if (archiveView !== 'active_lib') {
+                handleSwitchArchiveView('active_lib');
+                setStatusFilter('active');
+              } else {
+                setStatusFilter(prev => prev === 'active' ? 'all' : 'active');
+              }
+            }}
             className="glass-panel" 
             style={{ 
               padding: '1.25rem', 
@@ -820,9 +1047,9 @@ ${sectionsContentText}
               alignItems: 'center', 
               gap: '1rem',
               cursor: 'pointer',
-              border: statusFilter === 'active' ? '1.5px solid var(--emerald)' : '1px solid var(--border)',
-              background: statusFilter === 'active' ? 'rgba(16, 185, 129, 0.06)' : undefined,
-              boxShadow: statusFilter === 'active' ? '0 4px 20px rgba(16, 185, 129, 0.15)' : undefined,
+              border: archiveView === 'active_lib' && statusFilter === 'active' ? '1.5px solid var(--emerald)' : '1px solid var(--border)',
+              background: archiveView === 'active_lib' && statusFilter === 'active' ? 'rgba(16, 185, 129, 0.06)' : undefined,
+              boxShadow: archiveView === 'active_lib' && statusFilter === 'active' ? '0 4px 20px rgba(16, 185, 129, 0.15)' : undefined,
               transition: 'all 0.2s ease'
             }}
             title="Filtrer uniquement les fiches actives (publiées)"
@@ -838,7 +1065,14 @@ ${sectionsContentText}
 
           {/* Fiches Inactives */}
           <div 
-            onClick={() => setStatusFilter(prev => prev === 'inactive' ? 'all' : 'inactive')}
+            onClick={() => {
+              if (archiveView !== 'active_lib') {
+                handleSwitchArchiveView('active_lib');
+                setStatusFilter('inactive');
+              } else {
+                setStatusFilter(prev => prev === 'inactive' ? 'all' : 'inactive');
+              }
+            }}
             className="glass-panel" 
             style={{ 
               padding: '1.25rem', 
@@ -846,9 +1080,9 @@ ${sectionsContentText}
               alignItems: 'center', 
               gap: '1rem',
               cursor: 'pointer',
-              border: statusFilter === 'inactive' ? '1.5px solid var(--danger)' : '1px solid var(--border)',
-              background: statusFilter === 'inactive' ? 'rgba(239, 68, 68, 0.06)' : undefined,
-              boxShadow: statusFilter === 'inactive' ? '0 4px 20px rgba(239, 68, 68, 0.15)' : undefined,
+              border: archiveView === 'active_lib' && statusFilter === 'inactive' ? '1.5px solid var(--danger)' : '1px solid var(--border)',
+              background: archiveView === 'active_lib' && statusFilter === 'inactive' ? 'rgba(239, 68, 68, 0.06)' : undefined,
+              boxShadow: archiveView === 'active_lib' && statusFilter === 'inactive' ? '0 4px 20px rgba(239, 68, 68, 0.15)' : undefined,
               transition: 'all 0.2s ease'
             }}
             title="Filtrer uniquement les fiches inactives (masquées)"
@@ -862,14 +1096,29 @@ ${sectionsContentText}
             </div>
           </div>
 
-          {/* Niveaux Gérés */}
-          <div className="glass-panel" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.1)', color: 'var(--warning)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Sparkles size={20} />
+          {/* Fiches Archivées (Clickable) */}
+          <div
+            onClick={() => handleSwitchArchiveView(archiveView === 'archived' ? 'active_lib' : 'archived')}
+            className="glass-panel"
+            style={{
+              padding: '1.25rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '1rem',
+              cursor: 'pointer',
+              border: archiveView === 'archived' ? '1.5px solid #d97706' : '1px solid var(--border)',
+              background: archiveView === 'archived' ? 'rgba(245, 158, 11, 0.08)' : undefined,
+              boxShadow: archiveView === 'archived' ? '0 4px 20px rgba(245, 158, 11, 0.16)' : undefined,
+              transition: 'all 0.2s ease'
+            }}
+            title={archiveView === 'archived' ? 'Revenir à la bibliothèque active' : 'Consulter les fiches archivées'}
+          >
+            <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.12)', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Archive size={20} />
             </div>
             <div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 700 }}>Niveaux Gérés</div>
-              <div style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--text-main)' }}>{uniqueLevelsCount}</div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 700 }}>Fiches Archivées</div>
+              <div style={{ fontSize: '1.4rem', fontWeight: 900, color: '#d97706' }}>{archivedCount}</div>
             </div>
           </div>
         </div>
@@ -964,11 +1213,25 @@ ${sectionsContentText}
             </div>
           ) : filteredLessons.length === 0 ? (
             <div style={{ padding: '4rem 2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-              <BookOpen size={44} style={{ margin: '0 auto 1rem', opacity: 0.3, display: 'block' }} />
-              <p style={{ fontWeight: 700, margin: 0 }}>Aucune fiche de cours trouvée.</p>
-              <p style={{ fontSize: '0.85rem', marginTop: '0.25rem' }}>
-                {searchTerm ? 'Essayez de réinitialiser vos critères de recherche.' : 'Générez votre première fiche de cours à l\'aide de l\'IA.'}
-              </p>
+              {archiveView === 'archived' ? (
+                <>
+                  <Archive size={44} style={{ margin: '0 auto 1rem', opacity: 0.35, display: 'block', color: '#d97706' }} />
+                  <p style={{ fontWeight: 700, margin: 0 }}>Aucune fiche archivée pour le moment.</p>
+                  <p style={{ fontSize: '0.85rem', marginTop: '0.25rem' }}>
+                    {searchTerm
+                      ? 'Aucun résultat dans les archives pour cette recherche.'
+                      : 'Cliquez sur le bouton d\'archivage d\'une fiche pour la ranger ici sans la supprimer.'}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <BookOpen size={44} style={{ margin: '0 auto 1rem', opacity: 0.3, display: 'block' }} />
+                  <p style={{ fontWeight: 700, margin: 0 }}>Aucune fiche de cours trouvée.</p>
+                  <p style={{ fontSize: '0.85rem', marginTop: '0.25rem' }}>
+                    {searchTerm ? 'Essayez de réinitialiser vos critères de recherche.' : 'Générez votre première fiche de cours à l\'aide de l\'IA.'}
+                  </p>
+                </>
+              )}
             </div>
           ) : viewMode === 'cards' ? (
             /* ────────────── CARD GRID VIEW ────────────── */
@@ -1057,24 +1320,40 @@ ${sectionsContentText}
                     </Link>
 
                     {/* Statut badge */}
-                    <div>
-                      <button
-                        onClick={() => handleToggleStatus(l.id, l.isActive)}
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', gap: '0.28rem',
-                          padding: '0.22rem 0.65rem', borderRadius: '20px',
-                          fontSize: '0.7rem', fontWeight: 700,
-                          border: l.isActive ? '1px solid rgba(16,185,129,0.2)' : '1px solid rgba(239,68,68,0.2)',
-                          cursor: 'pointer',
-                          background: l.isActive ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)',
-                          color: l.isActive ? 'var(--emerald)' : 'var(--danger)',
-                          transition: 'all 0.18s'
-                        }}
-                        title="Basculer le statut"
-                      >
-                        {l.isActive ? <CheckCircle size={10} /> : <XCircle size={10} />}
-                        {l.isActive ? 'Actif' : 'Masqué'}
-                      </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                      {isLessonArchived(l) ? (
+                        <span
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: '0.28rem',
+                            padding: '0.22rem 0.65rem', borderRadius: '20px',
+                            fontSize: '0.7rem', fontWeight: 700,
+                            border: '1px solid rgba(245,158,11,0.32)',
+                            background: 'rgba(245,158,11,0.1)',
+                            color: '#d97706'
+                          }}
+                        >
+                          <Archive size={10} />
+                          Archivée{formatDate(l.archivedAt || l.archived_at) ? ` · ${formatDate(l.archivedAt || l.archived_at)}` : ''}
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => handleToggleStatus(l.id, l.isActive)}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: '0.28rem',
+                            padding: '0.22rem 0.65rem', borderRadius: '20px',
+                            fontSize: '0.7rem', fontWeight: 700,
+                            border: l.isActive ? '1px solid rgba(16,185,129,0.2)' : '1px solid rgba(239,68,68,0.2)',
+                            cursor: 'pointer',
+                            background: l.isActive ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)',
+                            color: l.isActive ? 'var(--emerald)' : 'var(--danger)',
+                            transition: 'all 0.18s'
+                          }}
+                          title="Basculer le statut"
+                        >
+                          {l.isActive ? <CheckCircle size={10} /> : <XCircle size={10} />}
+                          {l.isActive ? 'Actif' : 'Masqué'}
+                        </button>
+                      )}
                     </div>
 
                     {/* Footer: teacher + date + actions */}
@@ -1124,6 +1403,20 @@ ${sectionsContentText}
                           style={{ padding: '0.38rem', borderRadius: '7px', border: '1px solid rgba(66,133,244,0.3)', color: '#4285F4' }}
                         >
                           <Languages size={13} />
+                        </button>
+                        <button
+                          onClick={() => handleToggleArchive(l.id, !isLessonArchived(l))}
+                          disabled={archivingLessonId === l.id}
+                          className="btn-outline"
+                          title={isLessonArchived(l) ? 'Restaurer dans la bibliothèque' : 'Archiver la fiche'}
+                          style={{
+                            padding: '0.38rem', borderRadius: '7px',
+                            border: isLessonArchived(l) ? '1px solid rgba(16,185,129,0.35)' : '1px solid rgba(245,158,11,0.35)',
+                            color: isLessonArchived(l) ? 'var(--emerald)' : '#d97706',
+                            opacity: archivingLessonId === l.id ? 0.5 : 1
+                          }}
+                        >
+                          {isLessonArchived(l) ? <ArchiveRestore size={13} /> : <Archive size={13} />}
                         </button>
                         <button
                           onClick={() => setShowConfirmDelete(l.id)}
@@ -1306,23 +1599,47 @@ ${sectionsContentText}
 
                         {/* Statut */}
                         <td style={{ padding: '1rem 1rem' }}>
-                          <button
-                            onClick={() => handleToggleStatus(l.id, l.isActive)}
-                            style={{
-                              display: 'inline-flex', alignItems: 'center', gap: '0.32rem',
-                              padding: '0.3rem 0.75rem', borderRadius: '20px',
-                              fontSize: '0.73rem', fontWeight: 700, letterSpacing: '0.01em',
-                              border: l.isActive ? '1px solid rgba(16,185,129,0.2)' : '1px solid rgba(239,68,68,0.2)',
-                              cursor: 'pointer',
-                              background: l.isActive ? 'rgba(16,185,129,0.09)' : 'rgba(239,68,68,0.09)',
-                              color: l.isActive ? 'var(--emerald)' : 'var(--danger)',
-                              transition: 'all 0.18s ease', lineHeight: 1
-                            }}
-                            title="Cliquer pour basculer le statut"
-                          >
-                            {l.isActive ? <CheckCircle size={11} /> : <XCircle size={11} />}
-                            {l.isActive ? 'Actif' : 'Masqué'}
-                          </button>
+                          {isLessonArchived(l) ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.2rem' }}>
+                              <span
+                                style={{
+                                  display: 'inline-flex', alignItems: 'center', gap: '0.32rem',
+                                  padding: '0.3rem 0.72rem', borderRadius: '20px',
+                                  fontSize: '0.73rem', fontWeight: 700, letterSpacing: '0.01em',
+                                  border: '1px solid rgba(245,158,11,0.3)',
+                                  background: 'rgba(245,158,11,0.1)',
+                                  color: '#d97706',
+                                  lineHeight: 1
+                                }}
+                              >
+                                <Archive size={11} />
+                                Archivée
+                              </span>
+                              {formatDate(l.archivedAt || l.archived_at) && (
+                                <span style={{ fontSize: '0.66rem', color: 'var(--text-subtle)', paddingLeft: '0.25rem' }}>
+                                  le {formatDate(l.archivedAt || l.archived_at)}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => handleToggleStatus(l.id, l.isActive)}
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', gap: '0.32rem',
+                                padding: '0.3rem 0.75rem', borderRadius: '20px',
+                                fontSize: '0.73rem', fontWeight: 700, letterSpacing: '0.01em',
+                                border: l.isActive ? '1px solid rgba(16,185,129,0.2)' : '1px solid rgba(239,68,68,0.2)',
+                                cursor: 'pointer',
+                                background: l.isActive ? 'rgba(16,185,129,0.09)' : 'rgba(239,68,68,0.09)',
+                                color: l.isActive ? 'var(--emerald)' : 'var(--danger)',
+                                transition: 'all 0.18s ease', lineHeight: 1
+                              }}
+                              title="Cliquer pour basculer le statut"
+                            >
+                              {l.isActive ? <CheckCircle size={11} /> : <XCircle size={11} />}
+                              {l.isActive ? 'Actif' : 'Masqué'}
+                            </button>
+                          )}
                         </td>
 
                         {/* Actions */}
@@ -1366,6 +1683,22 @@ ${sectionsContentText}
                               style={{ padding: '0.42rem', borderRadius: '7px', border: '1px solid var(--border)', color: 'var(--warning)' }}
                             >
                               <HelpCircle size={15} />
+                            </button>
+
+                            <button
+                              onClick={() => handleToggleArchive(l.id, !isLessonArchived(l))}
+                              disabled={archivingLessonId === l.id}
+                              className="btn-outline"
+                              title={isLessonArchived(l) ? 'Restaurer cette fiche dans la bibliothèque' : 'Archiver cette fiche'}
+                              style={{
+                                padding: '0.42rem',
+                                borderRadius: '7px',
+                                border: isLessonArchived(l) ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid rgba(245, 158, 11, 0.35)',
+                                color: isLessonArchived(l) ? 'var(--emerald)' : '#d97706',
+                                opacity: archivingLessonId === l.id ? 0.5 : 1
+                              }}
+                            >
+                              {isLessonArchived(l) ? <ArchiveRestore size={15} /> : <Archive size={15} />}
                             </button>
                             
                             <button
@@ -1476,50 +1809,76 @@ ${sectionsContentText}
             <span>Télécharger ({selectedLessonIds.length})</span>
           </button>
 
-          {/* Bulk Activate */}
-          <button
-            type="button"
-            onClick={() => handleBulkToggleStatus(true)}
-            disabled={isBulkProcessing}
-            style={{
-              background: 'rgba(16, 185, 129, 0.15)',
-              border: '1px solid rgba(16, 185, 129, 0.3)',
-              color: '#34d399',
-              borderRadius: '8px',
-              padding: '0.45rem 0.8rem',
-              fontSize: '0.8rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.35rem'
-            }}
-          >
-            <CheckCircle size={13} />
-            <span>Activer</span>
-          </button>
+          {/* Bulk Activate / Deactivate (only in active library) */}
+          {archiveView === 'active_lib' && (
+            <>
+              <button
+                type="button"
+                onClick={() => handleBulkToggleStatus(true)}
+                disabled={isBulkProcessing}
+                style={{
+                  background: 'rgba(16, 185, 129, 0.15)',
+                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                  color: '#34d399',
+                  borderRadius: '8px',
+                  padding: '0.45rem 0.8rem',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem'
+                }}
+              >
+                <CheckCircle size={13} />
+                <span>Activer</span>
+              </button>
 
-          {/* Bulk Deactivate */}
+              <button
+                type="button"
+                onClick={() => handleBulkToggleStatus(false)}
+                disabled={isBulkProcessing}
+                style={{
+                  background: 'rgba(245, 158, 11, 0.15)',
+                  border: '1px solid rgba(245, 158, 11, 0.3)',
+                  color: '#fbbf24',
+                  borderRadius: '8px',
+                  padding: '0.45rem 0.8rem',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem'
+                }}
+              >
+                <XCircle size={13} />
+                <span>Masquer</span>
+              </button>
+            </>
+          )}
+
+          {/* Bulk Archive / Restore */}
           <button
             type="button"
-            onClick={() => handleBulkToggleStatus(false)}
+            onClick={() => handleBulkArchive(archiveView !== 'archived')}
             disabled={isBulkProcessing}
             style={{
-              background: 'rgba(245, 158, 11, 0.15)',
-              border: '1px solid rgba(245, 158, 11, 0.3)',
-              color: '#fbbf24',
+              background: archiveView === 'archived' ? 'rgba(16, 185, 129, 0.18)' : 'rgba(245, 158, 11, 0.18)',
+              border: archiveView === 'archived' ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(245, 158, 11, 0.4)',
+              color: archiveView === 'archived' ? '#34d399' : '#fbbf24',
               borderRadius: '8px',
-              padding: '0.45rem 0.8rem',
+              padding: '0.45rem 0.85rem',
               fontSize: '0.8rem',
-              fontWeight: 700,
+              fontWeight: 800,
               cursor: 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
               gap: '0.35rem'
             }}
           >
-            <XCircle size={13} />
-            <span>Masquer</span>
+            {archiveView === 'archived' ? <ArchiveRestore size={14} /> : <Archive size={14} />}
+            <span>{archiveView === 'archived' ? 'Restaurer' : 'Archiver'}</span>
           </button>
 
           {/* Bulk Delete */}
