@@ -307,6 +307,8 @@ function parseSectionIntoPrimeExercise(sec, exIdx) {
         number: qNum,
         text: bodyWithoutPrefix || text,
         points: resolvedPts,
+        _hasExplicitPoints: Boolean(pts),
+        isStem: false,
         linesCount: estimateDottedLines(resolvedPts, bodyWithoutPrefix || text),
         layout: 'single', // 'single' | 'two_columns'
         steps: blk.solution ? blk.solution.split('\n').filter(Boolean) : [],
@@ -333,6 +335,31 @@ function parseSectionIntoPrimeExercise(sec, exIdx) {
     questions.push(currentQ);
   }
 
+  // Smart Parent-Stem Detection:
+  // If a numbered question (e.g. "2. Calculer les limites suivantes :") is immediately followed
+  // by lettered sub-questions ("a)", "b)", "a.", "b."), treat it as a parent stem (no fake points, no answer box).
+  const isNumberedParent = (num = '') => /^\d+\s*[.)]$/.test(String(num).trim());
+  const isLetterSubQ = (num = '') => /^[a-z]\s*[.)]$/i.test(String(num).trim());
+  const looksLikeStemIntro = (txt = '') => {
+    const t = String(txt).trim();
+    return /[:：]\s*$/.test(t) || /(?:suivantes?|suivants?|cas suivants?|on consid[èe]re|soit\s|soient\s|في كل حالة|يلي|التالية|الآتية)/i.test(t);
+  };
+
+  for (let i = 0; i < questions.length - 1; i++) {
+    const q = questions[i];
+    const nextQ = questions[i + 1];
+    if (
+      isNumberedParent(q.number) &&
+      isLetterSubQ(nextQ.number) &&
+      (!q._hasExplicitPoints || looksLikeStemIntro(q.text))
+    ) {
+      q.isStem = true;
+      q.points = '';
+      q.linesCount = 0;
+    }
+  }
+  questions.forEach(q => { delete q._hasExplicitPoints; });
+
   // Fallback: if no numbered questions were found, treat the whole exercise as 1 question
   if (questions.length === 0 && (preambleLines.length > 0 || rawContent)) {
     const fallbackText = preambleLines.join('\n') || rawContent;
@@ -342,6 +369,7 @@ function parseSectionIntoPrimeExercise(sec, exIdx) {
       number: '1.',
       text: fallbackText,
       points: pts,
+      isStem: false,
       linesCount: estimateDottedLines(pts, fallbackText),
       layout: 'single',
       steps: sec.solution ? cleanPrimeText(sec.solution).split('\n').filter(Boolean) : [],
@@ -358,8 +386,8 @@ function parseSectionIntoPrimeExercise(sec, exIdx) {
     preambleLines = [];
   }
 
-  // Recompute total points for exercise if missing
-  const sumQPoints = questions.reduce((acc, q) => acc + parseNumericPoints(q.points), 0);
+  // Recompute total points for exercise if missing (skip stems)
+  const sumQPoints = questions.filter(q => !q.isStem).reduce((acc, q) => acc + parseNumericPoints(q.points), 0);
   const finalExPoints = exPointsNum || sumQPoints || 0;
 
   return {
@@ -391,8 +419,9 @@ export function normalizeToDevoirPrimeExercises(lesson = {}) {
             id: q.id || `dp-ex${eIdx + 1}-q${qIdx + 1}`,
             number: q.number || `${qIdx + 1}.`,
             text: q.text || '',
-            points: q.points || '1 pt',
-            linesCount: Number(q.linesCount) || estimateDottedLines(q.points, q.text),
+            isStem: Boolean(q.isStem),
+            points: q.isStem ? '' : (q.points || '1 pt'),
+            linesCount: q.isStem ? 0 : (Number(q.linesCount) || estimateDottedLines(q.points, q.text)),
             layout: q.layout === 'two_columns' ? 'two_columns' : 'single',
             steps: Array.isArray(q.steps) ? q.steps : (q.solution ? String(q.solution).split('\n').filter(Boolean) : []),
             finalBox: q.finalBox || '',
@@ -420,10 +449,12 @@ export function normalizeToDevoirPrimeExercises(lesson = {}) {
  */
 export function buildPointsTableFromPrimeExercises(exercises = []) {
   return (exercises || []).map((ex, idx) => {
-    const subpoints = (ex.questions || []).map(q => ({
-      question: q.number || '',
-      points: parseNumericPoints(q.points),
-    }));
+    const subpoints = (ex.questions || [])
+      .filter(q => !q.isStem)
+      .map(q => ({
+        question: q.number || '',
+        points: parseNumericPoints(q.points),
+      }));
     const sumSub = subpoints.reduce((s, sp) => s + (sp.points || 0), 0);
     const exPts = parseNumericPoints(ex.points) || sumSub;
     return {

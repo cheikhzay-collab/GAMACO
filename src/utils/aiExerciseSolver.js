@@ -690,9 +690,22 @@ export async function solveDevoirPrimeWithAI(exercise, metadata = {}) {
 
   const normLevel = normalizeLevel(level);
   const questionsList = Array.isArray(exercise?.questions) ? exercise.questions : [];
+
+  // Map each non-stem question to its preceding parent stem (e.g. "2. Calculer les limites suivantes :")
+  let currentStemText = '';
+  const enrichedQuestions = questionsList.map(q => {
+    if (q.isStem) {
+      currentStemText = `${q.number ? `${q.number} ` : ''}${q.text || ''}`.trim();
+      return { ...q, _parentStem: '' };
+    }
+    const isSubLetter = /^[a-z]\s*[.)]$/i.test(String(q.number || '').trim());
+    if (!isSubLetter) currentStemText = '';
+    return { ...q, _parentStem: isSubLetter ? currentStemText : '' };
+  });
+
   const questionsToSolve = targetQuestionId
-    ? questionsList.filter(q => q.id === targetQuestionId)
-    : questionsList;
+    ? enrichedQuestions.filter(q => q.id === targetQuestionId && !q.isStem)
+    : enrichedQuestions.filter(q => !q.isStem);
 
   if (questionsToSolve.length === 0) return [];
 
@@ -701,7 +714,7 @@ export async function solveDevoirPrimeWithAI(exercise, metadata = {}) {
     !/montrer|calculer|d[ée]terminer|r[ée]soudre|[ée]tudier|soit/i.test(questionsToSolve.map(q => q.text).join(' '))
   );
 
-  const combinedText = `${exercise?.title || ''} ${exercise?.preamble || ''} ${questionsToSolve.map(q => q.text).join(' ')}`;
+  const combinedText = `${exercise?.title || ''} ${exercise?.preamble || ''} ${questionsToSolve.map(q => `${q._parentStem} ${q.text}`).join(' ')}`;
   const domain = detectLessonDomain(combinedText, { ...metadata, docTitle });
   const pedagogyBlock = getMoroccanPedagogicalDirectives(normLevel, domain, isAr);
 
@@ -713,10 +726,11 @@ ${pedagogyBlock}
 قواعد أسلوب التصحيح المختصر الإلزامية:
 1. ادخل مباشرة في الحل دون أي مقدمات أو نصائح أو شرح نظري زائد.
 2. استعمل الروابط الرياضية المدرسية المعتادة: "لدينا :"، "ومنه"، "إذن"، "وبما أن"، "نضع ..." مع سلاسل المساويات ($= ... = ...$) والتكافؤات ($\\iff$).
-3. ضع النتيجة النهائية أو الاستنتاج النهائي حصراً في الحقل "finalBox" ليتم تأطيره بالمربع الأصفر.
-4. إذا كان السؤال يدرس حالتين متوازيتين (مثل الاتصال أو الاشتقاق على اليمين وعلى اليسار)، اجعل "layout": "two_columns" وضع خطوات اليمين في "leftSteps" و"leftConclusion"، وخطوات اليسار في "rightSteps" و"rightConclusion"، والاستنتاج النهائي في "finalBox".
-5. استعمل LaTeX دقيقاً داخل $...$ مع مضاعفة الشرطة المائلة داخل JSON (\\\\frac، \\\\sqrt، \\\\lim، \\\\mathbb{R}).
-6. أرجع مصفوفة JSON صالحة فقط بدون أي نص خارجي.`
+3. تحقق دائماً من التعويض المباشر أولاً قبل أي تحويل جبري (لا تفترض أبداً شكلاً غير محدد $0/0$ إذا كان البسط غير منعدم؛ احسب القيم العددية بدقة!).
+4. ضع النتيجة النهائية أو الاستنتاج النهائي حصراً في الحقل "finalBox" ليتم تأطيره بالمربع الأصفر.
+5. إذا كان السؤال يدرس حالتين متوازيتين (مثل الاتصال أو الاشتقاق على اليمين وعلى اليسار)، اجعل "layout": "two_columns" وضع خطوات اليمين في "leftSteps" و"leftConclusion"، وخطوات اليسار في "rightSteps" و"rightConclusion"، والاستنتاج النهائي في "finalBox".
+6. استعمل LaTeX دقيقاً داخل $...$ لكل رمز رياضي بلا استثناء مع مضاعفة الشرطة المائلة داخل JSON (\\\\frac، \\\\sqrt، \\\\lim، \\\\mathbb{R}).
+7. أرجع مصفوفة JSON صالحة فقط بدون أي نص خارجي.`
     : `Tu es un Professeur de Mathématiques au lycée marocain (Option Française / BIOF) qui rédige un corrigé modèle CONCIS au style "DEVOIR PRIME" (corrigé direct, compact, calibré pour tenir sur les lignes pointillées de la copie d'examen).
 
 ${pedagogyBlock}
@@ -724,22 +738,24 @@ ${pedagogyBlock}
 RÈGLES STRICTES DU STYLE CONCIS MAROCAIN (DEVOIR PRIME) :
 1. ZÉRO bavardage, ZÉRO introduction longue, ZÉRO rappel de cours superflu. Va droit au calcul et au raisonnement qui rapporte la note complète.
 2. Utilise exactement les connecteurs scolaires marocains : "On a :", "Donc", "Or", "Comme", "Puisque", "D'où", "On pose ...", "Soit $x \\in ...$".
-3. Enchaîne proprement les égalités ($= \\dots = \\dots$) ou équivalences ($\\iff \\dots$) ligne par ligne. Chaque élément du tableau "steps" correspond à UNE ligne concise.
-4. Isole TOUJOURS le résultat final ou la conclusion clé dans le champ "finalBox" (ex: "$= 1$", "$a = c < b$", "$S = \\{8 ; 125\\}$", "D'où la fonction $f$ est continue en $-1$."). Il sera mis en évidence dans un encadré jaune bordé de bleu.
-5. UTILISATION DU MODE 2 COLONNES ("layout": "two_columns") :
+3. VÉRIFICATION MATHÉMATIQUE OBLIGATOIRE : Pour toute limite, vérifie TOUJOURS la substitution directe en premier ! Ne suppose JAMAIS une forme indéterminée $0/0$ si le numérateur ne s'annule pas réellement : si le numérateur tend vers un réel non nul $\\ell \\neq 0$ et le dénominateur vers $0^+$ ou $0^-$, conclus directement $+\\infty$ ou $-\\infty$ selon le signe !
+4. Enchaîne proprement les égalités ($= \\dots = \\dots$) ou équivalences ($\\iff \\dots$) ligne par ligne. Chaque élément du tableau "steps" correspond à UNE ligne concise.
+5. Isole TOUJOURS le résultat final ou la conclusion clé dans le champ "finalBox" (ex: "$= 1$", "$a = c < b$", "$S = \\{8 ; 125\\}$", "D'où la fonction $f$ est continue en $-1$."). Il sera mis en évidence dans un encadré jaune bordé de bleu.
+6. UTILISATION DU MODE 2 COLONNES ("layout": "two_columns") :
    - Si une question étudie DEUX cas symétriques (ex: limite ou dérivabilité à droite $x \\to x_0^+$ et à gauche $x \\to x_0^-$), mets "layout": "two_columns" avec :
      • "leftSteps" (calcul à droite), "leftConclusion" (conclusion + interprétation géométrique à droite)
      • "rightSteps" (calcul à gauche), "rightConclusion" (conclusion + interprétation géométrique à gauche)
      • "finalBox" (conclusion globale finale en dessous, ex: "D'où $f$ n'est pas dérivable en $-1$.")
    - Sinon mets "layout": "single".
-6. Estime "recommendedLines" (entier entre 4 et 12) correspondant au nombre optimal de lignes pointillées nécessaires pour rédiger cette réponse proprement.
-7. Écris toutes les formules mathématiques en LaTeX strict avec $...$ et double-échappement JSON obligatoire (\\\\frac, \\\\sqrt, \\\\lim, \\\\mathbb{R}, \\\\iff, \\\\to).
-8. RETOURNE UNIQUEMENT UN TABLEAU JSON VALIDE sans aucun texte avant ni après.`;
+7. Estime "recommendedLines" (entier entre 4 et 12) correspondant au nombre optimal de lignes pointillées nécessaires pour rédiger cette réponse proprement.
+8. ENCADRE OBLIGATOIREMENT CHAQUE FORMULE LATEX PAR $...$ (y compris dans finalBox, \\\\dfrac, \\\\overrightarrow, \\\\parallel, \\\\sqrt) — ne laisse JAMAIS une commande LaTeX nue hors des dollars $...$.
+9. RETOURNE UNIQUEMENT UN TABLEAU JSON VALIDE sans aucun texte avant ni après.`;
 
   const qPayload = questionsToSolve.map(q => ({
     id: q.id,
     number: q.number,
     points: q.points,
+    parentInstruction: q._parentStem || undefined,
     text: q.text
   }));
 

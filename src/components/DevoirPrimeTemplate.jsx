@@ -104,7 +104,7 @@ export default function DevoirPrimeTemplate({
   const totalPoints = useMemo(() => {
     let sum = 0;
     exercises.forEach(ex => {
-      const qSum = (ex.questions || []).reduce((s, q) => s + parseNumericPoints(q.points), 0);
+      const qSum = (ex.questions || []).filter(q => !q.isStem).reduce((s, q) => s + parseNumericPoints(q.points), 0);
       sum += qSum > 0 ? qSum : parseNumericPoints(ex.points);
     });
     return Number(sum.toFixed(2));
@@ -125,11 +125,62 @@ export default function DevoirPrimeTemplate({
     setExercises(prev => prev.map((ex, ei) => {
       if (ei !== eIdx) return ex;
       const updatedQs = (ex.questions || []).map((q, qi) => (qi === qIdx ? { ...q, ...patch } : q));
-      const exSum = updatedQs.reduce((s, q) => s + parseNumericPoints(q.points), 0);
+      const exSum = updatedQs.filter(q => !q.isStem).reduce((s, q) => s + parseNumericPoints(q.points), 0);
       return {
         ...ex,
         points: exSum > 0 ? (Number.isInteger(exSum) ? String(exSum) : String(Number(exSum.toFixed(2)))) : ex.points,
         questions: updatedQs,
+      };
+    }));
+  };
+
+  const toggleQuestionStem = (eIdx, qIdx) => {
+    const q = exercises[eIdx]?.questions?.[qIdx];
+    if (!q) return;
+    if (q.isStem) {
+      updateQuestion(eIdx, qIdx, { isStem: false, points: '1 pt', linesCount: 5 });
+    } else {
+      updateQuestion(eIdx, qIdx, {
+        isStem: true,
+        points: '',
+        linesCount: 0,
+        steps: [],
+        finalBox: '',
+        leftSteps: [],
+        rightSteps: [],
+        leftConclusion: '',
+        rightConclusion: '',
+      });
+    }
+  };
+
+  const mergeWithNextQuestion = (eIdx, qIdx) => {
+    setExercises(prev => prev.map((ex, ei) => {
+      if (ei !== eIdx) return ex;
+      const qs = [...(ex.questions || [])];
+      if (qIdx < 0 || qIdx >= qs.length - 1) return ex;
+      const curr = qs[qIdx];
+      const next = qs[qIdx + 1];
+      const combinedPtsNum = (curr.isStem ? 0 : parseNumericPoints(curr.points)) + (next.isStem ? 0 : parseNumericPoints(next.points));
+      const combinedPts = combinedPtsNum > 0
+        ? `${Number.isInteger(combinedPtsNum) ? combinedPtsNum : Number(combinedPtsNum.toFixed(2))} pt`
+        : (next.points || curr.points || '1 pt');
+
+      const merged = {
+        ...curr,
+        isStem: false,
+        text: `${curr.text || ''}\n${next.number ? `**${next.number}** ` : ''}${next.text || ''}`.trim(),
+        points: combinedPts,
+        linesCount: Math.max(curr.linesCount || 4, next.linesCount || 5),
+        steps: (curr.steps && curr.steps.length > 0) ? curr.steps : (next.steps || []),
+        finalBox: curr.finalBox || next.finalBox || '',
+      };
+      qs.splice(qIdx, 2, merged);
+      const exSum = qs.filter(q => !q.isStem).reduce((s, q) => s + parseNumericPoints(q.points), 0);
+      return {
+        ...ex,
+        points: exSum > 0 ? (Number.isInteger(exSum) ? String(exSum) : String(Number(exSum.toFixed(2)))) : ex.points,
+        questions: qs,
       };
     }));
   };
@@ -227,10 +278,12 @@ export default function DevoirPrimeTemplate({
         });
         if (Array.isArray(results) && results.length > 0) {
           const byId = new Map(results.map(r => [r.id, r]));
+          let nonStemIdx = 0;
           updated[eIdx] = {
             ...ex,
-            questions: (ex.questions || []).map((q, qi) => {
-              const r = byId.get(q.id) || results[qi];
+            questions: (ex.questions || []).map((q) => {
+              if (q.isStem) return q;
+              const r = byId.get(q.id) || results[nonStemIdx++];
               if (!r) return q;
               return {
                 ...q,
@@ -748,7 +801,7 @@ export default function DevoirPrimeTemplate({
                 </div>
               )}
 
-              {/* Question Cards */}
+              {/* Question Cards & Parent Stems */}
               {(ex.questions || []).map((q, qIdx) => {
                 const key = `${eIdx}_${qIdx}`;
                 const isEditing = editingQKey === key;
@@ -757,6 +810,77 @@ export default function DevoirPrimeTemplate({
                 const linesCount = Math.max(3, Math.min(16, Number(q.linesCount) || 5));
                 const minBoxHeight = linesCount * 29 + 14;
                 const hasSolution = (q.steps && q.steps.length > 0) || Boolean(q.finalBox) || (q.layout === 'two_columns' && ((q.leftSteps && q.leftSteps.length > 0) || (q.rightSteps && q.rightSteps.length > 0)));
+
+                // Parent Stem Banner (e.g. "2. Calculer les limites suivantes :" before a), b), c) — NO points, NO QR, NO dotted box!)
+                if (q.isStem) {
+                  return (
+                    <div key={q.id || key} style={{
+                      margin: '10px 0 6px 0',
+                      padding: '6px 10px',
+                      borderLeft: '3px solid #1e3a8a',
+                      background: '#f8fafc',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '6px',
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <div style={{ fontSize: '14px', fontWeight: 700, color: '#000', lineHeight: 1.45 }}>
+                          {renderPrimeMath(`${q.number ? `**${String(q.number).trim()}** ` : ''}${String(q.text || '').replace(/^\s+/, '')}`)}
+                        </div>
+                        {editable && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontFamily: 'Tajawal, sans-serif', fontSize: '11.5px' }}>
+                            <button
+                              type="button"
+                              onClick={() => toggleQuestionStem(eIdx, qIdx)}
+                              style={{ padding: '2px 7px', borderRadius: '5px', border: '1px solid #cbd5e1', background: '#fff', color: '#334155', fontWeight: 700, cursor: 'pointer' }}
+                              title="تحويل إلى بطاقة سؤال بصندوق نقط ونقطة"
+                            >
+                              ↩️ تحويل لسؤال
+                            </button>
+                            {qIdx < (ex.questions?.length || 0) - 1 && (
+                              <button
+                                type="button"
+                                onClick={() => mergeWithNextQuestion(eIdx, qIdx)}
+                                style={{ padding: '2px 7px', borderRadius: '5px', border: '1px solid #cbd5e1', background: '#fff', color: '#0369a1', fontWeight: 700, cursor: 'pointer' }}
+                                title="دمج رأس السؤال مع السؤال الفرعي الموالي داخل بطاقة واحدة"
+                              >
+                                🔗 دمج مع الموالي
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setEditingQKey(isEditing ? null : key)}
+                              style={{ padding: '2px 7px', borderRadius: '5px', border: '1px solid #93c5fd', background: isEditing ? '#2563eb' : '#eff6ff', color: isEditing ? '#fff' : '#1d4ed8', fontWeight: 700, cursor: 'pointer' }}
+                            >
+                              {isEditing ? '✓' : '✏️'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => deleteQuestion(eIdx, qIdx)}
+                              style={{ padding: '2px 6px', borderRadius: '5px', border: '1px solid #fecaca', background: '#fef2f2', color: '#dc2626', cursor: 'pointer' }}
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      {editable && isEditing && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: '6px', marginTop: '4px' }}>
+                          <input
+                            value={q.number || ''}
+                            onChange={e => updateQuestion(eIdx, qIdx, { number: e.target.value })}
+                            style={{ padding: '4px 6px', borderRadius: '5px', border: '1px solid #94a3b8', fontSize: '12px' }}
+                          />
+                          <input
+                            value={q.text || ''}
+                            onChange={e => updateQuestion(eIdx, qIdx, { text: e.target.value })}
+                            style={{ padding: '4px 6px', borderRadius: '5px', border: '1px solid #94a3b8', fontSize: '12px', fontFamily: 'monospace' }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
 
                 return (
                   <div key={q.id || key} style={{ border: '1.4px solid #000', marginBottom: '12px', background: '#fff' }}>
@@ -839,7 +963,7 @@ export default function DevoirPrimeTemplate({
                         zIndex: 1,
                       }}>
                         {Array.from({ length: linesCount }).map((_, lIdx) => (
-                          <div key={lIdx} style={{ height: '28px', borderBottom: '1.4px dotted #334155', width: '100%' }} />
+                          <div key={lIdx} style={{ height: '28px', borderBottom: `1.4px dotted ${showSolutions && hasSolution ? 'rgba(51, 65, 85, 0.32)' : '#334155'}`, width: '100%' }} />
                         ))}
                       </div>
 
@@ -976,6 +1100,48 @@ export default function DevoirPrimeTemplate({
                             {isSolving ? <Loader2 size={12} className="spin" /> : <Sparkles size={12} />}
                             {isSolving ? 'جاري الحل...' : 'حل مختصر (IA)'}
                           </button>
+
+                          <button
+                            type="button"
+                            onClick={() => toggleQuestionStem(eIdx, qIdx)}
+                            style={{
+                              padding: '3px 8px',
+                              borderRadius: '6px',
+                              border: '1px solid #cbd5e1',
+                              background: '#fff',
+                              color: '#475569',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                            title="تحويل إلى رأس سؤال/تعليمة بدون نقطة ولا صندوق نقط (مثلاً قبل a و b)"
+                          >
+                            📌 رأس سؤال (بدون نقط)
+                          </button>
+
+                          {qIdx < (ex.questions?.length || 0) - 1 && (
+                            <button
+                              type="button"
+                              onClick={() => mergeWithNextQuestion(eIdx, qIdx)}
+                              style={{
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                border: '1px solid #cbd5e1',
+                                background: '#fff',
+                                color: '#0369a1',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                              }}
+                              title="دمج هذا السؤال مع السؤال الموالي داخل بطاقة واحدة"
+                            >
+                              🔗 دمج مع الموالي
+                            </button>
+                          )}
 
                           <button
                             type="button"

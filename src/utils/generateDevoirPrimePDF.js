@@ -243,6 +243,16 @@ export async function generateDevoirPrimeHTML(lesson, options = {}) {
     `);
 
     (ex.questions || []).forEach((q, qIdx) => {
+      if (q.isStem) {
+        flowBlocksHtml.push(`
+          <div class="dp-flow-item dp-stem-block" data-keep-with-next="true">
+            <span class="dp-q-num">${escapeHtml(q.number || '')}</span>
+            <span class="dp-q-text">${formatRichMathHtml((q.text || '').replace(/^\s+/, ''))}</span>
+          </div>
+        `);
+        return;
+      }
+
       const qrDataUrl = qrMap[`${eIdx}_${qIdx}`] || '';
       const solHtml = buildSolutionOverlayHtml(q, meta.solutionStyle);
       const dottedHtml = buildDottedLinesHtml(q.linesCount);
@@ -692,6 +702,17 @@ export async function generateDevoirPrimeHTML(lesson, options = {}) {
       color: #64748b;
     }
 
+    /* ── PARENT STEM HEADER (no points, no QR, no dotted box) ── */
+    .dp-stem-block {
+      margin: 6px 0 6px 0;
+      padding: 4px 8px;
+      font-size: 14px;
+      font-weight: 700;
+      color: #000;
+      border-left: 3px solid #1e3a8a;
+      background: #f8fafc;
+    }
+
     /* ── DOTTED ANSWER ZONE ── */
     .dp-answer-zone {
       position: relative;
@@ -710,8 +731,11 @@ export async function generateDevoirPrimeHTML(lesson, options = {}) {
     }
     .dp-dotted-line {
       height: 28px;
-      border-bottom: 1.4px dotted #334155;
+      border-bottom: 1.4px dotted rgba(51, 65, 85, 0.34);
       width: 100%;
+    }
+    body.hide-solutions .dp-dotted-line {
+      border-bottom: 1.4px dotted #334155;
     }
 
     /* Solution Overlay (Hidden in Student Mode!) */
