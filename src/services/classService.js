@@ -28,6 +28,60 @@ const saveLocalStorageClasses = (classes) => {
   }
 };
 
+const hasAdminSession = () => {
+  try {
+    const token = localStorage.getItem('gamaco_auth_token');
+    const rawUser = localStorage.getItem('lconq_current_user');
+    if (!token || !rawUser) return false;
+    const u = JSON.parse(rawUser);
+    return u?.role === 'admin';
+  } catch (_) {
+    return false;
+  }
+};
+
+/**
+ * Safe one-way rescue: if a class in MySQL has an empty program ([]) while the browser's
+ * localStorage already holds a non-empty program array created before the DB fix,
+ * preserve it and automatically push it to MySQL so existing work is never wiped.
+ */
+const rescueLocalProgramsIfNeeded = async (serverClasses) => {
+  const localCache = getLocalStorageClasses();
+  if (!Array.isArray(localCache) || localCache.length === 0) return serverClasses;
+
+  const localById = new Map(localCache.filter(c => c && c.id).map(c => [c.id, normalizeClass(c)]));
+  const canPush = hasAdminSession();
+  const rescuedList = [];
+
+  for (const srv of serverClasses) {
+    const localCls = localById.get(srv.id);
+    if (
+      localCls &&
+      Array.isArray(localCls.program) && localCls.program.length > 0 &&
+      (!Array.isArray(srv.program) || srv.program.length === 0)
+    ) {
+      const merged = {
+        ...srv,
+        program: localCls.program,
+        updatedAt: new Date().toISOString()
+      };
+      if (canPush) {
+        try {
+          await localDb.post(`/classes/${encodeURIComponent(srv.id)}`, merged);
+          console.log(`[classService] Rescued local program (${localCls.program.length} items) to MySQL for class ${srv.id}`);
+        } catch (err) {
+          console.warn(`[classService] Could not push rescued program for ${srv.id}:`, err.message);
+        }
+      }
+      rescuedList.push(merged);
+    } else {
+      rescuedList.push(srv);
+    }
+  }
+
+  return rescuedList;
+};
+
 const safeParseJSON = (val, fallback) => {
   if (!val) return fallback;
   if (typeof val === 'object') return val;
@@ -106,15 +160,18 @@ export const getAllClasses = async (options = {}) => {
       }
     }
 
-    // 2. Try LocalDB companion server
+    // 2. Try MySQL / LocalDB companion server
     try {
       const data = await localDb.get('/classes');
       if (Array.isArray(data) && data.length > 0) {
         const mapped = data.map(normalizeClass);
-        saveLocalStorageClasses(mapped);
-        return mapped;
+        const reconciled = await rescueLocalProgramsIfNeeded(mapped);
+        saveLocalStorageClasses(reconciled);
+        return reconciled;
       }
-    } catch (err) {}
+    } catch (err) {
+      console.warn('[classService] Failed to fetch classes from API:', err.message || err);
+    }
 
     // 3. Fallback to localStorage
     const cache = getLocalStorageClasses();
@@ -182,11 +239,24 @@ export const getClassById = async (classId, options = {}) => {
       }
     }
 
-    // 2. LocalDB
+    // 2. MySQL / LocalDB
     try {
-      const data = await localDb.get(`/classes/${classId}`);
-      if (data) return normalizeClass(data);
-    } catch {}
+      const data = await localDb.get(`/classes/${encodeURIComponent(classId)}`);
+      if (data) {
+        const normalized = normalizeClass(data);
+        const [reconciled] = await rescueLocalProgramsIfNeeded([normalized]);
+        // Sync updated class into localStorage list
+        const cache = getLocalStorageClasses() || [];
+        const cIdx = cache.findIndex(c => c.id === classId);
+        if (cIdx > -1) {
+          cache[cIdx] = reconciled;
+          saveLocalStorageClasses(cache);
+        }
+        return reconciled;
+      }
+    } catch (err) {
+      console.warn(`[classService] Failed to fetch class ${classId} from API:`, err.message || err);
+    }
 
     // 3. Cached list
     const classes = await getAllClasses(options);
@@ -233,10 +303,16 @@ export const addClass = async (classData) => {
   current.unshift(newClass);
   saveLocalStorageClasses(current);
 
-  // 3. Companion API
+  // 3. MySQL / Companion API (strict persistence)
   try {
     await localDb.post('/classes', newClass);
-  } catch (err) {}
+  } catch (err) {
+    console.error('[classService] addClass MySQL save failed:', err);
+    if (err?.status === 401 || err?.status === 403) {
+      throw new Error('انتهت صلاحية الجلسة — يرجى تسجيل الدخول مرة أخرى لإنشاء القسم في قاعدة البيانات.');
+    }
+    throw new Error(err?.message || 'تعذر حفظ القسم في قاعدة البيانات.');
+  }
 
   // 4. Supabase
   if (supabase) {
@@ -322,14 +398,62 @@ export const updateClass = async (classId, updates) => {
     }
   }
 
-  // 3. Local Companion
+  // 3. MySQL / Companion API (always merge with server or local base, never silently fail)
+  let savedMerged = null;
   try {
-    const local = await localDb.get(`/classes/${classId}`);
-    if (local) {
-      const merged = { ...local, ...updates, updatedAt: now };
-      await localDb.post(`/classes/${classId}`, merged);
+    let baseClass = null;
+    try {
+      baseClass = await localDb.get(`/classes/${encodeURIComponent(classId)}`);
+    } catch (_) {
+      // Class may not exist on server yet (e.g. seeded locally); fall back to local record
+      baseClass = idx !== -1 ? rawCurrent[idx] : { id: classId };
     }
-  } catch (err) {}
+    const updatedStudents = updates.students !== undefined ? updates.students : baseClass?.students;
+    const studentCount = updates.studentCount !== undefined
+      ? updates.studentCount
+      : (Array.isArray(updatedStudents) ? updatedStudents.length : baseClass?.studentCount || 0);
+
+    const merged = {
+      ...(baseClass || {}),
+      ...updates,
+      id: classId,
+      students: updatedStudents || [],
+      studentCount,
+      updatedAt: now
+    };
+    const res = await localDb.post(`/classes/${encodeURIComponent(classId)}`, merged);
+    savedMerged = normalizeClass(res?.class || merged);
+  } catch (err) {
+    console.error('[classService] updateClass MySQL save failed:', err);
+    if (err?.status === 401 || err?.status === 403) {
+      throw new Error('انتهت صلاحية الجلسة — يرجى تسجيل الدخول مرة أخرى لحفظ تعديلات القسم في قاعدة البيانات.');
+    }
+    throw new Error(err?.message || 'تعذر حفظ بيانات القسم في قاعدة البيانات.');
+  }
+
+  // 4. Update caches cleanly with server-confirmed record
+  if (savedMerged) {
+    queryCache.set(`class_detail_${classId}`, savedMerged);
+    const nextCache = getLocalStorageClasses() || [];
+    const nextIdx = nextCache.findIndex(c => c.id === classId);
+    if (nextIdx > -1) nextCache[nextIdx] = savedMerged;
+    else nextCache.unshift(savedMerged);
+    saveLocalStorageClasses(nextCache);
+  }
+  return savedMerged;
+};
+
+/**
+ * Force-sync all local class programs to MySQL (for manual sync button).
+ */
+export const syncLocalClassProgramsToCloud = async () => {
+  const data = await localDb.get('/classes');
+  if (!Array.isArray(data)) return { synced: false, classesCount: 0 };
+  const mapped = data.map(normalizeClass);
+  const reconciled = await rescueLocalProgramsIfNeeded(mapped);
+  saveLocalStorageClasses(reconciled);
+  queryCache.set('classes_all', reconciled);
+  return { synced: true, classesCount: reconciled.length, classes: reconciled };
 };
 
 /**

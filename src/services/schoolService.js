@@ -70,7 +70,13 @@ async function saveConfig(key, value) {
 
   try {
     await localDb.post('/config', { [key]: value });
-  } catch (err) {}
+  } catch (err) {
+    console.error(`[schoolService] saveConfig('${key}') MySQL save failed:`, err);
+    if (err?.status === 401 || err?.status === 403) {
+      throw new Error('انتهت صلاحية الجلسة — يرجى تسجيل الدخول مرة أخرى لحفظ الإعدادات في قاعدة البيانات.');
+    }
+    throw err;
+  }
 }
 
 // ─── 1. Schools & School Branding ─────────────────────────────────────────────

@@ -471,6 +471,19 @@ const initMySQL = async () => {
     `);
 
     await connection.query(`
+      CREATE TABLE IF NOT EXISTS tbl_logbook (
+        id VARCHAR(128) PRIMARY KEY,
+        class_id VARCHAR(64),
+        entry_date VARCHAR(32),
+        data LONGTEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_logbook_class (class_id),
+        INDEX idx_logbook_date (entry_date)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    await connection.query(`
       CREATE TABLE IF NOT EXISTS tbl_devoir_prime (
         id VARCHAR(64) PRIMARY KEY,
         lesson_id VARCHAR(64) NOT NULL,
@@ -782,6 +795,64 @@ const initMySQL = async () => {
     });
     writeDataFile('grades.json', allGradesList);
     console.log(`[Server] Synced ${allGradesList.length} grade sheets from MySQL database.`);
+
+    // 6.5 Synchronize Logbook Entries (tbl_logbook <-> logbook.json + legacy tbl_config migration)
+    try {
+      const fileLogbook = readDataFile('logbook.json', []);
+      const [dbLogbookRows] = await connection.query('SELECT id, updated_at, data FROM tbl_logbook').catch(() => [[]]);
+      const dbLogbookMap = new Map();
+      for (const row of dbLogbookRows) {
+        const parsed = safeJsonParse(row.data, null);
+        if (parsed && row.id) {
+          dbLogbookMap.set(row.id, {
+            updatedAt: new Date(row.updated_at || parsed.updatedAt || parsed.createdAt || 0).getTime(),
+            data: parsed
+          });
+        }
+      }
+
+      // Migrate legacy tbl_config['logbook_entries'] into tbl_logbook if present
+      const [legacyCfgRows] = await connection.query("SELECT value FROM tbl_config WHERE key_name = 'logbook_entries'").catch(() => [[]]);
+      const legacyEntries = legacyCfgRows.length > 0 ? safeJsonParse(legacyCfgRows[0].value, []) : [];
+      const combinedSources = [
+        ...(Array.isArray(legacyEntries) ? legacyEntries : []),
+        ...(Array.isArray(fileLogbook) ? fileLogbook : [])
+      ];
+
+      const consolidatedLogbook = new Map();
+      for (const [id, entry] of dbLogbookMap.entries()) {
+        consolidatedLogbook.set(id, entry.data);
+      }
+
+      for (const item of combinedSources) {
+        if (!item || !item.id) continue;
+        const itemTime = new Date(item.updatedAt || item.createdAt || 0).getTime();
+        const existingInDb = dbLogbookMap.get(item.id);
+        if (!existingInDb) {
+          await connection.query(
+            'INSERT IGNORE INTO tbl_logbook (id, class_id, entry_date, data) VALUES (?, ?, ?, ?)',
+            [String(item.id).slice(0, 128), item.classId || item.class_id || null, item.date || null, JSON.stringify(item)]
+          ).catch(() => {});
+          consolidatedLogbook.set(item.id, item);
+        } else if (itemTime > existingInDb.updatedAt + 1000) {
+          await connection.query(
+            'UPDATE tbl_logbook SET class_id = ?, entry_date = ?, data = ?, updated_at = NOW() WHERE id = ?',
+            [item.classId || item.class_id || null, item.date || null, JSON.stringify(item), String(item.id).slice(0, 128)]
+          ).catch(() => {});
+          consolidatedLogbook.set(item.id, item);
+        }
+      }
+
+      const allLogbookList = Array.from(consolidatedLogbook.values()).sort((a, b) => {
+        const tA = new Date(a.date || a.createdAt || 0).getTime();
+        const tB = new Date(b.date || b.createdAt || 0).getTime();
+        return tA - tB;
+      });
+      writeDataFile('logbook.json', allLogbookList);
+      console.log(`[Server] Synced ${allLogbookList.length} logbook entries from MySQL database.`);
+    } catch (lbSyncErr) {
+      console.warn('[Server] Logbook startup sync warning:', lbSyncErr.message);
+    }
 
     // 7. Backfill doc_type on tbl_lessons and sync DEVOIR PRIME records into tbl_devoir_prime
     try {
@@ -1159,6 +1230,7 @@ export const handleApiRequest = async (req, res, next) => {
       pathname === '/api/exams' || pathname.startsWith('/api/exams/') ||
       pathname === '/api/lessons' || pathname.startsWith('/api/lessons/') ||
       pathname === '/api/classes' || pathname.startsWith('/api/classes/') ||
+      pathname === '/api/logbook' || pathname.startsWith('/api/logbook/') ||
       pathname === '/api/grades' || pathname.startsWith('/api/grades/') ||
       pathname === '/api/devoir-prime' || pathname.startsWith('/api/devoir-prime/') ||
       pathname === '/api/solutions' || pathname.startsWith('/api/solutions/') ||
@@ -1557,6 +1629,130 @@ export const handleApiRequest = async (req, res, next) => {
     }
   }
 
+  // 5.2 Logbook (Cahier de Textes) Endpoints — Dedicated MySQL tbl_logbook persistence
+  if (pathname === '/api/logbook' || pathname.startsWith('/api/logbook/')) {
+    const singleId = pathname.startsWith('/api/logbook/')
+      ? decodeURIComponent(pathname.replace('/api/logbook/', '').trim())
+      : null;
+
+    if (req.method === 'GET') {
+      const classIdFilter = parsedUrl.searchParams.get('classId') || parsedUrl.searchParams.get('class_id');
+
+      if (singleId) {
+        if (isMySqlActive) {
+          try {
+            const [rows] = await dbPool.query('SELECT data FROM tbl_logbook WHERE id = ?', [singleId]);
+            if (rows.length > 0) {
+              const entry = safeJsonParse(rows[0].data, null);
+              if (entry) return sendJSON(res, 200, entry);
+            }
+          } catch (_) {}
+        }
+        const localEntries = readDataFile('logbook.json', []);
+        const found = localEntries.find(e => e.id === singleId);
+        if (found) return sendJSON(res, 200, found);
+        return sendJSON(res, 404, { error: 'Logbook entry not found' });
+      }
+
+      if (isMySqlActive) {
+        try {
+          const sql = classIdFilter
+            ? 'SELECT data FROM tbl_logbook WHERE class_id = ? ORDER BY entry_date ASC, created_at ASC'
+            : 'SELECT data FROM tbl_logbook ORDER BY entry_date ASC, created_at ASC';
+          const params = classIdFilter ? [classIdFilter] : [];
+          const [rows] = await dbPool.query(sql, params);
+          const entries = rows.map(r => safeJsonParse(r.data, null)).filter(Boolean);
+          return sendJSON(res, 200, entries);
+        } catch (dbErr) {
+          console.warn('[Server] GET /api/logbook MySQL error:', dbErr.message);
+        }
+      }
+
+      const fileEntries = readDataFile('logbook.json', []);
+      const filtered = classIdFilter ? fileEntries.filter(e => e.classId === classIdFilter) : fileEntries;
+      return sendJSON(res, 200, filtered);
+    }
+
+    if (req.method === 'POST' || req.method === 'PUT') {
+      try {
+        const body = await getBody(req);
+        const now = new Date().toISOString();
+
+        // Batch sync mode: accepts { entries: [...] } or raw array [...]
+        const batchList = Array.isArray(body) ? body : (Array.isArray(body?.entries) ? body.entries : null);
+        if (batchList) {
+          const savedEntries = [];
+          const fileEntries = readDataFile('logbook.json', []);
+          const fileMap = new Map(fileEntries.map(e => [e.id, e]));
+
+          for (const raw of batchList) {
+            if (!raw || typeof raw !== 'object') continue;
+            const entryId = String(raw.id || ('entry_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9))).slice(0, 128);
+            const entry = {
+              ...raw,
+              id: entryId,
+              createdAt: raw.createdAt || now,
+              updatedAt: raw.updatedAt || now
+            };
+            if (isMySqlActive) {
+              await dbPool.query(
+                'INSERT INTO tbl_logbook (id, class_id, entry_date, data) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE class_id = VALUES(class_id), entry_date = VALUES(entry_date), data = VALUES(data), updated_at = NOW()',
+                [entry.id, entry.classId || entry.class_id || null, entry.date || null, JSON.stringify(entry)]
+              );
+            }
+            fileMap.set(entry.id, entry);
+            savedEntries.push(entry);
+          }
+
+          writeDataFile('logbook.json', Array.from(fileMap.values()));
+          return sendJSON(res, 200, { success: true, count: savedEntries.length, entries: savedEntries });
+        }
+
+        // Single entry upsert
+        const entryId = String(singleId || body?.id || ('entry_' + Date.now() + '_' + Math.random().toString(36).substring(2, 11))).slice(0, 128);
+        const entry = {
+          ...(body || {}),
+          id: entryId,
+          createdAt: body?.createdAt || now,
+          updatedAt: now
+        };
+
+        if (isMySqlActive) {
+          await dbPool.query(
+            'INSERT INTO tbl_logbook (id, class_id, entry_date, data) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE class_id = VALUES(class_id), entry_date = VALUES(entry_date), data = VALUES(data), updated_at = NOW()',
+            [entry.id, entry.classId || entry.class_id || null, entry.date || null, JSON.stringify(entry)]
+          );
+        }
+
+        const fileEntries = readDataFile('logbook.json', []);
+        const idx = fileEntries.findIndex(e => e.id === entry.id);
+        if (idx > -1) fileEntries[idx] = { ...fileEntries[idx], ...entry };
+        else fileEntries.push(entry);
+        writeDataFile('logbook.json', fileEntries);
+
+        return sendJSON(res, 200, { success: true, entry });
+      } catch (err) {
+        return sendJSON(res, 500, { error: err.message });
+      }
+    }
+
+    if (req.method === 'DELETE') {
+      try {
+        const id = singleId || parsedUrl.searchParams.get('id');
+        if (!id) return sendJSON(res, 400, { error: 'Missing logbook entry id' });
+
+        if (isMySqlActive) {
+          await dbPool.query('DELETE FROM tbl_logbook WHERE id = ?', [id]);
+        }
+        const fileEntries = readDataFile('logbook.json', []).filter(e => e.id !== id);
+        writeDataFile('logbook.json', fileEntries);
+        return sendJSON(res, 200, { success: true, id });
+      } catch (err) {
+        return sendJSON(res, 500, { error: err.message });
+      }
+    }
+  }
+
   // 5.5 Grades & Points Tables Endpoints
   if (pathname === '/api/grades' || pathname.startsWith('/api/grades/')) {
     const singleId = pathname.startsWith('/api/grades/') ? pathname.replace('/api/grades/', '').trim() : null;
@@ -1866,6 +2062,7 @@ export const handleApiRequest = async (req, res, next) => {
       let classes = [];
       let users = [];
       let grades = [];
+      let logbook = [];
       let devoirPrime = [];
       let solutions = [];
       let config = {};
@@ -1885,6 +2082,9 @@ export const handleApiRequest = async (req, res, next) => {
 
         const [gradeRows] = await dbPool.query('SELECT data FROM tbl_grades').catch(() => [[]]);
         grades = gradeRows.map(r => safeJsonParse(r.data, {}));
+
+        const [logbookRows] = await dbPool.query('SELECT data FROM tbl_logbook').catch(() => [[]]);
+        logbook = logbookRows.map(r => safeJsonParse(r.data, {}));
 
         const [dpRows] = await dbPool.query('SELECT * FROM tbl_devoir_prime').catch(() => [[]]);
         devoirPrime = dpRows.map(r => ({
@@ -1906,13 +2106,14 @@ export const handleApiRequest = async (req, res, next) => {
         classes = readDataFile('classes.json', []);
         users = readDataFile('users.json', []);
         grades = readDataFile('grades.json', []);
+        logbook = readDataFile('logbook.json', []);
         devoirPrime = readDataFile('devoir_prime.json', []);
         solutions = readDataFile('solutions.json', []);
         config = readDataFile('config.json', {});
       }
 
       const backup = {
-        version: '1.1',
+        version: '1.2',
         timestamp: new Date().toISOString(),
         stats: {
           examsCount: exams.length,
@@ -1920,6 +2121,7 @@ export const handleApiRequest = async (req, res, next) => {
           classesCount: classes.length,
           usersCount: users.length,
           gradesCount: grades.length,
+          logbookCount: logbook.length,
           devoirPrimeCount: devoirPrime.length,
           solutionsCount: solutions.length
         },
@@ -1928,6 +2130,7 @@ export const handleApiRequest = async (req, res, next) => {
         classes,
         users,
         grades,
+        logbook,
         devoirPrime,
         solutions,
         config
@@ -1942,7 +2145,7 @@ export const handleApiRequest = async (req, res, next) => {
   if (pathname === '/api/admin/restore-full' && req.method === 'POST') {
     try {
       const payload = await getBody(req);
-      const { exams = [], lessons = [], classes = [], users = [], grades = [], devoirPrime = [], solutions = [], config = {} } = payload || {};
+      const { exams = [], lessons = [], classes = [], users = [], grades = [], logbook = [], devoirPrime = [], solutions = [], config = {} } = payload || {};
 
       if (isMySqlActive) {
         if (Array.isArray(exams) && exams.length > 0) {
@@ -2017,6 +2220,16 @@ export const handleApiRequest = async (req, res, next) => {
             }
           }
         }
+        if (Array.isArray(logbook) && logbook.length > 0) {
+          for (const lb of logbook) {
+            if (lb && lb.id) {
+              await dbPool.query(
+                'INSERT INTO tbl_logbook (id, class_id, entry_date, data) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE class_id = VALUES(class_id), entry_date = VALUES(entry_date), data = VALUES(data), updated_at = NOW()',
+                [String(lb.id).slice(0, 128), lb.classId || lb.class_id || null, lb.date || null, JSON.stringify(lb)]
+              ).catch(() => {});
+            }
+          }
+        }
         if (config && typeof config === 'object') {
           for (const [k, v] of Object.entries(config)) {
             await dbPool.query(
@@ -2032,6 +2245,7 @@ export const handleApiRequest = async (req, res, next) => {
       if (Array.isArray(classes)) writeDataFile('classes.json', classes);
       if (Array.isArray(users)) writeDataFile('users.json', users);
       if (Array.isArray(grades)) writeDataFile('grades.json', grades);
+      if (Array.isArray(logbook)) writeDataFile('logbook.json', logbook);
       if (Array.isArray(devoirPrime)) writeDataFile('devoir_prime.json', devoirPrime);
       if (Array.isArray(solutions)) writeDataFile('solutions.json', solutions);
       if (config && typeof config === 'object') {
@@ -2047,6 +2261,7 @@ export const handleApiRequest = async (req, res, next) => {
           classes: classes.length,
           users: users.length,
           grades: grades.length,
+          logbook: logbook.length,
           devoirPrime: devoirPrime.length,
           solutions: solutions.length
         }
@@ -2241,6 +2456,7 @@ export const handleApiRequest = async (req, res, next) => {
         'tbl_config',
         'tbl_assets',
         'tbl_grades',
+        'tbl_logbook',
         'tbl_devoir_prime',
         'tbl_solutions'
       ];
@@ -2288,6 +2504,7 @@ export const handleApiRequest = async (req, res, next) => {
         await dbPool.query('DELETE FROM tbl_classes');
         await dbPool.query('DELETE FROM tbl_users');
         await dbPool.query('DELETE FROM tbl_grades');
+        await dbPool.query('DELETE FROM tbl_logbook').catch(() => {});
         await dbPool.query('DELETE FROM tbl_devoir_prime').catch(() => {});
         await dbPool.query('DELETE FROM tbl_solutions').catch(() => {});
         await dbPool.query('DELETE FROM tbl_assets');
@@ -2306,6 +2523,7 @@ export const handleApiRequest = async (req, res, next) => {
       writeDataFile('classes.json', []);
       writeDataFile('users.json', []);
       writeDataFile('grades.json', []);
+      writeDataFile('logbook.json', []);
       writeDataFile('devoir_prime.json', []);
       writeDataFile('solutions.json', []);
       writeDataFile('extraction_tasks.json', []);

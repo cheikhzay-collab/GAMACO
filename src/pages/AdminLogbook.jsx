@@ -5,13 +5,13 @@ import { useAuth } from '../context/AuthContext';
 import { 
   Plus, Trash2, Edit, Printer, Calendar, BookOpen, Clock, Tag, AlertCircle,
   User, ArrowLeft, FileText, CheckCircle2, ClipboardList, X, Check, Save, Sparkles,
-  Eye, EyeOff, Settings, ListOrdered
+  Eye, EyeOff, Settings, ListOrdered, RefreshCw
 } from 'lucide-react';
-import { getAllClasses, updateClass } from '../services/classService';
+import { getAllClasses, updateClass, syncLocalClassProgramsToCloud } from '../services/classService';
 import { getActiveLessons } from '../services/lessonService';
 import { getAllExams } from '../services/examService';
 import { 
-  getLogbookEntries, addLogbookEntry, updateLogbookEntry, deleteLogbookEntry 
+  getLogbookEntries, addLogbookEntry, updateLogbookEntry, deleteLogbookEntry, syncLocalLogbookToCloud
 } from '../services/logbookService';
 import { 
   getSchoolHolidaysConfig, 
@@ -415,6 +415,8 @@ export default function AdminLogbook() {
   // State
   const [classes, setClasses] = useState([]);
   const [selectedClass, setSelectedClass] = useState(null);
+  const [allLogbookEntries, setAllLogbookEntries] = useState([]);
+  const [isSyncingDb, setIsSyncingDb] = useState(false);
   const [manualLanguage, setManualLanguage] = useState(null); // null = auto, 'ar', 'fr'
   const [showHoraireCol, setShowHoraireCol] = useState(() => {
     try { return localStorage.getItem('logbook_show_horaire') !== 'false'; } catch { return true; }
@@ -423,10 +425,26 @@ export default function AdminLogbook() {
     try { return localStorage.getItem('logbook_show_composant') !== 'false'; } catch { return true; }
   });
 
+  const persistColumnPrefsToDb = (nextHoraire, nextComposant) => {
+    saveLogbookStyleConfig({
+      arFont,
+      frFont,
+      fontSize: baseFontSize,
+      lineHeight: gridLineHeight,
+      colorInk,
+      colorChapter,
+      colorAxis,
+      colorExercise,
+      showHoraireCol: nextHoraire,
+      showComposantCol: nextComposant
+    }).catch(() => {});
+  };
+
   const toggleHoraireCol = () => {
     setShowHoraireCol(prev => {
       const next = !prev;
       try { localStorage.setItem('logbook_show_horaire', String(next)); } catch {}
+      persistColumnPrefsToDb(next, showComposantCol);
       return next;
     });
   };
@@ -434,6 +452,7 @@ export default function AdminLogbook() {
     setShowComposantCol(prev => {
       const next = !prev;
       try { localStorage.setItem('logbook_show_composant', String(next)); } catch {}
+      persistColumnPrefsToDb(showHoraireCol, next);
       return next;
     });
   };
@@ -576,8 +595,8 @@ export default function AdminLogbook() {
       localStorage.setItem('logbook_color_exercise', tempColorExercise);
       setColorExercise(tempColorExercise);
 
-      // Persist to Cloud Database (Supabase & Companion DB)
-      await Promise.allSettled([
+      // Persist to Cloud Database (MySQL /api/config)
+      const results = await Promise.allSettled([
         saveTeacherScheduleConfig(tempSchedule),
         saveSchoolHolidaysConfig(tempHolidays),
         saveTeacherAbsencesConfig(tempAbsences),
@@ -589,19 +608,26 @@ export default function AdminLogbook() {
           colorInk: tempColorInk,
           colorChapter: tempColorChapter,
           colorAxis: tempColorAxis,
-          colorExercise: tempColorExercise
+          colorExercise: tempColorExercise,
+          showHoraireCol,
+          showComposantCol
         })
       ]);
 
+      const rejected = results.find(r => r.status === 'rejected');
+      if (rejected) {
+        throw rejected.reason || new Error('Échec de sauvegarde dans MySQL');
+      }
+
       setSettingsModalOpen(false);
-      setSuccess(isArMode ? 'تم تحديث الإعدادات والجدول بنجاح وحفظها سحابياً!' : 'Paramètres enregistrés avec succès dans le cloud !');
+      setSuccess(isArMode ? 'تم تحديث الإعدادات والجدول بنجاح وحفظها في قاعدة البيانات!' : 'Paramètres enregistrés avec succès dans la base de données MySQL !');
       setTimeout(() => setSuccess(''), 3000);
       
       scanMissingSessions();
     } catch (e) {
       console.error("Error saving settings:", e);
-      setError(isArMode ? 'حدث خطأ أثناء حفظ الإعدادات.' : 'Erreur lors de l\'enregistrement des paramètres.');
-      setTimeout(() => setError(''), 3000);
+      setError(e?.message || (isArMode ? 'حدث خطأ أثناء حفظ الإعدادات.' : 'Erreur lors de l\'enregistrement des paramètres.'));
+      setTimeout(() => setError(''), 4500);
     }
   };
 
@@ -728,12 +754,63 @@ export default function AdminLogbook() {
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
 
-  // Load classes, lessons, and exams on mount
+  // Manual / Initial full MySQL sync for both Logbook and Class Programs
+  const handleManualCloudSync = async (silent = false) => {
+    setIsSyncingDb(true);
+    try {
+      const [lbRes, clsRes] = await Promise.all([
+        syncLocalLogbookToCloud(),
+        syncLocalClassProgramsToCloud()
+      ]);
+
+      if (Array.isArray(lbRes?.entries)) {
+        setAllLogbookEntries(lbRes.entries);
+      }
+      if (Array.isArray(clsRes?.classes)) {
+        setClasses(clsRes.classes);
+        setSelectedClass(prev => {
+          if (!prev) return prev;
+          return clsRes.classes.find(c => c.id === prev.id) || prev;
+        });
+      }
+
+      if (selectedClass && Array.isArray(lbRes?.entries)) {
+        const clsEntries = lbRes.entries.filter(e => e.classId === selectedClass.id);
+        setEntries(buildCombinedEntries(clsEntries, holidays, absences, selectedClass));
+      }
+
+      if (!silent) {
+        const uploadedNote = lbRes?.uploaded > 0
+          ? (isArMode ? ` (تم رفع ${lbRes.uploaded} حصة محلية إلى قاعدة البيانات)` : ` (${lbRes.uploaded} séance(s) locale(s) migrée(s) vers MySQL)`)
+          : '';
+        setSuccess(
+          (isArMode
+            ? `تمت مزامنة دفتر النصوص (${lbRes?.total || 0} حصة) وبرامج الأقسام مع قاعدة البيانات بنجاح`
+            : `Cahier de textes (${lbRes?.total || 0} séances) et programmes des classes synchronisés avec MySQL`) + uploadedNote
+        );
+        setTimeout(() => setSuccess(''), 4000);
+      }
+    } catch (err) {
+      console.error('[AdminLogbook] Manual DB sync error:', err);
+      if (!silent) {
+        setError(err?.message || (isArMode ? 'تعذرت المزامنة مع قاعدة البيانات.' : 'Erreur de synchronisation avec MySQL.'));
+        setTimeout(() => setError(''), 4500);
+      }
+    } finally {
+      setIsSyncingDb(false);
+    }
+  };
+
+  // Load classes, logbook entries, lessons, and exams on mount directly from MySQL
   useEffect(() => {
     const initData = async () => {
       try {
-        const cls = await getAllClasses();
+        const [cls, allEntries] = await Promise.all([
+          getAllClasses({ forceRefresh: true }),
+          getLogbookEntries()
+        ]);
         setClasses(cls || []);
+        setAllLogbookEntries(allEntries || []);
         
         const lsns = await getActiveLessons();
         const examsList = await getAllExams().catch(() => []);
@@ -816,6 +893,14 @@ export default function AdminLogbook() {
           if (cloudStyle.colorChapter) setColorChapter(cloudStyle.colorChapter);
           if (cloudStyle.colorAxis) setColorAxis(cloudStyle.colorAxis);
           if (cloudStyle.colorExercise) setColorExercise(cloudStyle.colorExercise);
+          if (typeof cloudStyle.showHoraireCol === 'boolean') {
+            setShowHoraireCol(cloudStyle.showHoraireCol);
+            try { localStorage.setItem('logbook_show_horaire', String(cloudStyle.showHoraireCol)); } catch {}
+          }
+          if (typeof cloudStyle.showComposantCol === 'boolean') {
+            setShowComposantCol(cloudStyle.showComposantCol);
+            try { localStorage.setItem('logbook_show_composant', String(cloudStyle.showComposantCol)); } catch {}
+          }
         }
       } catch (err) {
         console.warn('[AdminLogbook] Cloud config fetch warning:', err);
@@ -877,15 +962,14 @@ export default function AdminLogbook() {
     }
   }, [classes, schedule]);
 
-  // Scan for missing sessions
+  // Scan for missing sessions using MySQL-backed logbook entries
   const scanMissingSessions = () => {
     if (!schedule || Object.keys(schedule).length === 0) {
       setMissingSessions([]);
       return;
     }
 
-    const savedEntries = localStorage.getItem('logbook_entries');
-    const allEntries = savedEntries ? JSON.parse(savedEntries) : [];
+    const allEntries = Array.isArray(allLogbookEntries) ? allLogbookEntries : [];
 
     const list = [];
     const today = new Date();
@@ -1033,7 +1117,7 @@ export default function AdminLogbook() {
     if (classes.length > 0) {
       scanMissingSessions();
     }
-  }, [classes, entries, schedule, holidays, absences, missingDaysFilter]);
+  }, [classes, entries, allLogbookEntries, schedule, holidays, absences, missingDaysFilter]);
 
   // Load entries when selected class changes or when holidays/absences update
   useEffect(() => {
@@ -1306,8 +1390,8 @@ export default function AdminLogbook() {
       setTimeout(() => setSuccess(''), 3500);
     } catch (err) {
       console.error(err);
-      setError(isArMode ? 'حدث خطأ أثناء توليد البرنامج.' : 'Erreur lors de la génération du programme.');
-      setTimeout(() => setError(''), 3500);
+      setError(err?.message || (isArMode ? 'حدث خطأ أثناء توليد البرنامج وحفظه في قاعدة البيانات.' : 'Erreur lors de la génération du programme.'));
+      setTimeout(() => setError(''), 5000);
     }
   };
 
@@ -1477,9 +1561,8 @@ export default function AdminLogbook() {
     e.preventDefault();
     if (!selectedClass) return;
 
-    // Validation: Check for duplicate/overlapping session
-    const savedEntries = localStorage.getItem('logbook_entries');
-    const allEntries = savedEntries ? JSON.parse(savedEntries) : [];
+    // Validation: Check for duplicate/overlapping session against live MySQL entries
+    const allEntries = Array.isArray(allLogbookEntries) ? allLogbookEntries : [];
     
     const overlapExists = allEntries.some(entry => {
       // Must be same class and same date
@@ -1538,15 +1621,17 @@ export default function AdminLogbook() {
         setSuccess("Séance ajoutée au cahier de textes.");
       }
       
-      // Reload entries preserving holidays and absences
-      const data = await getLogbookEntries(selectedClass.id);
-      setEntries(buildCombinedEntries(data || [], holidays, absences, selectedClass));
+      // Reload entries from MySQL preserving holidays and absences
+      const freshAll = await getLogbookEntries();
+      setAllLogbookEntries(freshAll || []);
+      const data = (freshAll || []).filter(e => e.classId === selectedClass.id);
+      setEntries(buildCombinedEntries(data, holidays, absences, selectedClass));
       
       setModalOpen(false);
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      setError("Impossible d'enregistrer la séance.");
-      setTimeout(() => setError(''), 3000);
+      setError(err?.message || "Impossible d'enregistrer la séance dans la base de données.");
+      setTimeout(() => setError(''), 5000);
     }
   };
 
@@ -1565,12 +1650,15 @@ export default function AdminLogbook() {
           await deleteLogbookEntry(realId);
         }
 
-        const data = await getLogbookEntries(selectedClass.id);
-        setEntries(buildCombinedEntries(data || [], holidays, absences, selectedClass));
-        setSuccess(isArMode ? "تم حذف الحصة بنجاح." : "Séance supprimée.");
+        const freshAll = await getLogbookEntries();
+        setAllLogbookEntries(freshAll || []);
+        const data = (freshAll || []).filter(e => e.classId === selectedClass.id);
+        setEntries(buildCombinedEntries(data, holidays, absences, selectedClass));
+        setSuccess(isArMode ? "تم حذف الحصة بنجاح من قاعدة البيانات." : "Séance supprimée de la base de données.");
         setTimeout(() => setSuccess(''), 2500);
       } catch (err) {
-        setError(isArMode ? "حدث خطأ أثناء الحذف." : "Erreur lors de la suppression.");
+        setError(err?.message || (isArMode ? "حدث خطأ أثناء الحذف من قاعدة البيانات." : "Erreur lors de la suppression."));
+        setTimeout(() => setError(''), 5000);
       }
     }
   };
@@ -2191,8 +2279,31 @@ export default function AdminLogbook() {
           </p>
         </div>
 
-        {/* Class Selection Dropdown */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        {/* Class Selection Dropdown + MySQL Sync Button */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={() => handleManualCloudSync(false)}
+            disabled={isSyncingDb}
+            title={isArMode ? 'مزامنة دفتر النصوص وبرامج الأقسام مع قاعدة البيانات MySQL' : 'Synchroniser le cahier de textes et les programmes avec MySQL'}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              padding: '0.52rem 0.85rem',
+              borderRadius: '10px',
+              border: '1px solid rgba(16, 185, 129, 0.35)',
+              background: 'rgba(16, 185, 129, 0.08)',
+              color: '#059669',
+              fontSize: '0.8rem',
+              fontWeight: 700,
+              cursor: isSyncingDb ? 'wait' : 'pointer'
+            }}
+          >
+            <RefreshCw size={14} style={{ animation: isSyncingDb ? 'spin 1s linear infinite' : 'none' }} />
+            <span>{isSyncingDb ? (isArMode ? 'جاري المزامنة...' : 'Sync...') : (isArMode ? 'مزامنة MySQL' : 'Sync MySQL')}</span>
+          </button>
+
           <label style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-muted)' }}>Classe :</label>
           <select
             className="input-control"

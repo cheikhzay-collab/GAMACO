@@ -403,7 +403,7 @@ export default function AdminClassDetail() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const cls = await getClassById(id);
+      const cls = await getClassById(id, { forceRefresh: true });
       if (!cls) {
         setError("Cette classe n'existe pas.");
         return;
@@ -521,24 +521,31 @@ export default function AdminClassDetail() {
       }
 
       if (newItem) {
-        const nextProgram = [...(classObj.program || []), newItem];
+        const previousProgram = classObj.program || [];
+        const nextProgram = [...previousProgram, newItem];
         setClassObj(prev => ({ ...prev, program: nextProgram }));
-        await updateClass(id, { program: nextProgram });
-        
-        setSelectedProgramLessonId('');
-        setCustomProgramTitle('');
-        setSuccess("Élément ajouté au programme.");
-        setTimeout(() => setSuccess(''), 3000);
+        try {
+          await updateClass(id, { program: nextProgram });
+          setSelectedProgramLessonId('');
+          setCustomProgramTitle('');
+          setSuccess("Élément ajouté au programme et enregistré dans MySQL.");
+          setTimeout(() => setSuccess(''), 3000);
+        } catch (saveErr) {
+          setClassObj(prev => ({ ...prev, program: previousProgram }));
+          throw saveErr;
+        }
       }
     } catch (err) {
       console.error(err);
-      setError("Erreur lors de l'ajout au programme.");
+      setError(err?.message || "Erreur lors de l'ajout au programme dans la base de données.");
+      setTimeout(() => setError(''), 5000);
     }
   };
 
   // Reorder program items (swap index)
   const handleMoveProgramItem = async (index, direction) => {
-    const nextProgram = [...(classObj.program || [])];
+    const previousProgram = [...(classObj.program || [])];
+    const nextProgram = [...previousProgram];
     const targetIdx = direction === 'up' ? index - 1 : index + 1;
     if (targetIdx < 0 || targetIdx >= nextProgram.length) return;
 
@@ -552,23 +559,28 @@ export default function AdminClassDetail() {
       await updateClass(id, { program: nextProgram });
     } catch (err) {
       console.error(err);
-      setError("Erreur de sauvegarde de l'ordre.");
+      setClassObj(prev => ({ ...prev, program: previousProgram }));
+      setError(err?.message || "Erreur de sauvegarde de l'ordre dans la base de données.");
+      setTimeout(() => setError(''), 5000);
     }
   };
 
   // Remove program item
   const handleRemoveProgramItem = async (index) => {
     if (!window.confirm("Retirer cet élément du programme ?")) return;
-    const nextProgram = (classObj.program || []).filter((_, idx) => idx !== index);
+    const previousProgram = [...(classObj.program || [])];
+    const nextProgram = previousProgram.filter((_, idx) => idx !== index);
 
     setClassObj(prev => ({ ...prev, program: nextProgram }));
     try {
       await updateClass(id, { program: nextProgram });
-      setSuccess("Élément retiré du programme.");
+      setSuccess("Élément retiré du programme et synchronisé avec MySQL.");
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
       console.error(err);
-      setError("Erreur de sauvegarde de la suppression.");
+      setClassObj(prev => ({ ...prev, program: previousProgram }));
+      setError(err?.message || "Erreur de sauvegarde de la suppression dans la base de données.");
+      setTimeout(() => setError(''), 5000);
     }
   };
 
