@@ -473,28 +473,22 @@ export const getRecentActivity = async (uid, days = 90) => {
 export const deleteUser = async (uid) => {
   if (!uid) return false;
 
-  // 1. LocalStorage
+  // 1. Delete from MySQL backend FIRST
+  try {
+    await localDb.delete('/users', uid);
+  } catch (err) {
+    console.error('[userService] deleteUser MySQL delete failed:', err);
+    if (err?.status === 401 || err?.status === 403) {
+      throw new Error('انتهت صلاحية الجلسة — يرجى تسجيل الدخول مرة أخرى لحذف الحساب من قاعدة البيانات.');
+    }
+    throw new Error(err?.message || 'تعذر حذف الحساب من قاعدة البيانات.');
+  }
+
+  // 2. Clean up LocalStorage & caches
   const currentUsers = getLocalStorageUsers() || [];
   const filtered = currentUsers.filter(u => u.id !== uid && u.uid !== uid);
   saveLocalStorageUsers(filtered);
-
-  // 2. Supabase
-  if (supabase) {
-    try {
-      const { error: rpcErr } = await supabase.rpc('delete_user', { uid });
-      if (!rpcErr) return true;
-
-      // Fallback direct delete
-      await supabase.from('profiles').delete().eq('id', uid);
-    } catch (err) {
-      console.warn('[Supabase] deleteUser error:', err.message || err);
-    }
-  }
-
-  // 3. Local Companion
-  try {
-    await localDb.delete('/users', uid);
-  } catch (_) {}
+  queryCache.invalidate('all_users_list');
 
   return true;
 };

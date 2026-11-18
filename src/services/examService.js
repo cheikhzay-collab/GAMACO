@@ -349,28 +349,25 @@ export const toggleArchiveExam = async (examId, currentArchived) => {
 };
 
 /**
- * Permanently delete an exam.
+ * Permanently delete an exam from MySQL and local cache.
  */
 export const deleteExam = async (examId) => {
+  if (!examId) throw new Error('Identifiant de QCM manquant.');
+
+  try {
+    await localDb.delete('/exams', examId);
+  } catch (err) {
+    console.error('[examService] deleteExam MySQL delete failed:', err);
+    if (err?.status === 401 || err?.status === 403) {
+      throw new Error('انتهت صلاحية الجلسة — يرجى تسجيل الدخول مرة أخرى لحذف الاختبار من قاعدة البيانات.');
+    }
+    throw new Error(err?.message || 'تعذر حذف الاختبار من قاعدة البيانات.');
+  }
+
   queryCache.invalidate('exams_all');
   queryCache.invalidate(`exam_detail_${examId}`);
 
-  // 1. Delete from LocalStorage cache
-  const currentExams = await getAllExams();
-  const filtered = currentExams.filter(e => e.id !== examId);
+  const currentExams = await getAllExams().catch(() => []);
+  const filtered = (Array.isArray(currentExams) ? currentExams : []).filter(e => e.id !== examId);
   saveLocalStorageExams(filtered);
-
-  // 2. Delete from Supabase
-  if (supabase) {
-    try {
-      await supabase.from('exams').delete().eq('id', examId);
-    } catch (err) {
-      console.warn('[Supabase] Could not sync deleteExam to Supabase:', err.message);
-    }
-  }
-
-  // 3. Delete from Local Companion API
-  try {
-    await localDb.delete('/exams', examId);
-  } catch (err) {}
 };

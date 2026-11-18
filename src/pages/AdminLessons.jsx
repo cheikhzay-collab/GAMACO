@@ -452,19 +452,23 @@ ${sectionsContentText}
     }
   };
 
-  // Handle Delete
+  // Handle Delete (strict MySQL deletion)
   const handleDeleteLesson = async () => {
     if (!showConfirmDelete) return;
+    const targetId = showConfirmDelete;
+    setError('');
     try {
-      await deleteLesson(showConfirmDelete);
-      setLessons(prev => prev.filter(l => l.id !== showConfirmDelete));
+      await deleteLesson(targetId);
+      setLessons(prev => prev.filter(l => l.id !== targetId));
+      setSelectedLessonIds(prev => prev.filter(id => id !== targetId));
       setShowConfirmDelete(null);
-      setSuccess('La fiche de cours a été supprimée avec succès.');
-      setTimeout(() => setSuccess(''), 3000);
+      setSuccess('La fiche a été supprimée définitivement de la base de données MySQL.');
+      setTimeout(() => setSuccess(''), 3500);
     } catch (err) {
       console.error(err);
-      setError('Erreur lors de la suppression de la fiche.');
-      setTimeout(() => setError(''), 4000);
+      setShowConfirmDelete(null);
+      setError(err?.message || 'Erreur lors de la suppression de la fiche dans la base de données.');
+      setTimeout(() => setError(''), 5500);
     }
   };
 
@@ -561,17 +565,20 @@ ${sectionsContentText}
     setIsBulkProcessing(true);
     setError('');
     try {
+      const targetIds = [...selectedLessonIds];
       await Promise.all(
-        selectedLessonIds.map(id => deleteLesson(id))
+        targetIds.map(id => deleteLesson(id))
       );
-      setLessons(prev => prev.filter(l => !selectedLessonIds.includes(l.id)));
-      setSuccess(`${selectedLessonIds.length} fiche(s) de cours supprimée(s) définitivement.`);
+      setLessons(prev => prev.filter(l => !targetIds.includes(l.id)));
+      setSuccess(`${targetIds.length} fiche(s) supprimée(s) définitivement de la base de données MySQL.`);
       setTimeout(() => setSuccess(''), 3500);
       setShowConfirmBulkDelete(false);
       handleClearSelection();
     } catch (err) {
       console.error(err);
-      setError('Erreur lors de la suppression des fiches.');
+      setShowConfirmBulkDelete(false);
+      setError(err?.message || 'Erreur lors de la suppression des fiches dans la base de données.');
+      setTimeout(() => setError(''), 5500);
     } finally {
       setIsBulkProcessing(false);
     }

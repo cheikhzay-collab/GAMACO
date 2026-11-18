@@ -457,26 +457,26 @@ export const syncLocalClassProgramsToCloud = async () => {
 };
 
 /**
- * Delete a class.
+ * Delete a class permanently from MySQL and local cache.
  */
 export const deleteClass = async (classId) => {
+  if (!classId) throw new Error('Identifiant de classe manquant.');
+
+  try {
+    await localDb.delete('/classes', classId);
+  } catch (err) {
+    console.error('[classService] deleteClass MySQL delete failed:', err);
+    if (err?.status === 401 || err?.status === 403) {
+      throw new Error('انتهت صلاحية الجلسة — يرجى تسجيل الدخول مرة أخرى لحذف القسم من قاعدة البيانات.');
+    }
+    throw new Error(err?.message || 'تعذر حذف القسم من قاعدة البيانات.');
+  }
+
   queryCache.invalidate('classes_all');
   queryCache.invalidate(`class_detail_${classId}`);
 
   const rawCurrent = getLocalStorageClasses() || [];
   saveLocalStorageClasses(rawCurrent.filter(c => c.id !== classId));
-
-  if (supabase) {
-    try {
-      await supabase.from('classes').delete().eq('id', classId);
-    } catch (err) {
-      console.warn('[Supabase] Could not sync deleteClass to Supabase:', err.message);
-    }
-  }
-
-  try {
-    await localDb.delete('/classes', classId);
-  } catch (err) {}
 };
 
 /**

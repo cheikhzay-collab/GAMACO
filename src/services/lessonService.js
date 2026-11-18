@@ -769,24 +769,52 @@ export const archiveLesson = async (lessonId, shouldArchive = true) => {
 };
 
 /**
- * Permanently delete a lesson.
+ * Permanently delete a lesson from MySQL database (and all linked tables + local caches).
+ * Strictly deletes on the server FIRST and throws on error so a failed delete never looks deleted locally.
  */
 export const deleteLesson = async (lessonId) => {
-  const rawLessons = readRawLessons();
-  saveLocalStorageLessons(rawLessons.filter(l => l.id !== lessonId));
+  if (!lessonId) throw new Error('Identifiant de fiche manquant.');
 
-  queryCache.invalidate('lessons_all');
-  queryCache.invalidate(`lesson_detail_${lessonId}`);
-
-  if (supabase) {
-    try {
-      await supabase.from('lessons').delete().eq('id', lessonId);
-    } catch (err) {
-      console.warn('[Supabase] Error syncing deleteLesson:', err.message || err);
-    }
-  }
-
+  // 1. Delete from MySQL backend FIRST (authoritative)
   try {
     await localDb.delete('/lessons', lessonId);
-  } catch (err) {}
+  } catch (err) {
+    console.error('[lessonService] deleteLesson MySQL delete failed:', err);
+    if (err?.status === 401 || err?.status === 403) {
+      throw new Error('انتهت صلاحية الجلسة — يرجى تسجيل الدخول مرة أخرى لحذف الملف من قاعدة البيانات.');
+    }
+    throw new Error(err?.message || 'تعذر حذف الملف من قاعدة البيانات.');
+  }
+
+  // 2. Clean up local storage & single-lesson cache ONLY after MySQL confirms deletion
+  const rawLessons = readRawLessons();
+  saveLocalStorageLessons(rawLessons.filter(l => l.id !== lessonId));
+  try {
+    localStorage.removeItem(`lconq_lesson_single_${lessonId}`);
+  } catch (_) {}
+
+  // 3. Clean up in-memory caches cleanly
+  queryCache.invalidate(`lesson_detail_${lessonId}`);
+  try {
+    const cachedAll = queryCache.get('lessons_all');
+    if (Array.isArray(cachedAll)) {
+      queryCache.set('lessons_all', cachedAll.filter(l => l.id !== lessonId));
+    } else {
+      queryCache.invalidate('lessons_all');
+    }
+  } catch (_) {
+    queryCache.invalidate('lessons_all');
+  }
+  try {
+    const cachedActive = queryCache.get('lessons_active');
+    if (Array.isArray(cachedActive)) {
+      queryCache.set('lessons_active', cachedActive.filter(l => l.id !== lessonId));
+    } else {
+      queryCache.invalidate('lessons_active');
+    }
+  } catch (_) {
+    queryCache.invalidate('lessons_active');
+  }
+
+  return { success: true, id: lessonId };
 };
