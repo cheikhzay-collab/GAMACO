@@ -794,7 +794,8 @@ export default function AdminLogbook() {
   
   // Form modal state
   const [modalOpen, setModalOpen] = useState(false);
-  const [isProgramOnlyMode, setIsProgramOnlyMode] = useState(false);
+  const [modalEditorTab, setModalEditorTab] = useState('edit'); // 'edit' | 'preview'
+  const [isProgramOnlyMode, setIsProgramOnlyMode] = useState(true);
   const [editingEntry, setEditingEntry] = useState(null); // null for new entry
   const [formData, setFormData] = useState({
     date: formatLocalDate(),
@@ -1390,6 +1391,182 @@ export default function AdminLogbook() {
     });
   };
 
+  // Get scheduled slots for a given date from timetable
+  const getScheduledSlotsForDate = (dateStr, clsId) => {
+    if (!dateStr || !clsId || !schedule) return [];
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return [];
+    const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+    const dayNum = d.getDay();
+    const dayName = WEEKDAYS_MAP[dayNum];
+    if (!dayName) return [];
+    const daySessions = getMergedDaySessions(dayName, schedule, classes);
+    return daySessions.filter(s => s.class?.id === clsId || s.class?.name === selectedClass?.name);
+  };
+
+  const scheduledSlotsForDate = useMemo(() => {
+    return getScheduledSlotsForDate(formData.date, selectedClass?.id);
+  }, [formData.date, selectedClass?.id, selectedClass?.name, schedule, classes]);
+
+  // Advance to next session date (adds 2 days, skips Sunday to Monday)
+  const getNextSessionDate = (currentDateStr) => {
+    if (!currentDateStr) return formatLocalDate();
+    const [y, m, d] = currentDateStr.split('-').map(Number);
+    const cur = new Date(y, m - 1, d);
+    cur.setDate(cur.getDate() + 2);
+    if (cur.getDay() === 0) {
+      cur.setDate(cur.getDate() + 1);
+    }
+    const nextY = cur.getFullYear();
+    const nextM = String(cur.getMonth() + 1).padStart(2, '0');
+    const nextD = String(cur.getDate()).padStart(2, '0');
+    return `${nextY}-${nextM}-${nextD}`;
+  };
+
+  // Smart tag insertion with auto-counting
+  const handleSmartTagInsert = (tagType) => {
+    setFormData(prev => {
+      let content = prev.customContent || '';
+      let insertStr = '';
+
+      if (tagType === 'exercise') {
+        const matches = content.match(/(?:Exercice|تمرين)\s*(\d+)/gi);
+        let maxNum = 0;
+        if (matches) {
+          matches.forEach(m => {
+            const numMatch = m.match(/\d+/);
+            if (numMatch) {
+              const val = parseInt(numMatch[0], 10);
+              if (val > maxNum) maxNum = val;
+            }
+          });
+        }
+        const nextNum = String(maxNum + 1).padStart(2, '0');
+        insertStr = isArMode ? `• تمرين ${nextNum} : ` : `• Exercice ${nextNum} : `;
+      } else if (tagType === 'application') {
+        const matches = content.match(/(?:Application|تطبيق)\s*(\d+)/gi);
+        let maxNum = 0;
+        if (matches) {
+          matches.forEach(m => {
+            const numMatch = m.match(/\d+/);
+            if (numMatch) {
+              const val = parseInt(numMatch[0], 10);
+              if (val > maxNum) maxNum = val;
+            }
+          });
+        }
+        const nextNum = String(maxNum + 1).padStart(2, '0');
+        insertStr = isArMode ? `• تطبيق ${nextNum} : ` : `• Application ${nextNum} : `;
+      } else if (tagType === 'activity') {
+        const matches = content.match(/(?:Activité|نشاط)\s*(\d+)/gi);
+        let maxNum = 0;
+        if (matches) {
+          matches.forEach(m => {
+            const numMatch = m.match(/\d+/);
+            if (numMatch) {
+              const val = parseInt(numMatch[0], 10);
+              if (val > maxNum) maxNum = val;
+            }
+          });
+        }
+        const nextNum = String(maxNum + 1).padStart(2, '0');
+        insertStr = isArMode ? `• نشاط ${nextNum} : ` : `• Activité ${nextNum} : `;
+      } else if (tagType === 'homework') {
+        insertStr = isArMode ? `• **واجب منزلي :** تمرين ... ص ...` : `• **Travail à faire :** Exercice ... page ...`;
+      } else if (tagType === 'definition') {
+        insertStr = isArMode ? `• **تعريف :** ` : `• **Définition :** `;
+      } else if (tagType === 'property') {
+        insertStr = isArMode ? `• **خاصية :** ` : `• **Propriété :** `;
+      } else if (tagType === 'theorem') {
+        insertStr = isArMode ? `• **مبرهنة :** ` : `• **Théorème :** `;
+      } else if (tagType === 'remark') {
+        insertStr = isArMode ? `• **ملاحظة :** ` : `• **Remarque :** `;
+      } else if (tagType === 'example') {
+        insertStr = isArMode ? `• **مثال :** ` : `• **Exemple :** `;
+      } else if (tagType === 'correction') {
+        insertStr = isArMode ? `• **تصحيح :** ` : `• **Correction :** `;
+      } else if (tagType === 'synthesis') {
+        insertStr = isArMode ? `• **خلاصة :** ` : `• **Synthèse :** `;
+      } else if (tagType === 'title') {
+        insertStr = isArMode ? `• عنوان : ` : `• Titre : `;
+      } else if (tagType === 'axe') {
+        insertStr = isArMode ? `• محور : ` : `• Axe : `;
+      }
+
+      let nextContent = content.trim();
+      if (nextContent === '') {
+        nextContent = insertStr;
+      } else if (content.endsWith('\n')) {
+        nextContent = `${content}${insertStr}`;
+      } else {
+        nextContent = `${content}\n${insertStr}`;
+      }
+
+      return { ...prev, customContent: nextContent };
+    });
+  };
+
+  // Math shortcuts inserter
+  const handleInsertMathSnippet = (snippet) => {
+    setFormData(prev => {
+      let content = prev.customContent || '';
+      if (content.endsWith(' ') || content.endsWith('\n') || content === '') {
+        content += snippet + ' ';
+      } else {
+        content += ' ' + snippet + ' ';
+      }
+      return { ...prev, customContent: content };
+    });
+  };
+
+  // Quick session templates
+  const handleApplyTemplate = (templateType) => {
+    if (formData.customContent && formData.customContent.trim().length > 0) {
+      const confirmMsg = isArMode 
+        ? 'هل ترغب في استبدال الأنشطة الحالية بالنموذج المختار؟' 
+        : 'Voulez-vous remplacer les activités actuelles par ce modèle ?';
+      if (!window.confirm(confirmMsg)) return;
+    }
+
+    if (templateType === 'controle') {
+      setFormData(prev => ({
+        ...prev,
+        component: 'Contrôle',
+        isHeaderSéance: true,
+        customContent: isArMode 
+          ? `=== فرض محروس رقم 1 ===\n• إنجاز الفرض المحروس رقم 1 للأسدس الأول\n• مدة الإنجاز : ساعتان (2h)`
+          : `=== CONTRÔLE SURVEILLÉ N°1 ===\n• Passation du contrôle surveillé N°1 du 1er semestre\n• Durée : 2 heures`
+      }));
+    } else if (templateType === 'correction') {
+      setFormData(prev => ({
+        ...prev,
+        component: 'Exercices',
+        isHeaderSéance: false,
+        customContent: isArMode
+          ? `• **تصحيح مفصل للفرض المحروس**\n• معالجة الأخطاء الشائعة والدعم الفردي وتوزيع أوراق التحرير`
+          : `• **Correction détaillée du contrôle surveillé**\n• Remédiation des erreurs fréquentes et bilan des acquis`
+      }));
+    } else if (templateType === 'cours_concept') {
+      setFormData(prev => ({
+        ...prev,
+        component: 'Cours',
+        isHeaderSéance: false,
+        customContent: isArMode
+          ? `• نشاط تمهيدي لبناء المفهوم\n• **تعريف :** \n• **خاصية :** \n• تطبيق 01 : `
+          : `• Activité préparatoire et introduction de la notion\n• **Définition :** \n• **Propriété :** \n• Application 01 : `
+      }));
+    } else if (templateType === 'exercices_synthese') {
+      setFormData(prev => ({
+        ...prev,
+        component: 'Exercices',
+        isHeaderSéance: false,
+        customContent: isArMode
+          ? `• تمرين 01 : \n• تمرين 02 : \n• **واجب منزلي :** تمرين ... ص ...`
+          : `• Exercice 01 : \n• Exercice 02 : \n• **Travail à faire :** Exercice ... page ...`
+      }));
+    }
+  };
+
   // Get status details of a specific program item
   const getProgramItemStatus = (item) => {
     if (!item) return { label: 'Non commencé', color: 'var(--text-muted)', bg: 'rgba(255,255,255,0.03)', isDone: false, pct: 0 };
@@ -1512,6 +1689,7 @@ export default function AdminLogbook() {
   // Open "Add Séance" modal pre-filled with a specific program item
   const handleOpenAddSpecificProgramItem = (item, isProgramOnly = true) => {
     setIsProgramOnlyMode(isProgramOnly);
+    setModalEditorTab('edit');
     setEditingEntry(null);
     let docTypeComponent = 'Cours';
     if (item.type === 'exercises') docTypeComponent = 'Exercices';
@@ -1568,6 +1746,7 @@ export default function AdminLogbook() {
   // Open "Add Séance" modal pre-filled with the next planned item (Filters strictly to programme items)
   const handleOpenAddFromProgram = () => {
     setIsProgramOnlyMode(true);
+    setModalEditorTab('edit');
     const nextItem = getNextPlannedItem();
     if (!nextItem) {
       alert(isArMode ? "لقد تم إنجاز جميع دروس البرنامج المعتمد للقسم!" : "Tous les éléments du programme ont été complétés !");
@@ -1591,13 +1770,18 @@ export default function AdminLogbook() {
     handleOpenAddSpecificProgramItem(nextItem, true);
   };
 
-  // Primary Add Séance handler (allows creating a free session or choosing from any lesson/program item)
+  // Primary Add Séance handler (strictly focused on class curriculum)
   const handleOpenAddModal = () => {
-    setIsProgramOnlyMode(false);
+    setIsProgramOnlyMode(true);
+    setModalEditorTab('edit');
     setEditingEntry(null);
+    const todayStr = formatLocalDate();
+    const todaySlots = getScheduledSlotsForDate(todayStr, selectedClass?.id);
+    const defaultTime = todaySlots.length > 0 ? todaySlots[0].displayTime : '08:00 - 10:00';
+
     setFormData({
-      date: formatLocalDate(),
-      time: '08:00 - 10:00',
+      date: todayStr,
+      time: defaultTime,
       component: 'Cours',
       subject: 'Mathématiques',
       lessonId: '',
@@ -1612,7 +1796,8 @@ export default function AdminLogbook() {
 
 
   const handleOpenEditModal = (entry) => {
-    setIsProgramOnlyMode(false);
+    setIsProgramOnlyMode(true);
+    setModalEditorTab('edit');
     setEditingEntry(entry);
 
     // Hydrate selectedSectionIds cleanly for both new and legacy entries
@@ -1645,8 +1830,8 @@ export default function AdminLogbook() {
     setModalOpen(true);
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (e, continueNext = false) => {
+    if (e && e.preventDefault) e.preventDefault();
     if (!selectedClass) return;
 
     // Validation: Check for duplicate/overlapping session against live MySQL entries
@@ -1704,10 +1889,10 @@ export default function AdminLogbook() {
     try {
       if (editingEntry) {
         await updateLogbookEntry(editingEntry.id, entryPayload);
-        setSuccess("Séance modifiée avec succès.");
+        setSuccess(isArMode ? "تم تعديل الحصة بنجاح في قاعدة البيانات." : "Séance modifiée avec succès.");
       } else {
         await addLogbookEntry(entryPayload);
-        setSuccess("Séance ajoutée au cahier de textes.");
+        setSuccess(isArMode ? "تمت إضافة الحصة إلى دفتر النصوص بنجاح." : "Séance ajoutée au cahier de textes.");
       }
       
       // Reload entries from MySQL preserving holidays and absences
@@ -1716,10 +1901,54 @@ export default function AdminLogbook() {
       const data = (freshAll || []).filter(e => e.classId === selectedClass.id);
       setEntries(buildCombinedEntries(data, holidays, absences, selectedClass));
       
-      setModalOpen(false);
-      setTimeout(() => setSuccess(''), 3000);
+      if (continueNext) {
+        const nextDate = getNextSessionDate(formData.date);
+        const nextSlots = getScheduledSlotsForDate(nextDate, selectedClass.id);
+        const nextTime = nextSlots.length > 0 ? nextSlots[0].displayTime : formData.time;
+
+        // Auto-advance to next program item if available
+        let nextProgId = '';
+        let nextLessonId = '';
+        let nextContent = '';
+        let nextComp = 'Cours';
+        let nextIsHeader = false;
+
+        if (selectedClass.program && selectedClass.program.length > 0) {
+          const curIdx = selectedClass.program.findIndex(p => p.id === formData.selectedProgramItemId);
+          const nextIdx = (curIdx !== -1 && curIdx + 1 < selectedClass.program.length) ? curIdx + 1 : -1;
+          if (nextIdx !== -1) {
+            const nextItem = selectedClass.program[nextIdx];
+            nextProgId = nextItem.id;
+            nextLessonId = nextItem.lessonId || '';
+            nextIsHeader = true;
+            nextContent = `=== ${nextItem.title.toUpperCase()} ===\n`;
+            if (nextItem.type === 'exercises') nextComp = 'Exercices';
+            if (nextItem.type === 'homework' || nextItem.type === 'exam' || nextItem.title.includes('فرض') || nextItem.title.toUpperCase().includes('CONTRÔLE')) nextComp = 'Contrôle';
+          }
+        }
+
+        setEditingEntry(null);
+        setFormData({
+          date: nextDate,
+          time: nextTime,
+          component: nextComp,
+          subject: formData.subject,
+          lessonId: nextLessonId,
+          selectedProgramItemId: nextProgId,
+          selectedSections: [],
+          selectedSectionIds: [],
+          customContent: nextContent,
+          isHeaderSéance: nextIsHeader
+        });
+        setModalEditorTab('edit');
+        setSuccess(isArMode ? '⚡ تم حفظ الحصة بنجاح! جاهز لتسجيل الحصة الموالية...' : '⚡ Séance enregistrée ! Prêt pour la séance suivante...');
+        setTimeout(() => setSuccess(''), 3500);
+      } else {
+        setModalOpen(false);
+        setTimeout(() => setSuccess(''), 3000);
+      }
     } catch (err) {
-      setError(err?.message || "Impossible d'enregistrer la séance dans la base de données.");
+      setError(err?.message || (isArMode ? "تعذر حفظ الحصة في قاعدة البيانات." : "Impossible d'enregistrer la séance dans la base de données."));
       setTimeout(() => setError(''), 5000);
     }
   };
@@ -3865,8 +4094,8 @@ export default function AdminLogbook() {
           `}} />
 
           <div className="glass-panel" style={{ 
-            maxWidth: '620px', 
-            width: '100%', 
+            maxWidth: '840px', 
+            width: '95%', 
             padding: '2.25rem', 
             maxHeight: '92vh', 
             overflowY: 'auto', 
@@ -3918,7 +4147,7 @@ export default function AdminLogbook() {
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               
               {/* Form Grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
                 {/* Date */}
                 <div className="input-group">
                   <label style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-muted)', display: 'block', marginBottom: '0.45rem' }}>Date</label>
@@ -3959,9 +4188,11 @@ export default function AdminLogbook() {
                   })()}
                 </div>
                 
-                {/* Time */}
+                {/* Time with Timetable Smart Chips */}
                 <div className="input-group">
-                  <label style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-muted)', display: 'block', marginBottom: '0.45rem' }}>Horaire / Durée</label>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-muted)', display: 'block', marginBottom: '0.45rem' }}>
+                    {isArMode ? 'التوقيت / المدة' : 'Horaire / Durée'}
+                  </label>
                   <input
                     type="text"
                     required
@@ -3970,6 +4201,54 @@ export default function AdminLogbook() {
                     value={formData.time}
                     onChange={e => setFormData(prev => ({ ...prev, time: e.target.value }))}
                   />
+
+                  {/* Fast Schedule Chips & Standard Presets */}
+                  <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginTop: '0.45rem' }}>
+                    {scheduledSlotsForDate && scheduledSlotsForDate.length > 0 && scheduledSlotsForDate.map(slot => (
+                      <button
+                        key={slot.id}
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, time: slot.displayTime }))}
+                        style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 800,
+                          padding: '0.22rem 0.55rem',
+                          borderRadius: '6px',
+                          background: formData.time === slot.displayTime ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'rgba(16, 185, 129, 0.12)',
+                          border: '1px solid rgba(16, 185, 129, 0.35)',
+                          color: formData.time === slot.displayTime ? '#ffffff' : 'var(--emerald)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.25rem'
+                        }}
+                        title={isArMode ? `توقيت مقرر في جدول الحصص لهذا اليوم (${slot.dayName})` : `Créneau d'emploi du temps pour ce jour (${slot.dayName})`}
+                      >
+                        <span>⚡</span>
+                        <span>{slot.displayTime}</span>
+                        {slot.room && slot.room !== '—' && <span style={{ opacity: 0.85 }}>({slot.room})</span>}
+                      </button>
+                    ))}
+                    {['08:00 - 10:00', '10:00 - 12:00', '14:00 - 16:00', '16:00 - 18:00'].map(t => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, time: t }))}
+                        style={{
+                          fontSize: '0.68rem',
+                          fontWeight: 650,
+                          padding: '0.2rem 0.45rem',
+                          borderRadius: '6px',
+                          background: formData.time === t ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255, 255, 255, 0.03)',
+                          border: formData.time === t ? '1px solid var(--violet)' : '1px solid var(--border)',
+                          color: formData.time === t ? 'var(--violet)' : 'var(--text-subtle)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -4013,106 +4292,73 @@ export default function AdminLogbook() {
                 </div>
               </div>
 
-              {/* Programme / Lesson Selection */}
+              {/* Programme Selection (STRICTLY Class Program Items Only) */}
               <div className="input-group">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem', flexWrap: 'wrap', gap: '0.4rem' }}>
                   <label style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-muted)' }}>
-                    {isProgramOnlyMode
-                      ? (isArMode ? 'عنصر من برنامج القسم المعتمد (المحتوى المقرر فقط) :' : 'Élément du programme officiel (Programme uniquement) :')
-                      : (isArMode ? 'عنصر من برنامج القسم أو المكتبة :' : 'Élément du programme ou des cours :')}
+                    {isArMode ? 'عنصر من مقرر البرنامج الدراسي للقسم :' : 'Élément du programme officiel de la classe :'}
                   </label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    {selectedClass && selectedClass.program && selectedClass.program.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setIsProgramOnlyMode(prev => !prev)}
-                        title={isProgramOnlyMode ? (isArMode ? 'إظهار جميع وثائق ودروس المكتبة' : 'Afficher l\'ensemble des cours et séries') : (isArMode ? 'تحديد عناصر برنامج القسم فقط' : 'Restreindre au programme de la classe')}
-                        style={{
-                          fontSize: '0.72rem',
-                          fontWeight: 750,
-                          padding: '0.2rem 0.65rem',
-                          borderRadius: '8px',
-                          border: isProgramOnlyMode ? '1px solid rgba(16, 185, 129, 0.45)' : '1px solid var(--border)',
-                          background: isProgramOnlyMode ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.04)',
-                          color: isProgramOnlyMode ? 'var(--emerald)' : 'var(--text-muted)',
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.35rem',
-                          transition: 'all 0.2s ease'
-                        }}
-                      >
-                        <Sparkles size={12} />
-                        {isProgramOnlyMode 
-                          ? (isArMode ? 'البرنامج فقط ✓' : 'Programme seul ✓') 
-                          : (isArMode ? 'تصفية بالبرنامج' : 'Filtrer par programme')}
-                      </button>
-                    )}
-                    {selectedClass && selectedClass.program && selectedClass.program.length > 0 && (
-                      <span style={{ fontSize: '0.72rem', color: 'var(--violet)', fontWeight: 700 }}>
-                        ⭐ {selectedClass.program.length} {isArMode ? 'عناصر' : 'éléments'}
-                      </span>
-                    )}
-                  </div>
+                  {selectedClass?.program && selectedClass.program.length > 0 && (
+                    <span style={{ fontSize: '0.72rem', color: 'var(--violet)', fontWeight: 800 }}>
+                      ⭐ {selectedClass.program.length} {isArMode ? 'عناصر مقررة' : 'éléments au programme'}
+                    </span>
+                  )}
                 </div>
-                <select
-                  className="modal-input"
-                  value={formData.selectedProgramItemId ? `prog_item_${formData.selectedProgramItemId}` : formData.lessonId}
-                  onChange={e => handleLessonChange(e.target.value)}
-                >
-                  <option value="">{isArMode ? '-- اختر عنصراً من برنامج القسم --' : '-- Sélectionner un élément du programme --'}</option>
-                  
-                  {/* 1. Class Program Items (First Priority / Sole items if isProgramOnlyMode) */}
-                  {selectedClass && selectedClass.program && selectedClass.program.length > 0 && (
-                    <optgroup label={isArMode ? '⭐ برنامج القسم المعتمد (مرتب حسب التدرج)' : '⭐ Programme officiel de la classe'}>
-                      {selectedClass.program.map((item, pIdx) => {
-                        const status = getProgramItemStatus(item);
-                        return (
-                          <option key={`prog_${item.id}`} value={`prog_item_${item.id}`}>
-                            {pIdx + 1}. {item.title} {status.isDone ? (isArMode ? '✓ (منجز)' : '✓ (Complété)') : ''}
-                          </option>
-                        );
-                      })}
-                    </optgroup>
-                  )}
 
-                  {/* 2. Courses / الدروس - Only shown when not in program-only mode */}
-                  {!isProgramOnlyMode && levelLessons.filter(l => l.docType === 'course' || (!l.docType && !l.isExam)).length > 0 && (
-                    <optgroup label={isArMode ? '📖 دروس وفصول إضافية' : '📖 Fiches de cours'}>
-                      {levelLessons.filter(l => l.docType === 'course' || (!l.docType && !l.isExam)).map(l => (
-                        <option key={l.id} value={l.id}>
-                          📖 {l.title} {l.subject ? `(${l.subject})` : ''}
+                {selectedClass?.program && selectedClass.program.length > 0 ? (
+                  <select
+                    className="modal-input"
+                    value={formData.selectedProgramItemId ? `prog_item_${formData.selectedProgramItemId}` : formData.lessonId}
+                    onChange={e => handleLessonChange(e.target.value)}
+                  >
+                    <option value="">{isArMode ? '-- اختر عنصراً من البرنامج الدراسي للقسم --' : '-- Sélectionner un élément du programme --'}</option>
+                    {selectedClass.program.map((item, pIdx) => {
+                      const status = getProgramItemStatus(item);
+                      return (
+                        <option key={`prog_${item.id}`} value={`prog_item_${item.id}`}>
+                          {pIdx + 1}. {item.title} {status.isDone ? (isArMode ? '✓ (منجز)' : '✓ (Terminé)') : (status.pct > 0 ? `(${status.pct}%)` : '')}
                         </option>
-                      ))}
-                    </optgroup>
-                  )}
-
-                  {/* 3. Series & Exercises - Only shown when not in program-only mode */}
-                  {!isProgramOnlyMode && levelLessons.filter(l => l.docType === 'exercises' || l.docType === 'series').length > 0 && (
-                    <optgroup label={isArMode ? '📝 سلاسل تمارين إضافية' : '📝 Séries d\'exercices'}>
-                      {levelLessons.filter(l => l.docType === 'exercises' || l.docType === 'series').map(l => (
-                        <option key={l.id} value={l.id}>
-                          📝 {l.title} {l.subject ? `(${l.subject})` : ''}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-
-                  {/* 4. Homeworks & Controls - Only shown when not in program-only mode */}
-                  {!isProgramOnlyMode && levelLessons.filter(l => l.docType === 'homework' || l.docType === 'exam' || l.docType === 'control' || l.isExam).length > 0 && (
-                    <optgroup label={isArMode ? '📑 فروض وامتحانات إضافية' : '📑 Devoirs & Contrôles'}>
-                      {levelLessons.filter(l => l.docType === 'homework' || l.docType === 'exam' || l.docType === 'control' || l.isExam).map(l => (
-                        <option key={l.id} value={l.id}>
-                          📑 {l.title} {l.subject ? `(${l.subject})` : ''}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                </select>
-                <p style={{ marginTop: '0.4rem', fontSize: '0.72rem', color: 'var(--text-subtle)', margin: '0.35rem 0 0 0' }}>
-                  {isProgramOnlyMode 
-                    ? (isArMode ? '✨ يتم عرض عناصر برنامج القسم المعتمد فقط لتسهيل التعبئة السريعة والمباشرة.' : '✨ Seuls les éléments du programme officiel de la classe sont affichés pour un remplissage direct.')
-                    : (isArMode ? 'يتم استخراج عنوان الحصة والفقرات المنجزة تلقائياً من برنامج القسم المعني.' : 'Les titres et sections sont extraits automatiquement à partir du programme de la classe.')}
+                      );
+                    })}
+                  </select>
+                ) : (
+                  <div style={{
+                    padding: '0.85rem 1rem',
+                    background: 'rgba(99, 102, 241, 0.08)',
+                    border: '1px dashed rgba(99, 102, 241, 0.35)',
+                    borderRadius: '10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '0.6rem'
+                  }}>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                      {isArMode ? 'لم يتم ضبط برنامج هذا القسم بعد.' : 'Le programme officiel de cette classe n\'est pas encore configuré.'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleAutoGenerateProgram}
+                      style={{
+                        fontSize: '0.75rem',
+                        fontWeight: 800,
+                        padding: '0.35rem 0.85rem',
+                        borderRadius: '8px',
+                        background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
+                        color: '#ffffff',
+                        border: 'none',
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 8px rgba(139, 92, 246, 0.3)'
+                      }}
+                    >
+                      ⚡ {isArMode ? 'توليد برنامج المستوى تلقائياً' : 'Générer le programme officiel'}
+                    </button>
+                  </div>
+                )}
+                <p style={{ marginTop: '0.35rem', fontSize: '0.72rem', color: 'var(--text-subtle)', margin: '0.35rem 0 0 0' }}>
+                  {isArMode 
+                    ? '✨ يتم عرض عناصر المقرر الدراسي للقسم حصرياً لتسهيل التسجيل السريع والمنظم.' 
+                    : '✨ Seuls les éléments du programme officiel sont présentés pour une saisie rapide et ordonnée.'}
                 </p>
               </div>
 
@@ -4730,106 +4976,361 @@ export default function AdminLogbook() {
                 </div>
               )}
 
-              {/* Nature of activities realized */}
+              {/* Nature of activities realized with Edit & Live Preview Tabs */}
               <div className="input-group">
-                <label style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-muted)', display: 'block', marginBottom: '0.45rem' }}>
-                  Nature des activités réalisées
-                </label>
-
-                {/* Quick Insert Tooltip Bar */}
-                <div style={{ 
-                  display: 'flex', 
-                  flexWrap: 'wrap', 
-                  gap: '0.45rem', 
-                  marginBottom: '0.75rem', 
-                  background: 'rgba(255, 255, 255, 0.01)', 
-                  padding: '0.6rem 0.8rem', 
-                  borderRadius: '12px', 
-                  border: '1px solid var(--border)' 
-                }}>
-                  <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', fontWeight: 800, alignSelf: 'center', marginRight: '0.3rem' }}>
-                    {isArMode ? 'إدراج سريع:' : 'Insertion rapide :'}
-                  </span>
-                  
-                  {isArMode ? (
-                    // Arabic Quick Tags
-                    ['عنوان', 'محور', 'تمرين', 'تطبيق', 'تصحيح', 'تعريف', 'خاصية', 'مبرهنة', 'مثال', 'ملاحظة', 'نشاط', 'خلاصة'].map(tag => (
-                      <button
-                        key={tag}
-                        type="button"
-                        onClick={() => {
-                          setFormData(prev => {
-                            let nextContent = prev.customContent.trim();
-                            if (nextContent === '') {
-                              nextContent = `• ${tag}`;
-                            } else if (nextContent.endsWith('\n') || prev.customContent.endsWith('\n')) {
-                              nextContent = `${prev.customContent}• ${tag}`;
-                            } else {
-                              nextContent = `${prev.customContent} - ${tag}`;
-                            }
-                            return { ...prev, customContent: nextContent };
-                          });
-                        }}
-                        className="quick-tag-btn-ar"
-                      >
-                        + {tag}
-                      </button>
-                    ))
-                  ) : (
-                    // French Quick Tags
-                    ['Titre', 'Axe', 'Exercice', 'Application', 'Correction', 'Définition', 'Propriété', 'Théorème', 'Exemple', 'Remarque', 'Activité', 'Synthèse'].map(tag => (
-                      <button
-                        key={tag}
-                        type="button"
-                        onClick={() => {
-                          setFormData(prev => {
-                            let nextContent = prev.customContent.trim();
-                            if (nextContent === '') {
-                              nextContent = `• ${tag}`;
-                            } else if (nextContent.endsWith('\n') || prev.customContent.endsWith('\n')) {
-                              nextContent = `${prev.customContent}• ${tag}`;
-                            } else {
-                              nextContent = `${prev.customContent} - ${tag}`;
-                            }
-                            return { ...prev, customContent: nextContent };
-                          });
-                        }}
-                        className="quick-tag-btn-fr"
-                      >
-                        + {tag}
-                      </button>
-                    ))
-                  )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.55rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <label style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-muted)' }}>
+                    {isArMode ? 'تفاصيل وأنشطة الحصة المنجزة' : 'Nature des activités réalisées'}
+                  </label>
+                  {/* Tab Switcher */}
+                  <div style={{
+                    display: 'flex',
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    borderRadius: '10px',
+                    padding: '2px',
+                    border: '1px solid var(--border)'
+                  }}>
+                    <button
+                      type="button"
+                      onClick={() => setModalEditorTab('edit')}
+                      style={{
+                        fontSize: '0.74rem',
+                        fontWeight: 750,
+                        padding: '0.3rem 0.75rem',
+                        borderRadius: '8px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        background: modalEditorTab === 'edit' ? 'var(--violet)' : 'transparent',
+                        color: modalEditorTab === 'edit' ? '#ffffff' : 'var(--text-muted)',
+                        transition: 'all 0.2s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.3rem'
+                      }}
+                    >
+                      <span>✍️</span>
+                      <span>{isArMode ? 'تحرير' : 'Édition'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setModalEditorTab('preview')}
+                      style={{
+                        fontSize: '0.74rem',
+                        fontWeight: 750,
+                        padding: '0.3rem 0.75rem',
+                        borderRadius: '8px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        background: modalEditorTab === 'preview' ? 'var(--violet)' : 'transparent',
+                        color: modalEditorTab === 'preview' ? '#ffffff' : 'var(--text-muted)',
+                        transition: 'all 0.2s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.3rem'
+                      }}
+                    >
+                      <span>👁️</span>
+                      <span>{isArMode ? 'معاينة بالدفتر' : 'Aperçu Seyès'}</span>
+                    </button>
+                  </div>
                 </div>
 
-                <textarea
-                  required
-                  rows={5}
-                  placeholder={isArMode ? "اكتب تفاصيل الدرس المنجز هنا..." : "Écrivez le contenu couvert dans la séance..."}
-                  className="modal-input"
-                  value={formData.customContent}
-                  onChange={e => setFormData(prev => ({ ...prev, customContent: e.target.value }))}
-                  style={{ fontFamily: 'inherit', resize: 'vertical', fontSize: '0.9rem', lineHeight: 1.45 }}
-                />
+                {modalEditorTab === 'edit' ? (
+                  <div>
+                    {/* 1. Quick Session Templates Bar */}
+                    <div style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '0.4rem', 
+                      flexWrap: 'wrap', 
+                      marginBottom: '0.55rem', 
+                      padding: '0.45rem 0.65rem', 
+                      background: 'rgba(99, 102, 241, 0.04)', 
+                      borderRadius: '10px', 
+                      border: '1px solid rgba(99, 102, 241, 0.15)' 
+                    }}>
+                      <span style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--violet)' }}>
+                        {isArMode ? '⚡ نماذج جاهزة:' : '⚡ Modèles types :'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyTemplate('controle')}
+                        style={{ fontSize: '0.68rem', fontWeight: 700, padding: '0.2rem 0.55rem', borderRadius: '6px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.25)', color: '#ef4444', cursor: 'pointer' }}
+                      >
+                        📑 {isArMode ? 'فرض محروس' : 'Contrôle'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyTemplate('correction')}
+                        style={{ fontSize: '0.68rem', fontWeight: 700, padding: '0.2rem 0.55rem', borderRadius: '6px', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.25)', color: '#f59e0b', cursor: 'pointer' }}
+                      >
+                        🔍 {isArMode ? 'تصحيح ودعم' : 'Correction'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyTemplate('cours_concept')}
+                        style={{ fontSize: '0.68rem', fontWeight: 700, padding: '0.2rem 0.55rem', borderRadius: '6px', background: 'rgba(99, 102, 241, 0.1)', border: '1px solid rgba(99, 102, 241, 0.25)', color: 'var(--violet)', cursor: 'pointer' }}
+                      >
+                        📐 {isArMode ? 'بناء المفهوم' : 'Cours & Découverte'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyTemplate('exercices_synthese')}
+                        style={{ fontSize: '0.68rem', fontWeight: 700, padding: '0.2rem 0.55rem', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)', color: 'var(--emerald)', cursor: 'pointer' }}
+                      >
+                        📝 {isArMode ? 'تمارين وتوليف' : 'Exercices & Synthèse'}
+                      </button>
+                    </div>
+
+                    {/* 2. Smart Tag Insertion Bar */}
+                    <div style={{ 
+                      display: 'flex', 
+                      flexWrap: 'wrap', 
+                      gap: '0.4rem', 
+                      marginBottom: '0.55rem', 
+                      background: 'rgba(255, 255, 255, 0.02)', 
+                      padding: '0.5rem 0.75rem', 
+                      borderRadius: '10px', 
+                      border: '1px solid var(--border)' 
+                    }}>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)', fontWeight: 800, alignSelf: 'center', marginRight: '0.2rem' }}>
+                        {isArMode ? 'إدراج ذكي مرقم:' : 'Balises intelligentes :'}
+                      </span>
+
+                      {/* Numbered Auto-Counters */}
+                      <button
+                        type="button"
+                        onClick={() => handleSmartTagInsert('exercise')}
+                        style={{ fontSize: '0.7rem', fontWeight: 800, padding: '0.25rem 0.6rem', borderRadius: '6px', background: 'rgba(245, 158, 11, 0.14)', border: '1px solid rgba(245, 158, 11, 0.35)', color: '#d97706', cursor: 'pointer' }}
+                        title={isArMode ? 'إدراج تمرين مع ترقيم تلقائي متتالي' : 'Insère Exercice avec numérotation automatique'}
+                      >
+                        + {isArMode ? 'تمرين (مرقم)' : 'Exercice (auto)'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSmartTagInsert('application')}
+                        style={{ fontSize: '0.7rem', fontWeight: 800, padding: '0.25rem 0.6rem', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.14)', border: '1px solid rgba(16, 185, 129, 0.35)', color: 'var(--emerald)', cursor: 'pointer' }}
+                        title={isArMode ? 'إدراج تطبيق مع ترقيم تلقائي' : 'Insère Application avec numérotation'}
+                      >
+                        + {isArMode ? 'تطبيق (مرقم)' : 'Application (auto)'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSmartTagInsert('activity')}
+                        style={{ fontSize: '0.7rem', fontWeight: 800, padding: '0.25rem 0.6rem', borderRadius: '6px', background: 'rgba(99, 102, 241, 0.14)', border: '1px solid rgba(99, 102, 241, 0.35)', color: 'var(--violet)', cursor: 'pointer' }}
+                        title={isArMode ? 'إدراج نشاط مع ترقيم تلقائي' : 'Insère Activité avec numérotation'}
+                      >
+                        + {isArMode ? 'نشاط (مرقم)' : 'Activité (auto)'}
+                      </button>
+
+                      {/* Pedagogical Badges */}
+                      {[
+                        { type: 'definition', labelAr: 'تعريف', labelFr: 'Définition' },
+                        { type: 'property', labelAr: 'خاصية', labelFr: 'Propriété' },
+                        { type: 'theorem', labelAr: 'مبرهنة', labelFr: 'Théorème' },
+                        { type: 'example', labelAr: 'مثال', labelFr: 'Exemple' },
+                        { type: 'remark', labelAr: 'ملاحظة', labelFr: 'Remarque' },
+                        { type: 'correction', labelAr: 'تصحيح', labelFr: 'Correction' },
+                        { type: 'synthesis', labelAr: 'خلاصة', labelFr: 'Synthèse' }
+                      ].map(badge => (
+                        <button
+                          key={badge.type}
+                          type="button"
+                          onClick={() => handleSmartTagInsert(badge.type)}
+                          style={{
+                            fontSize: '0.68rem',
+                            fontWeight: 700,
+                            padding: '0.22rem 0.5rem',
+                            borderRadius: '6px',
+                            background: 'rgba(255, 255, 255, 0.04)',
+                            border: '1px solid var(--border)',
+                            color: 'var(--text-main)',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          + {isArMode ? badge.labelAr : badge.labelFr}
+                        </button>
+                      ))}
+
+                      <button
+                        type="button"
+                        onClick={() => handleSmartTagInsert('homework')}
+                        style={{ fontSize: '0.7rem', fontWeight: 800, padding: '0.25rem 0.6rem', borderRadius: '6px', background: 'rgba(236, 72, 153, 0.12)', border: '1px solid rgba(236, 72, 153, 0.35)', color: '#ec4899', cursor: 'pointer' }}
+                        title={isArMode ? 'إدراج واجب منزلي مع تمارين الصفحة' : 'Insérer un travail à faire pour la maison'}
+                      >
+                        🏠 {isArMode ? '+ واجب منزلي' : '+ Devoir'}
+                      </button>
+                    </div>
+
+                    {/* 3. Quick Math Palette */}
+                    <div style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      marginBottom: '0.65rem',
+                      padding: '0.4rem 0.65rem',
+                      background: 'rgba(255, 255, 255, 0.015)',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(255, 255, 255, 0.05)'
+                    }}>
+                      <span style={{ fontSize: '0.68rem', fontWeight: 750, color: 'var(--text-subtle)', marginRight: '0.25rem' }}>
+                        ∑ Math :
+                      </span>
+                      {[
+                        { code: '$f(x)$', label: 'f(x)' },
+                        { code: '$\\lim_{x \\to +\\infty}$', label: 'lim' },
+                        { code: '$\\frac{a}{b}$', label: 'a/b' },
+                        { code: '$\\mathbb{R}$', label: 'ℝ' },
+                        { code: '$\\vec{u}$', label: 'u⃗' },
+                        { code: '$\\sqrt{x}$', label: '√x' },
+                        { code: '$\\in$', label: '∈' },
+                        { code: '$\\le$', label: '≤' },
+                        { code: '$\\ge$', label: '≥' },
+                        { code: '$\\neq$', label: '≠' },
+                        { code: '$D_f$', label: 'Df' }
+                      ].map(item => (
+                        <button
+                          key={item.label}
+                          type="button"
+                          onClick={() => handleInsertMathSnippet(item.code)}
+                          style={{
+                            fontSize: '0.72rem',
+                            fontFamily: 'monospace',
+                            fontWeight: 700,
+                            padding: '0.18rem 0.45rem',
+                            borderRadius: '5px',
+                            background: 'rgba(99, 102, 241, 0.08)',
+                            border: '1px solid rgba(99, 102, 241, 0.2)',
+                            color: 'var(--violet)',
+                            cursor: 'pointer'
+                          }}
+                          title={`Insérer ${item.code}`}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <textarea
+                      required
+                      rows={6}
+                      placeholder={isArMode ? "اكتب أو أدرج أنشطة الحصة هنا... يدعم KaTeX مثل $f(x)=2x+1$" : "Écrivez les activités réalisées... Compatible LaTeX/KaTeX comme $f(x)=2x+1$"}
+                      className="modal-input"
+                      value={formData.customContent}
+                      onChange={e => setFormData(prev => ({ ...prev, customContent: e.target.value }))}
+                      style={{ fontFamily: 'inherit', resize: 'vertical', fontSize: '0.92rem', lineHeight: 1.5 }}
+                    />
+                  </div>
+                ) : (
+                  /* Live Seyès Notebook Preview */
+                  <div style={{
+                    borderRadius: '12px',
+                    overflow: 'hidden',
+                    border: '1.5px solid #cbd5e1',
+                    boxShadow: '0 4px 15px rgba(0, 0, 0, 0.08)',
+                    background: '#fafbfd'
+                  }}>
+                    {/* Seyès Sheet Header */}
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '0.5rem 1rem',
+                      background: 'rgba(99, 102, 241, 0.08)',
+                      borderBottom: '1.5px solid #cbd5e1',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      color: 'var(--text-main)'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                        <span>📅 {formData.date}</span>
+                        <span>⏰ {formData.time}</span>
+                      </div>
+                      <div>
+                        <span style={{ 
+                          padding: '0.2rem 0.6rem', 
+                          borderRadius: '6px', 
+                          background: 'var(--violet)', 
+                          color: '#ffffff', 
+                          fontSize: '0.72rem', 
+                          fontWeight: 800 
+                        }}>
+                          {formData.component}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Seyès Grid Canvas with margin line */}
+                    <div 
+                      className="squared-grid-cell"
+                      style={{
+                        padding: '1.25rem 1.5rem',
+                        minHeight: '160px',
+                        maxHeight: '340px',
+                        overflowY: 'auto',
+                        borderLeft: isArMode ? 'none' : '3px solid rgba(239, 68, 68, 0.55)',
+                        borderRight: isArMode ? '3px solid rgba(239, 68, 68, 0.55)' : 'none',
+                        direction: isArMode ? 'rtl' : 'ltr'
+                      }}
+                    >
+                      {formData.customContent && formData.customContent.trim().length > 0 ? (
+                        renderActivityContent(formData.customContent, formData.isHeaderSéance)
+                      ) : (
+                        <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem', padding: '2rem 1rem' }}>
+                          <span>✍️ </span>
+                          <span>{isArMode ? 'المحتوى فارغ حالياً. اكتب أو أدرج أنشطة الحصة لمعاينتها فورياً بالدفتر.' : 'Contenu vide. Ajoutez des activités pour voir le rendu sur le cahier Seyès.'}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Action Buttons */}
-              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '0.75rem', flexWrap: 'wrap' }}>
                 <button
                   type="button"
                   onClick={() => setModalOpen(false)}
                   className="btn-outline"
-                  style={{ padding: '0.65rem 1.75rem', borderRadius: '12px', background: 'transparent', fontSize: '0.88rem' }}
+                  style={{ padding: '0.65rem 1.5rem', borderRadius: '12px', background: 'transparent', fontSize: '0.86rem' }}
                 >
                   {isArMode ? 'إلغاء' : 'Annuler'}
                 </button>
+                
+                {!editingEntry && (
+                  <button
+                    type="button"
+                    onClick={(e) => handleSubmit(e, true)}
+                    style={{
+                      padding: '0.65rem 1.5rem',
+                      borderRadius: '12px',
+                      fontSize: '0.86rem',
+                      fontWeight: 800,
+                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                      color: '#ffffff',
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)'
+                    }}
+                    title={isArMode ? 'حفظ الحصة والانتقال فوراً لتسجيل الحصة الموالية' : 'Enregistre cette séance et prépare directement la suivante'}
+                  >
+                    <span>⚡</span>
+                    <span>{isArMode ? 'حفظ وإضافة الحصة التالية' : 'Enregistrer & Suivante'}</span>
+                  </button>
+                )}
+
                 <button
                   type="submit"
                   className="btn modal-save-btn"
                   style={{ 
-                    padding: '0.65rem 2.25rem', 
+                    padding: '0.65rem 2rem', 
                     borderRadius: '12px', 
-                    fontSize: '0.88rem'
+                    fontSize: '0.86rem',
+                    fontWeight: 800
                   }}
                 >
                   <Save size={16} /> {isArMode ? 'حفظ' : 'Enregistrer'}
