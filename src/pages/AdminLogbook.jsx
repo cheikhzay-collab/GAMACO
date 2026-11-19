@@ -662,6 +662,24 @@ export default function AdminLogbook() {
 
   const getSectionKey = (s, idx) => (s?.id ? String(s.id) : `sec_idx_${idx}`);
 
+  // Normalizes sections for regular courses, series, homeworks, exams, and DEVOIR PRIME
+  const getNormalizedLessonSections = (lesson) => {
+    if (!lesson) return [];
+    if (Array.isArray(lesson.content?.sections) && lesson.content.sections.length > 0) {
+      return lesson.content.sections;
+    }
+    const dpExs = lesson.content?.devoir_prime_exercises || lesson.devoir_prime_exercises || [];
+    if (Array.isArray(dpExs) && dpExs.length > 0) {
+      return dpExs.map((ex, idx) => ({
+        id: ex.id || `dp_ex_${idx}`,
+        title: ex.title ? (ex.title.startsWith('**') ? ex.title : `**${ex.title}**`) : `**Exercice ${idx + 1}**`,
+        content: ex.preamble || '',
+        type: 'exercise'
+      }));
+    }
+    return [];
+  };
+
   const getLessonCoverage = (targetLessonId, excludeEntryId = null) => {
     const coveredIds = new Set();
     const coveredTitlesLegacy = new Set();
@@ -1189,7 +1207,7 @@ export default function AdminLogbook() {
       
       const targetLevel = normalizeLevel(selectedClass.level);
       const filtered = lessons.filter(l => {
-        const lessonLevel = normalizeLevel(l.level);
+        const lessonLevel = normalizeLevel(l.level || l.content?.level || l.content?.header?.level);
         return (
           lessonLevel === targetLevel ||
           lessonLevel === 'all' ||
@@ -1214,7 +1232,7 @@ export default function AdminLogbook() {
       if (progItem) {
         let comp = 'Cours';
         if (progItem.type === 'exercises') comp = 'Exercices';
-        if (progItem.type === 'homework' || progItem.type === 'exam' || progItem.title.includes('فرض') || progItem.title.toUpperCase().includes('CONTRÔLE')) comp = 'Contrôle';
+        if (progItem.type === 'homework' || progItem.type === 'exam' || progItem.type === 'devoir_prime' || progItem.docType === 'devoir_prime' || progItem.title.includes('فرض') || progItem.title.toUpperCase().includes('CONTRÔLE') || progItem.title.toUpperCase().includes('PRIME')) comp = 'Contrôle';
 
         let customContent = '';
         let isHeader = false;
@@ -1224,7 +1242,7 @@ export default function AdminLogbook() {
         if (progItem.lessonId) {
           const lesson = lessons.find(l => l.id === progItem.lessonId);
           const coverage = getLessonCoverage(progItem.lessonId, editingEntry?.id || null);
-          const allSections = lesson?.content?.sections || [];
+          const allSections = getNormalizedLessonSections(lesson);
           const uncovered = allSections
             .map((s, idx) => ({ ...s, _origIdx: idx, _secKey: getSectionKey(s, idx) }))
             .filter(s => !coverage.isSectionCovered(s, s._origIdx));
@@ -1576,7 +1594,8 @@ export default function AdminLogbook() {
         (e.selectedProgramItemId && e.selectedProgramItemId === item.id) ||
         (e.customContent && e.customContent.includes(item.title)) ||
         (e.component === 'Contrôle' && item.title.toUpperCase().includes('CONTRÔLE')) ||
-        (e.component === 'Contrôle' && item.title.includes('فرض'))
+        (e.component === 'Contrôle' && item.title.includes('فرض')) ||
+        (e.component === 'Contrôle' && item.title.toUpperCase().includes('PRIME'))
       );
       return isLogged 
         ? { label: isArMode ? 'مكتمل' : 'Terminé', color: 'var(--emerald)', bg: 'rgba(16, 185, 129, 0.08)', isDone: true, pct: 100 } 
@@ -1591,7 +1610,7 @@ export default function AdminLogbook() {
         : { label: isArMode ? 'لم يبدأ' : 'Non commencé', color: 'var(--text-muted)', bg: 'rgba(255,255,255,0.03)', isDone: false, pct: 0 };
     }
 
-    const sections = lesson.content?.sections || [];
+    const sections = getNormalizedLessonSections(lesson);
     if (sections.length === 0) {
       const isLogged = entries.some(e => e.selectedProgramItemId === item.id || e.lessonId === item.lessonId);
       return isLogged
@@ -1671,7 +1690,7 @@ export default function AdminLogbook() {
           if (!completedProgItemIds.has(item.id)) return item;
           continue;
         }
-        const sections = lesson.content?.sections || [];
+        const sections = getNormalizedLessonSections(lesson);
         const coverage = getLessonCoverage(item.lessonId);
         const uncoveredSections = sections.filter((sec, idx) => !coverage.isSectionCovered(sec, idx));
         if (uncoveredSections.length > 0) {
@@ -1706,7 +1725,7 @@ export default function AdminLogbook() {
       let firstSec = null;
       if (firstProgItem.lessonId) {
         const lsn = lessons.find(l => l.id === firstProgItem.lessonId);
-        firstSec = lsn?.content?.sections?.[0];
+        firstSec = getNormalizedLessonSections(lsn)[0];
       }
 
       return {
@@ -1715,7 +1734,7 @@ export default function AdminLogbook() {
         lastEntry: null,
         progItem: firstProgItem,
         suggestedDate: formatLocalDate(),
-        suggestedComponent: firstProgItem.type === 'exercises' ? 'Exercices' : (firstProgItem.type === 'homework' || firstProgItem.type === 'exam' || firstProgItem.title.includes('فرض') || firstProgItem.title.toUpperCase().includes('CONTRÔLE') ? 'Contrôle' : 'Cours'),
+        suggestedComponent: firstProgItem.type === 'exercises' ? 'Exercices' : (firstProgItem.type === 'homework' || firstProgItem.type === 'exam' || firstProgItem.type === 'devoir_prime' || firstProgItem.docType === 'devoir_prime' || firstProgItem.title.includes('فرض') || firstProgItem.title.toUpperCase().includes('CONTRÔLE') || firstProgItem.title.toUpperCase().includes('PRIME') ? 'Contrôle' : 'Cours'),
         suggestedSections: firstSec ? [firstSec.title] : [],
         suggestedSectionIds: firstSec ? [getSectionKey(firstSec, 0)] : [],
         suggestedContent: `=== ${firstProgItem.title.toUpperCase()} ===\n` + (firstSec ? `• ${firstSec.title.replace(/\*\*/g, '').trim()}` : ''),
@@ -1751,7 +1770,7 @@ export default function AdminLogbook() {
 
     if (lastProgItem.lessonId) {
       const lesson = lessons.find(l => l.id === lastProgItem.lessonId);
-      const allSections = lesson?.content?.sections || [];
+      const allSections = getNormalizedLessonSections(lesson);
       const coverage = getLessonCoverage(lastProgItem.lessonId);
       const uncovered = allSections
         .map((s, idx) => ({ ...s, _origIdx: idx, _secKey: getSectionKey(s, idx) }))
@@ -1781,7 +1800,7 @@ export default function AdminLogbook() {
         progItem: lastProgItem,
         suggestedDate,
         suggestedTime,
-        suggestedComponent: lastEntry.component || (lastProgItem.type === 'exercises' ? 'Exercices' : 'Cours'),
+        suggestedComponent: lastEntry.component || (lastProgItem.type === 'exercises' ? 'Exercices' : (lastProgItem.type === 'homework' || lastProgItem.type === 'devoir_prime' || lastProgItem.docType === 'devoir_prime' || lastProgItem.title.includes('PRIME') ? 'Contrôle' : 'Cours')),
         suggestedSections: nextUncoveredSection ? [nextUncoveredSection.title] : [],
         suggestedSectionIds: nextUncoveredSection ? [nextUncoveredSection._secKey] : [],
         suggestedContent: secTitleClean ? `• ${secTitleClean}` : '',
@@ -1803,12 +1822,12 @@ export default function AdminLogbook() {
       let firstSec = null;
       if (nextProgItem.lessonId) {
         const lsn = lessons.find(l => l.id === nextProgItem.lessonId);
-        firstSec = lsn?.content?.sections?.[0];
+        firstSec = getNormalizedLessonSections(lsn)[0];
       }
 
       let comp = 'Cours';
       if (nextProgItem.type === 'exercises') comp = 'Exercices';
-      if (nextProgItem.type === 'homework' || nextProgItem.type === 'exam' || nextProgItem.title.includes('فرض') || nextProgItem.title.toUpperCase().includes('CONTRÔLE')) comp = 'Contrôle';
+      if (nextProgItem.type === 'homework' || nextProgItem.type === 'exam' || nextProgItem.type === 'devoir_prime' || nextProgItem.docType === 'devoir_prime' || nextProgItem.title.includes('فرض') || nextProgItem.title.toUpperCase().includes('CONTRÔLE') || nextProgItem.title.toUpperCase().includes('PRIME')) comp = 'Contrôle';
 
       const secTitleClean = firstSec ? firstSec.title.replace(/\*\*/g, '').trim() : '';
       return {
@@ -1840,7 +1859,7 @@ export default function AdminLogbook() {
     setEditingEntry(null);
     let docTypeComponent = 'Cours';
     if (item.type === 'exercises') docTypeComponent = 'Exercices';
-    if (item.type === 'homework' || item.type === 'exam' || item.title.includes('فرض') || item.title.toUpperCase().includes('CONTRÔLE')) docTypeComponent = 'Contrôle';
+    if (item.type === 'homework' || item.type === 'exam' || item.type === 'devoir_prime' || item.docType === 'devoir_prime' || item.title.includes('فرض') || item.title.toUpperCase().includes('CONTRÔLE') || item.title.toUpperCase().includes('PRIME')) docTypeComponent = 'Contrôle';
 
     let suggestedSections = [];
     let suggestedSectionIds = [];
@@ -1850,7 +1869,7 @@ export default function AdminLogbook() {
     if (item.lessonId) {
       const lesson = lessons.find(l => l.id === item.lessonId);
       const coverage = getLessonCoverage(item.lessonId);
-      const allSections = lesson?.content?.sections || [];
+      const allSections = getNormalizedLessonSections(lesson);
       const uncovered = allSections
         .map((s, idx) => ({ ...s, _origIdx: idx, _secKey: getSectionKey(s, idx) }))
         .filter(s => !coverage.isSectionCovered(s, s._origIdx));
@@ -2087,7 +2106,7 @@ export default function AdminLogbook() {
           const curProgItem = selectedClass.program.find(p => p.id === formData.selectedProgramItemId);
           if (curProgItem && curProgItem.lessonId) {
             const lesson = lessons.find(l => l.id === curProgItem.lessonId);
-            const allSections = lesson?.content?.sections || [];
+            const allSections = getNormalizedLessonSections(lesson);
             
             // Recompute coverage including the newly saved session
             const currentSelectedIds = new Set(formData.selectedSectionIds || []);
@@ -2138,11 +2157,11 @@ export default function AdminLogbook() {
             nextIsHeader = true;
             nextContent = `=== ${nextProgItem.title.toUpperCase()} ===\n`;
             if (nextProgItem.type === 'exercises') nextComp = 'Exercices';
-            if (nextProgItem.type === 'homework' || nextProgItem.type === 'exam' || nextProgItem.title.includes('فرض') || nextProgItem.title.toUpperCase().includes('CONTRÔLE')) nextComp = 'Contrôle';
+            if (nextProgItem.type === 'homework' || nextProgItem.type === 'exam' || nextProgItem.type === 'devoir_prime' || nextProgItem.docType === 'devoir_prime' || nextProgItem.title.includes('فرض') || nextProgItem.title.toUpperCase().includes('CONTRÔLE') || nextProgItem.title.toUpperCase().includes('PRIME')) nextComp = 'Contrôle';
             
             if (nextProgItem.lessonId) {
               const lsn = lessons.find(l => l.id === nextProgItem.lessonId);
-              const firstSec = lsn?.content?.sections?.[0];
+              const firstSec = getNormalizedLessonSections(lsn)[0];
               if (firstSec) {
                 const cleanSec = firstSec.title.replace(/\*\*/g, '').trim();
                 nextContent += `• ${cleanSec}`;
@@ -4168,10 +4187,10 @@ export default function AdminLogbook() {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: '0.4rem' }}>
                         <span style={{
                           fontSize: '0.65rem', fontWeight: 700,
-                          color: item.type === 'homework' ? 'var(--danger)' : item.type === 'exercises' ? 'var(--warning)' : 'var(--violet)',
+                          color: (item.docType === 'devoir_prime' || item.type === 'devoir_prime' || (item.title && item.title.includes('PRIME'))) ? '#d97706' : item.type === 'homework' ? 'var(--danger)' : item.type === 'exercises' ? 'var(--warning)' : 'var(--violet)',
                           textTransform: 'uppercase'
                         }}>
-                          {item.type === 'homework' ? (isArMode ? 'فرض محروس' : 'devoir') : item.type === 'exercises' ? (isArMode ? 'تمارين' : 'série') : (isArMode ? 'درس' : 'cours')}
+                          {(item.docType === 'devoir_prime' || item.type === 'devoir_prime' || (item.title && item.title.includes('PRIME'))) ? (isArMode ? '⭐ فرض PRIME' : '⭐ devoir prime') : item.type === 'homework' ? (isArMode ? 'فرض محروس' : 'devoir') : item.type === 'exercises' ? (isArMode ? 'تمارين' : 'série') : (isArMode ? 'درس' : 'cours')}
                         </span>
                         {!status.isDone ? (
                           <button
@@ -4760,7 +4779,7 @@ export default function AdminLogbook() {
                 <div style={{ background: 'rgba(255, 255, 255, 0.01)', border: '1px solid var(--border)', borderRadius: '16px', padding: '1.25rem' }}>
                   {(() => {
                     const selectedLesson = lessons.find(l => l.id === formData.lessonId);
-                    const sections = selectedLesson?.content?.sections || [];
+                    const sections = getNormalizedLessonSections(selectedLesson);
                     if (sections.length === 0) {
                       return <span style={{ fontSize: '0.8rem', color: 'var(--text-subtle)' }}>Aucune section dans cette fiche.</span>;
                     }

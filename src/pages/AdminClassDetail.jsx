@@ -504,11 +504,19 @@ export default function AdminClassDetail() {
       if (selectedProgramLessonId) {
         const found = lessons.find(l => l.id === selectedProgramLessonId);
         if (found) {
+          const isPrime = found.docType === 'devoir_prime' || 
+                          found.doc_type === 'devoir_prime' ||
+                          found.isDevoirPrime || 
+                          found.content?.doc_type === 'devoir_prime' ||
+                          found.content?.devoir_prime_meta ||
+                          (found.title && found.title.toUpperCase().includes('DEVOIR PRIME'));
+
           newItem = {
             id: 'prog_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-            type: found.docType || 'course',
-            title: found.title,
-            lessonId: found.id
+            type: isPrime ? 'homework' : (found.docType || 'course'),
+            title: isPrime ? (found.title.toUpperCase().includes('PRIME') ? found.title : `⭐ DEVOIR PRIME : ${found.title}`) : found.title,
+            lessonId: found.id,
+            docType: isPrime ? 'devoir_prime' : (found.docType || 'course')
           };
         }
       } else {
@@ -608,8 +616,28 @@ export default function AdminClassDetail() {
     if (item.lessonId) {
       const lesson = lessons.find(l => l.id === item.lessonId);
       if (!lesson) return { label: 'N/A', color: 'var(--text-muted)', bg: 'rgba(255,255,255,0.03)' };
-      const sections = lesson.content?.sections || [];
-      if (sections.length === 0) return { label: 'Non commencé', color: 'var(--text-muted)', bg: 'rgba(255,255,255,0.03)' };
+      
+      let sections = lesson.content?.sections || [];
+      if (sections.length === 0) {
+        const dpExs = lesson.content?.devoir_prime_exercises || lesson.devoir_prime_exercises || [];
+        if (Array.isArray(dpExs) && dpExs.length > 0) {
+          sections = dpExs.map((ex, idx) => ({
+            id: ex.id || `dp_ex_${idx}`,
+            title: ex.title ? (ex.title.startsWith('**') ? ex.title : `**${ex.title}**`) : `**Exercice ${idx + 1}**`
+          }));
+        }
+      }
+
+      if (sections.length === 0) {
+        const isLogged = logbookEntries.some(e => 
+          (e.selectedProgramItemId && e.selectedProgramItemId === item.id) ||
+          e.lessonId === item.lessonId ||
+          (e.customContent && e.customContent.includes(item.title))
+        );
+        return isLogged
+          ? { label: 'Terminé', color: 'var(--emerald)', bg: 'rgba(16, 185, 129, 0.08)' }
+          : { label: 'Non commencé', color: 'var(--text-muted)', bg: 'rgba(255,255,255,0.03)' };
+      }
 
       const completedCount = sections.filter(sec => coveredSections.has(sec.title)).length;
       if (completedCount === sections.length) {
@@ -2261,11 +2289,11 @@ export default function AdminClassDetail() {
                               {/* Type Badge */}
                               <span style={{
                                 fontSize: '0.68rem', fontWeight: 800,
-                                background: item.type === 'homework' ? 'rgba(239, 68, 68, 0.08)' : item.type === 'exercises' ? 'rgba(245, 158, 11, 0.08)' : item.type === 'course' ? 'rgba(99, 102, 241, 0.08)' : item.type === 'concours' ? 'rgba(16, 185, 129, 0.08)' : item.type === 'ebook' ? 'rgba(2, 132, 199, 0.12)' : 'rgba(255, 255, 255, 0.05)',
-                                color: item.type === 'homework' ? 'var(--danger)' : item.type === 'exercises' ? 'var(--warning)' : item.type === 'course' ? 'var(--violet)' : item.type === 'concours' ? 'var(--emerald)' : item.type === 'ebook' ? '#0284c7' : 'var(--text-muted)',
+                                background: (item.docType === 'devoir_prime' || item.type === 'devoir_prime' || (item.title && item.title.includes('PRIME'))) ? 'rgba(245, 158, 11, 0.14)' : item.type === 'homework' ? 'rgba(239, 68, 68, 0.08)' : item.type === 'exercises' ? 'rgba(245, 158, 11, 0.08)' : item.type === 'course' ? 'rgba(99, 102, 241, 0.08)' : item.type === 'concours' ? 'rgba(16, 185, 129, 0.08)' : item.type === 'ebook' ? 'rgba(2, 132, 199, 0.12)' : 'rgba(255, 255, 255, 0.05)',
+                                color: (item.docType === 'devoir_prime' || item.type === 'devoir_prime' || (item.title && item.title.includes('PRIME'))) ? '#d97706' : item.type === 'homework' ? 'var(--danger)' : item.type === 'exercises' ? 'var(--warning)' : item.type === 'course' ? 'var(--violet)' : item.type === 'concours' ? 'var(--emerald)' : item.type === 'ebook' ? '#0284c7' : 'var(--text-muted)',
                                 padding: '0.15rem 0.45rem', borderRadius: '4px', textTransform: 'uppercase'
                               }}>
-                                {item.type === 'homework' ? 'devoir' : item.type === 'exercises' ? 'série' : item.type === 'course' ? 'cours' : item.type === 'concours' ? 'concours' : item.type === 'ebook' ? 'e-book' : 'perso'}
+                                {(item.docType === 'devoir_prime' || item.type === 'devoir_prime' || (item.title && item.title.includes('PRIME'))) ? '⭐ DEVOIR PRIME' : item.type === 'homework' ? 'devoir' : item.type === 'exercises' ? 'série' : item.type === 'course' ? 'cours' : item.type === 'concours' ? 'concours' : item.type === 'ebook' ? 'e-book' : 'perso'}
                               </span>
                               
                               {/* Status Badge */}
@@ -2344,11 +2372,11 @@ export default function AdminClassDetail() {
                     }}
                     style={{ width: '100%', fontSize: '0.85rem' }}
                   >
-                    <option value="">-- Choisir une document (Cours, Série ou Devoir) --</option>
+                    <option value="">-- Choisir un document (Cours, Série ou Devoir) --</option>
                     {(() => {
                       const levelMatchedDocs = lessons.filter(l => {
                         const targetLevel = normalizeLevel(classObj?.level);
-                        const lessonLevel = normalizeLevel(l.level);
+                        const lessonLevel = normalizeLevel(l.level || l.content?.level || l.content?.header?.level);
                         return (
                           lessonLevel === targetLevel ||
                           lessonLevel === 'all' ||
@@ -2357,13 +2385,31 @@ export default function AdminClassDetail() {
                         );
                       });
 
-                      const courses = levelMatchedDocs.filter(l => l.docType === 'course' || (!l.docType && !l.isExam));
-                      const ebooks = levelMatchedDocs.filter(l => l.docType === 'ebook');
-                      const series = levelMatchedDocs.filter(l => l.docType === 'exercises' || l.docType === 'series');
-                      const homeworks = levelMatchedDocs.filter(l => l.docType === 'homework' || l.docType === 'exam' || l.docType === 'control' || l.isExam);
+                      const isDocPrime = (l) => (
+                        l.docType === 'devoir_prime' ||
+                        l.doc_type === 'devoir_prime' ||
+                        l.isDevoirPrime ||
+                        l.content?.doc_type === 'devoir_prime' ||
+                        l.content?.devoir_prime_meta ||
+                        (l.title && l.title.toUpperCase().includes('DEVOIR PRIME'))
+                      );
+
+                      const devoirPrimes = levelMatchedDocs.filter(l => isDocPrime(l));
+                      const otherDevoirPrimes = lessons.filter(l => isDocPrime(l) && !devoirPrimes.some(dp => dp.id === l.id));
+                      const courses = levelMatchedDocs.filter(l => !isDocPrime(l) && (l.docType === 'course' || (!l.docType && !l.isExam)));
+                      const ebooks = levelMatchedDocs.filter(l => !isDocPrime(l) && l.docType === 'ebook');
+                      const series = levelMatchedDocs.filter(l => !isDocPrime(l) && (l.docType === 'exercises' || l.docType === 'series'));
+                      const homeworks = levelMatchedDocs.filter(l => !isDocPrime(l) && (l.docType === 'homework' || l.docType === 'exam' || l.docType === 'control' || l.isExam || l.docType === 'national' || l.docType === 'concours'));
 
                       return (
                         <>
+                          {devoirPrimes.length > 0 && (
+                            <optgroup label="⭐ DEVOIR PRIME (فروض مصححة ومقترحة)">
+                              {devoirPrimes.map(l => (
+                                <option key={l.id} value={l.id}>⭐ {l.title} {l.subject ? `(${l.subject})` : ''}</option>
+                              ))}
+                            </optgroup>
+                          )}
                           {courses.length > 0 && (
                             <optgroup label="📖 Cours & Chapitres du programme">
                               {courses.map(l => (
@@ -2389,6 +2435,13 @@ export default function AdminClassDetail() {
                             <optgroup label="📑 Devoirs surveillés & Contrôles">
                               {homeworks.map(l => (
                                 <option key={l.id} value={l.id}>📑 {l.title} {l.subject ? `(${l.subject})` : ''}</option>
+                              ))}
+                            </optgroup>
+                          )}
+                          {otherDevoirPrimes.length > 0 && (
+                            <optgroup label="⭐ Autres DEVOIR PRIME (مستويات أخرى / عامة)">
+                              {otherDevoirPrimes.map(l => (
+                                <option key={l.id} value={l.id}>⭐ {l.title} {l.level ? `[${l.level}]` : ''}</option>
                               ))}
                             </optgroup>
                           )}
