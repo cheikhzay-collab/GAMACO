@@ -8,7 +8,7 @@ import {
   Eye, EyeOff, Settings, ListOrdered, RefreshCw
 } from 'lucide-react';
 import { getAllClasses, updateClass, syncLocalClassProgramsToCloud } from '../services/classService';
-import { getActiveLessons } from '../services/lessonService';
+import { getAllLessons } from '../services/lessonService';
 import { getAllExams } from '../services/examService';
 import { 
   getLogbookEntries, addLogbookEntry, updateLogbookEntry, deleteLogbookEntry, syncLocalLogbookToCloud
@@ -888,7 +888,7 @@ export default function AdminLogbook() {
         setClasses(cls || []);
         setAllLogbookEntries(allEntries || []);
         
-        const lsns = await getActiveLessons();
+        const lsns = await getAllLessons();
         const examsList = await getAllExams().catch(() => []);
         
         const mappedExams = (examsList || []).map(ex => ({

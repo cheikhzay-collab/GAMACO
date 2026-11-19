@@ -4,7 +4,7 @@ import { useParams, useNavigate, useLocation, Navigate, useSearchParams } from '
 import { useAuth } from '../context/AuthContext';
 import { getClassById, updateClass, removeCompetitionFromClass, updateCompetitionGrade } from '../services/classService';
 import { getAllUsers, createUserDoc, updateUserDoc } from '../services/userService';
-import { getActiveLessons } from '../services/lessonService';
+import { getAllLessons } from '../services/lessonService';
 import { getLogbookEntries } from '../services/logbookService';
 import { getAllExams, getExamById, getExamQuestionsOnly } from '../services/examService';
 import { generateBatchAnswerSheets } from '../utils/generateAnswerSheet';
@@ -459,8 +459,8 @@ export default function AdminClassDetail() {
         updateClass(id, { students: mergedStudents, studentCount: mergedStudents.length }).catch(() => {});
       }
 
-      // Fetch all active lessons & exams
-      const activeLessons = await getActiveLessons();
+      // Fetch all lessons (including series and drafts) & exams for admin management
+      const lessonsList = await getAllLessons({ forceRefresh: true });
       const examsList = await getAllExams().catch(() => []);
       const mappedExams = (examsList || []).map(ex => ({
         id: `exam_${ex.id}`,
@@ -479,7 +479,7 @@ export default function AdminClassDetail() {
           }))
         }
       }));
-      setLessons([...(activeLessons || []), ...mappedExams]);
+      setLessons([...(lessonsList || []), ...mappedExams]);
       // Fetch logbook entries for the class
       const entries = await getLogbookEntries(id);
       setLogbookEntries(entries);
@@ -511,12 +511,25 @@ export default function AdminClassDetail() {
                           found.content?.devoir_prime_meta ||
                           (found.title && found.title.toUpperCase().includes('DEVOIR PRIME'));
 
+          const isEx = !isPrime && (
+            found.docType === 'exercises' || 
+            found.docType === 'series' || 
+            found.doc_type === 'exercises' || 
+            found.doc_type === 'series' || 
+            found.content?.doc_type === 'exercises' || 
+            found.content?.doc_type === 'series' ||
+            (found.title && /s[ée]rie|تمر|exercices?|fiches? td/i.test(found.title))
+          );
+
+          const resolvedType = isPrime ? 'homework' : (isEx ? 'exercises' : (found.docType || 'course'));
+          const resolvedDocType = isPrime ? 'devoir_prime' : (isEx ? 'exercises' : (found.docType || 'course'));
+
           newItem = {
             id: 'prog_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-            type: isPrime ? 'homework' : (found.docType || 'course'),
+            type: resolvedType,
             title: isPrime ? (found.title.toUpperCase().includes('PRIME') ? found.title : `⭐ DEVOIR PRIME : ${found.title}`) : found.title,
             lessonId: found.id,
-            docType: isPrime ? 'devoir_prime' : (found.docType || 'course')
+            docType: resolvedDocType
           };
         }
       } else {
@@ -2394,12 +2407,42 @@ export default function AdminClassDetail() {
                         (l.title && l.title.toUpperCase().includes('DEVOIR PRIME'))
                       );
 
+                      const isSeries = (l) => (
+                        !isDocPrime(l) && (
+                          l.docType === 'exercises' || 
+                          l.docType === 'series' || 
+                          l.doc_type === 'exercises' || 
+                          l.doc_type === 'series' || 
+                          l.content?.doc_type === 'exercises' || 
+                          l.content?.doc_type === 'series' ||
+                          (l.title && /s[ée]rie|تمر|exercices?|fiches? td/i.test(l.title))
+                        )
+                      );
+
+                      const isExamDoc = (l) => (
+                        !isDocPrime(l) && !isSeries(l) && (
+                          l.docType === 'homework' || 
+                          l.docType === 'exam' || 
+                          l.docType === 'control' || 
+                          l.doc_type === 'homework' || 
+                          l.doc_type === 'exam' || 
+                          l.doc_type === 'control' || 
+                          l.isExam || 
+                          l.docType === 'national' || 
+                          l.docType === 'concours' ||
+                          (l.title && /devoir|contr[ôo]le|examen|فرض|امتحان|qcm/i.test(l.title))
+                        )
+                      );
+
                       const devoirPrimes = levelMatchedDocs.filter(l => isDocPrime(l));
                       const otherDevoirPrimes = lessons.filter(l => isDocPrime(l) && !devoirPrimes.some(dp => dp.id === l.id));
-                      const courses = levelMatchedDocs.filter(l => !isDocPrime(l) && (l.docType === 'course' || (!l.docType && !l.isExam)));
-                      const ebooks = levelMatchedDocs.filter(l => !isDocPrime(l) && l.docType === 'ebook');
-                      const series = levelMatchedDocs.filter(l => !isDocPrime(l) && (l.docType === 'exercises' || l.docType === 'series'));
-                      const homeworks = levelMatchedDocs.filter(l => !isDocPrime(l) && (l.docType === 'homework' || l.docType === 'exam' || l.docType === 'control' || l.isExam || l.docType === 'national' || l.docType === 'concours'));
+                      
+                      const series = levelMatchedDocs.filter(l => isSeries(l));
+                      const otherSeries = lessons.filter(l => isSeries(l) && !series.some(s => s.id === l.id));
+
+                      const ebooks = levelMatchedDocs.filter(l => !isDocPrime(l) && !isSeries(l) && (l.docType === 'ebook' || l.doc_type === 'ebook'));
+                      const homeworks = levelMatchedDocs.filter(l => isExamDoc(l));
+                      const courses = levelMatchedDocs.filter(l => !isDocPrime(l) && !isSeries(l) && !isExamDoc(l) && l.docType !== 'ebook' && l.doc_type !== 'ebook');
 
                       return (
                         <>
@@ -2417,13 +2460,6 @@ export default function AdminClassDetail() {
                               ))}
                             </optgroup>
                           )}
-                          {ebooks.length > 0 && (
-                            <optgroup label="📚 E-Books">
-                              {ebooks.map(l => (
-                                <option key={l.id} value={l.id}>📚 {l.title} {l.subject ? `(${l.subject})` : ''}</option>
-                              ))}
-                            </optgroup>
-                          )}
                           {series.length > 0 && (
                             <optgroup label="📝 Séries d'exercices & Fiches TD">
                               {series.map(l => (
@@ -2435,6 +2471,20 @@ export default function AdminClassDetail() {
                             <optgroup label="📑 Devoirs surveillés & Contrôles">
                               {homeworks.map(l => (
                                 <option key={l.id} value={l.id}>📑 {l.title} {l.subject ? `(${l.subject})` : ''}</option>
+                              ))}
+                            </optgroup>
+                          )}
+                          {ebooks.length > 0 && (
+                            <optgroup label="📚 E-Books">
+                              {ebooks.map(l => (
+                                <option key={l.id} value={l.id}>📚 {l.title} {l.subject ? `(${l.subject})` : ''}</option>
+                              ))}
+                            </optgroup>
+                          )}
+                          {otherSeries.length > 0 && (
+                            <optgroup label="📝 Autres Séries d'exercices (مستويات أخرى / عامة)">
+                              {otherSeries.map(l => (
+                                <option key={l.id} value={l.id}>📝 {l.title} {l.level ? `[${l.level}]` : ''}</option>
                               ))}
                             </optgroup>
                           )}

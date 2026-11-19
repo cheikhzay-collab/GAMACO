@@ -771,9 +771,18 @@ const initMySQL = async () => {
       for (const lr of allLessonRows) {
         const parsed = safeJsonParse(lr.data, null);
         if (!parsed) continue;
-        const resolvedDocType = parsed.docType || parsed.doc_type || parsed.content?.doc_type || 'course';
-        if (!lr.doc_type || lr.doc_type !== resolvedDocType) {
-          await connection.query('UPDATE tbl_lessons SET doc_type = ? WHERE id = ?', [resolvedDocType, lr.id]).catch(() => { });
+        const resolvedDocType = parsed.docType || parsed.doc_type || parsed.content?.doc_type || (parsed.title && /s[ée]rie|تمر|exercices?/i.test(parsed.title) ? 'exercises' : 'course');
+        parsed.docType = resolvedDocType;
+        parsed.doc_type = resolvedDocType;
+
+        let dataModified = false;
+        if (parsed.isActive === false && !parsed.isArchived && !parsed.is_archived) {
+          parsed.isActive = true;
+          parsed.is_active = true;
+          dataModified = true;
+        }
+        if (!lr.doc_type || lr.doc_type !== resolvedDocType || dataModified) {
+          await connection.query('UPDATE tbl_lessons SET doc_type = ?, data = ? WHERE id = ?', [resolvedDocType, JSON.stringify(parsed), lr.id]).catch(() => { });
         }
         if (resolvedDocType === 'devoir_prime' || parsed.content?.devoir_prime_exercises) {
           const dpMeta = parsed.content?.devoir_prime_meta || {};
@@ -875,7 +884,7 @@ const MIME_TYPES = {
 const serveStatic = (res, filePath) => {
   fs.stat(filePath, (err, stats) => {
     if (err || !stats.isFile()) {
-      // Fallback to index.html for SPA routing (never cache HTML shell so new deploys appear immediately)
+      // Fallback to index.html for SPA routing
       const indexPath = path.join(DIST_DIR, 'index.html');
       fs.readFile(indexPath, (readErr, content) => {
         if (res.headersSent || res.writableEnded) return;
@@ -883,12 +892,7 @@ const serveStatic = (res, filePath) => {
           res.writeHead(404, { 'Content-Type': 'text/plain' });
           res.end('404 Not Found');
         } else {
-          res.writeHead(200, {
-            'Content-Type': 'text/html; charset=utf-8',
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0'
-          });
+          res.writeHead(200, { 'Content-Type': 'text/html' });
           res.end(content);
         }
       });
@@ -896,30 +900,15 @@ const serveStatic = (res, filePath) => {
     }
 
     const ext = path.extname(filePath).toLowerCase();
-    const baseName = path.basename(filePath).toLowerCase();
     const contentType = MIME_TYPES[ext] || 'application/octet-stream';
-    const isNoCacheShell =
-      ext === '.html' ||
-      baseName === 'sw.js' ||
-      baseName === 'registersw.js' ||
-      baseName === 'manifest.webmanifest' ||
-      baseName.startsWith('workbox-');
-    const isImmutable = !isNoCacheShell && (filePath.includes('assets') || ext === '.woff2' || ext === '.woff' || ext === '.ttf');
-    const cacheControl = isNoCacheShell
-      ? 'no-cache, no-store, must-revalidate'
-      : (isImmutable ? 'public, max-age=31536000, immutable' : 'public, max-age=300');
+    const isImmutable = filePath.includes('assets') || ext === '.woff2' || ext === '.woff' || ext === '.ttf';
+    const cacheControl = isImmutable ? 'public, max-age=31536000, immutable' : 'public, max-age=3600';
 
-    const headers = {
+    res.writeHead(200, {
       'Content-Type': contentType,
       'Content-Length': stats.size,
       'Cache-Control': cacheControl
-    };
-    if (isNoCacheShell) {
-      headers['Pragma'] = 'no-cache';
-      headers['Expires'] = '0';
-    }
-
-    res.writeHead(200, headers);
+    });
 
     const stream = fs.createReadStream(filePath);
     stream.pipe(res);
@@ -944,7 +933,7 @@ const readEnvFileKey = (envVarName) => {
     if (m && m[1]) {
       return m[1].trim().replace(/^["']|["']$/g, '');
     }
-  } catch (_) {}
+  } catch (_) { }
   return '';
 };
 
@@ -975,7 +964,7 @@ const resolveServerAiKey = async (provider, clientKey = '') => {
           return dbVal.trim().replace(/^["']|["']$/g, '');
         }
       }
-    } catch (_) {}
+    } catch (_) { }
   }
 
   // 2. config.json -> ai_settings
@@ -985,7 +974,7 @@ const resolveServerAiKey = async (provider, clientKey = '') => {
     if (isValidAiKeyValue(cfgVal, minLen)) {
       return cfgVal.trim().replace(/^["']|["']$/g, '');
     }
-  } catch (_) {}
+  } catch (_) { }
 
   // 3. .env file or process.env
   for (const envName of spec.envVars) {
@@ -1007,7 +996,7 @@ const getSnapshotsDir = () => {
   const dir = path.join(base, 'snapshots');
   try {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  } catch (_) {}
+  } catch (_) { }
   return dir;
 };
 
@@ -1119,7 +1108,7 @@ const restoreFullDatabasePayload = async (payload) => {
           await dbPool.query(
             'INSERT INTO tbl_exams (id, title, level, data) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE title = VALUES(title), level = VALUES(level), data = VALUES(data), updated_at = NOW()',
             [ex.id, ex.name || ex.title || '', ex.level || '', JSON.stringify(ex)]
-          ).catch(() => {});
+          ).catch(() => { });
         }
       }
     }
@@ -1130,7 +1119,7 @@ const restoreFullDatabasePayload = async (payload) => {
           await dbPool.query(
             'INSERT INTO tbl_lessons (id, title, subject, level, doc_type, data) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE title = VALUES(title), subject = VALUES(subject), level = VALUES(level), doc_type = VALUES(doc_type), data = VALUES(data), updated_at = NOW()',
             [l.id, l.title || '', l.subject || '', l.level || '', dt, JSON.stringify(l)]
-          ).catch(() => {});
+          ).catch(() => { });
         }
       }
     }
@@ -1140,7 +1129,7 @@ const restoreFullDatabasePayload = async (payload) => {
           await dbPool.query(
             'INSERT INTO tbl_classes (id, name, data) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name), data = VALUES(data), updated_at = NOW()',
             [c.id, c.name || '', JSON.stringify(c)]
-          ).catch(() => {});
+          ).catch(() => { });
         }
       }
     }
@@ -1151,7 +1140,7 @@ const restoreFullDatabasePayload = async (payload) => {
           await dbPool.query(
             'INSERT INTO tbl_users (id, email, password, role, tier, data) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE email = VALUES(email), role = VALUES(role), tier = VALUES(tier), data = VALUES(data), updated_at = NOW()',
             [uid, u.email || `${uid}@local.user`, u.password || hashPassword('student123'), u.role || 'student', u.tier || 'freemium', JSON.stringify(u)]
-          ).catch(() => {});
+          ).catch(() => { });
         }
       }
     }
@@ -1161,7 +1150,7 @@ const restoreFullDatabasePayload = async (payload) => {
           await dbPool.query(
             'INSERT INTO tbl_grades (id, lesson_id, exam_id, class_id, title, doc_type, total_points, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE lesson_id = VALUES(lesson_id), exam_id = VALUES(exam_id), class_id = VALUES(class_id), title = VALUES(title), doc_type = VALUES(doc_type), total_points = VALUES(total_points), data = VALUES(data), updated_at = NOW()',
             [g.id, g.lessonId || g.lesson_id || null, g.examId || g.exam_id || null, g.classId || g.class_id || null, g.title || '', g.docType || g.doc_type || 'homework', parseFloat(g.totalPoints || g.total_points) || 20, JSON.stringify(g)]
-          ).catch(() => {});
+          ).catch(() => { });
         }
       }
     }
@@ -1171,7 +1160,7 @@ const restoreFullDatabasePayload = async (payload) => {
           await dbPool.query(
             'INSERT INTO tbl_logbook (id, class_id, entry_date, data) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE class_id = VALUES(class_id), entry_date = VALUES(entry_date), data = VALUES(data), updated_at = NOW()',
             [String(lb.id).slice(0, 128), lb.classId || lb.class_id || null, lb.date || null, JSON.stringify(lb)]
-          ).catch(() => {});
+          ).catch(() => { });
         }
       }
     }
@@ -1181,7 +1170,7 @@ const restoreFullDatabasePayload = async (payload) => {
           await dbPool.query(
             'INSERT INTO tbl_devoir_prime (id, lesson_id, title, level, semester, academic_year, teacher, total_points, meta_json, exercises_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE title = VALUES(title), level = VALUES(level), semester = VALUES(semester), academic_year = VALUES(academic_year), teacher = VALUES(teacher), total_points = VALUES(total_points), meta_json = VALUES(meta_json), exercises_json = VALUES(exercises_json), updated_at = NOW()',
             [dp.id, dp.lesson_id, dp.title || '', dp.level || '', dp.semester || '', dp.academic_year || '', dp.teacher || '', parseFloat(dp.total_points) || 20, typeof dp.meta_json === 'string' ? dp.meta_json : JSON.stringify(dp.meta || {}), typeof dp.exercises_json === 'string' ? dp.exercises_json : JSON.stringify(dp.exercises || [])]
-          ).catch(() => {});
+          ).catch(() => { });
         }
       }
     }
@@ -1191,7 +1180,7 @@ const restoreFullDatabasePayload = async (payload) => {
           await dbPool.query(
             'INSERT INTO tbl_solutions (id, lesson_id, section_id, question_id, doc_type, solution_text, solution_json) VALUES (?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE doc_type = VALUES(doc_type), solution_text = VALUES(solution_text), solution_json = VALUES(solution_json), updated_at = NOW()',
             [s.id, s.lesson_id, s.section_id || 'sec-1', s.question_id || '', s.doc_type || 'homework', s.solution_text || '', s.solution_json || null]
-          ).catch(() => {});
+          ).catch(() => { });
         }
       }
     }
@@ -1201,7 +1190,7 @@ const restoreFullDatabasePayload = async (payload) => {
           await dbPool.query(
             'INSERT INTO tbl_assets (asset_path, data, mime_type) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE data = VALUES(data), mime_type = VALUES(mime_type), updated_at = NOW()',
             [a.asset_path, a.data, a.mime_type || 'image/png']
-          ).catch(() => {});
+          ).catch(() => { });
         }
       }
     }
@@ -1211,7 +1200,7 @@ const restoreFullDatabasePayload = async (payload) => {
           await dbPool.query(
             'INSERT INTO tbl_config (key_name, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = NOW()',
             [k, JSON.stringify(v)]
-          ).catch(() => {});
+          ).catch(() => { });
         }
       }
     }
@@ -1289,7 +1278,7 @@ const createDatabaseSnapshot = async (reason = 'auto', options = {}) => {
           lastSnapshotContentHash = contentHash;
           return { skipped: true, reason: 'matches_latest_on_disk', file: existingFiles[0] };
         }
-      } catch (_) {}
+      } catch (_) { }
     }
 
     const safeReason = String(reason || 'auto').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 24) || 'auto';
@@ -1319,7 +1308,7 @@ const createDatabaseSnapshot = async (reason = 'auto', options = {}) => {
       .reverse();
     if (updatedFiles.length > MAX_ROLLING_SNAPSHOTS) {
       for (const oldFile of updatedFiles.slice(MAX_ROLLING_SNAPSHOTS)) {
-        try { fs.unlinkSync(path.join(dir, oldFile)); } catch (_) {}
+        try { fs.unlinkSync(path.join(dir, oldFile)); } catch (_) { }
       }
     }
 
@@ -2410,7 +2399,7 @@ export const handleApiRequest = async (req, res, next) => {
                     currentObj = { ...currentObj, ...parsedDb };
                   }
                 }
-              } catch (_) {}
+              } catch (_) { }
             }
             // For ai_settings, never let an empty string overwrite an existing non-empty key unless explicitly intended
             if (k === 'ai_settings') {
@@ -3455,7 +3444,7 @@ if (!isVite) {
       await createDatabaseSnapshot('startup', { force: false });
       // Periodic 6-hour rolling snapshot (only writes if DB contents changed)
       const snapTimer = setInterval(() => {
-        createDatabaseSnapshot('auto', { force: false }).catch(() => {});
+        createDatabaseSnapshot('auto', { force: false }).catch(() => { });
       }, 6 * 60 * 60 * 1000);
       if (typeof snapTimer.unref === 'function') snapTimer.unref();
     })
