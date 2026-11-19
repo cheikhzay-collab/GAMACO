@@ -1686,6 +1686,153 @@ export default function AdminLogbook() {
     return null; // All completed
   };
 
+  // Intelligently compute the suggested continuation item based on the previous recorded session
+  const getContinuationSuggestion = () => {
+    if (!selectedClass || !selectedClass.program || selectedClass.program.length === 0) return null;
+
+    // 1. Find the last recorded session for this class
+    const actualEntries = (entries || [])
+      .filter(e => !e.isHolidayEntry && !e.isAbsenceEntry && e.date)
+      .sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.time || '').localeCompare(b.time || ''));
+
+    const lastEntry = actualEntries.length > 0 ? actualEntries[actualEntries.length - 1] : null;
+
+    if (!lastEntry) {
+      // First session ever: suggest the first planned item in the program
+      const firstPlanned = getNextPlannedItem();
+      const firstProgItem = firstPlanned || selectedClass.program[0];
+      if (!firstProgItem) return null;
+
+      let firstSec = null;
+      if (firstProgItem.lessonId) {
+        const lsn = lessons.find(l => l.id === firstProgItem.lessonId);
+        firstSec = lsn?.content?.sections?.[0];
+      }
+
+      return {
+        type: 'first',
+        isContinuation: false,
+        lastEntry: null,
+        progItem: firstProgItem,
+        suggestedDate: formatLocalDate(),
+        suggestedComponent: firstProgItem.type === 'exercises' ? 'Exercices' : (firstProgItem.type === 'homework' || firstProgItem.type === 'exam' || firstProgItem.title.includes('فرض') || firstProgItem.title.toUpperCase().includes('CONTRÔLE') ? 'Contrôle' : 'Cours'),
+        suggestedSections: firstSec ? [firstSec.title] : [],
+        suggestedSectionIds: firstSec ? [getSectionKey(firstSec, 0)] : [],
+        suggestedContent: `=== ${firstProgItem.title.toUpperCase()} ===\n` + (firstSec ? `• ${firstSec.title.replace(/\*\*/g, '').trim()}` : ''),
+        isHeaderSéance: true,
+        reasonAr: 'أول عنصر في البرنامج الدراسي المقرر لهذا القسم',
+        reasonFr: 'Premier élément du programme officiel de la classe'
+      };
+    }
+
+    // 2. Identify the program item of the last recorded session
+    let lastProgItem = null;
+    if (lastEntry.selectedProgramItemId) {
+      lastProgItem = selectedClass.program.find(p => p.id === lastEntry.selectedProgramItemId);
+    }
+    if (!lastProgItem && lastEntry.lessonId) {
+      lastProgItem = selectedClass.program.find(p => p.lessonId === lastEntry.lessonId);
+    }
+    if (!lastProgItem && lastEntry.customContent) {
+      lastProgItem = selectedClass.program.find(p => lastEntry.customContent.includes(p.title));
+    }
+
+    // Fallback: If not found, use getNextPlannedItem
+    if (!lastProgItem) {
+      const planned = getNextPlannedItem();
+      if (!planned) return null;
+      lastProgItem = planned;
+    }
+
+    // 3. Check if lastProgItem is still in progress (has uncovered sections/exercises)
+    let isStillInProgress = false;
+    let nextUncoveredSection = null;
+    let uncoveredCount = 0;
+
+    if (lastProgItem.lessonId) {
+      const lesson = lessons.find(l => l.id === lastProgItem.lessonId);
+      const allSections = lesson?.content?.sections || [];
+      const coverage = getLessonCoverage(lastProgItem.lessonId);
+      const uncovered = allSections
+        .map((s, idx) => ({ ...s, _origIdx: idx, _secKey: getSectionKey(s, idx) }))
+        .filter(s => !coverage.isSectionCovered(s, s._origIdx));
+
+      if (uncovered.length > 0) {
+        isStillInProgress = true;
+        nextUncoveredSection = uncovered[0];
+        uncoveredCount = uncovered.length;
+      }
+    }
+
+    // Compute suggested date and time based on previous session date
+    const nextDate = getNextSessionDate(lastEntry.date);
+    const today = formatLocalDate();
+    const suggestedDate = nextDate >= today ? nextDate : today;
+    const dateSlots = getScheduledSlotsForDate(suggestedDate, selectedClass.id);
+    const suggestedTime = dateSlots.length > 0 ? dateSlots[0].displayTime : (lastEntry.time || '08:00 - 10:00');
+
+    if (isStillInProgress) {
+      // Continuation of the same lesson/series!
+      const secTitleClean = nextUncoveredSection ? nextUncoveredSection.title.replace(/\*\*/g, '').trim() : '';
+      return {
+        type: 'continuation',
+        isContinuation: true,
+        lastEntry,
+        progItem: lastProgItem,
+        suggestedDate,
+        suggestedTime,
+        suggestedComponent: lastEntry.component || (lastProgItem.type === 'exercises' ? 'Exercices' : 'Cours'),
+        suggestedSections: nextUncoveredSection ? [nextUncoveredSection.title] : [],
+        suggestedSectionIds: nextUncoveredSection ? [nextUncoveredSection._secKey] : [],
+        suggestedContent: secTitleClean ? `• ${secTitleClean}` : '',
+        isHeaderSéance: false,
+        uncoveredCount,
+        reasonAr: `استكمال الحصة السابقة (${lastEntry.date}) : متبقي ${uncoveredCount} فقرة/تمرين`,
+        reasonFr: `Suite de la séance précédente (${lastEntry.date}) : ${uncoveredCount} élément(s) restant(s)`
+      };
+    } else {
+      // Last item was fully completed, advance to next program item in order!
+      const curIdx = selectedClass.program.findIndex(p => p.id === lastProgItem.id);
+      let nextProgItem = null;
+      if (curIdx !== -1 && curIdx + 1 < selectedClass.program.length) {
+        nextProgItem = selectedClass.program[curIdx + 1];
+      } else {
+        nextProgItem = getNextPlannedItem() || lastProgItem;
+      }
+
+      let firstSec = null;
+      if (nextProgItem.lessonId) {
+        const lsn = lessons.find(l => l.id === nextProgItem.lessonId);
+        firstSec = lsn?.content?.sections?.[0];
+      }
+
+      let comp = 'Cours';
+      if (nextProgItem.type === 'exercises') comp = 'Exercices';
+      if (nextProgItem.type === 'homework' || nextProgItem.type === 'exam' || nextProgItem.title.includes('فرض') || nextProgItem.title.toUpperCase().includes('CONTRÔLE')) comp = 'Contrôle';
+
+      const secTitleClean = firstSec ? firstSec.title.replace(/\*\*/g, '').trim() : '';
+      return {
+        type: 'next_item',
+        isContinuation: false,
+        lastEntry,
+        progItem: nextProgItem,
+        suggestedDate,
+        suggestedTime,
+        suggestedComponent: comp,
+        suggestedSections: firstSec ? [firstSec.title] : [],
+        suggestedSectionIds: firstSec ? [getSectionKey(firstSec, 0)] : [],
+        suggestedContent: `=== ${nextProgItem.title.toUpperCase()} ===\n` + (secTitleClean ? `• ${secTitleClean}` : ''),
+        isHeaderSéance: true,
+        reasonAr: `المقرر الموالي بعد اكتمال الحصة السابقة (${lastEntry.date})`,
+        reasonFr: `Élément suivant après complétion de la séance précédente (${lastEntry.date})`
+      };
+    }
+  };
+
+  const continuationSuggestion = useMemo(() => {
+    return getContinuationSuggestion();
+  }, [entries, selectedClass, lessons, holidays, absences]);
+
   // Open "Add Séance" modal pre-filled with a specific program item
   const handleOpenAddSpecificProgramItem = (item, isProgramOnly = true) => {
     setIsProgramOnlyMode(isProgramOnly);
@@ -1747,13 +1894,64 @@ export default function AdminLogbook() {
   const handleOpenAddFromProgram = () => {
     setIsProgramOnlyMode(true);
     setModalEditorTab('edit');
+    setEditingEntry(null);
+
+    const suggestion = continuationSuggestion || getContinuationSuggestion();
+    if (suggestion && suggestion.progItem) {
+      setFormData({
+        date: suggestion.suggestedDate || formatLocalDate(),
+        time: suggestion.suggestedTime || '08:00 - 10:00',
+        component: suggestion.suggestedComponent || 'Cours',
+        subject: 'Mathématiques',
+        lessonId: suggestion.progItem.lessonId || '',
+        selectedProgramItemId: suggestion.progItem.id,
+        selectedSections: suggestion.suggestedSections || [],
+        selectedSectionIds: suggestion.suggestedSectionIds || [],
+        customContent: suggestion.suggestedContent || '',
+        isHeaderSéance: suggestion.isHeaderSéance || false
+      });
+      setProgramDrawerOpen(false);
+      setModalOpen(true);
+      return;
+    }
+
     const nextItem = getNextPlannedItem();
     if (!nextItem) {
       alert(isArMode ? "لقد تم إنجاز جميع دروس البرنامج المعتمد للقسم!" : "Tous les éléments du programme ont été complétés !");
-      setEditingEntry(null);
+      return;
+    }
+    handleOpenAddSpecificProgramItem(nextItem, true);
+  };
+
+  // Primary Add Séance handler (strictly focused on class curriculum with automatic continuation suggestion)
+  const handleOpenAddModal = () => {
+    setIsProgramOnlyMode(true);
+    setModalEditorTab('edit');
+    setEditingEntry(null);
+
+    const suggestion = continuationSuggestion || getContinuationSuggestion();
+
+    if (suggestion && suggestion.progItem) {
       setFormData({
-        date: formatLocalDate(),
-        time: '08:00 - 10:00',
+        date: suggestion.suggestedDate || formatLocalDate(),
+        time: suggestion.suggestedTime || '08:00 - 10:00',
+        component: suggestion.suggestedComponent || 'Cours',
+        subject: 'Mathématiques',
+        lessonId: suggestion.progItem.lessonId || '',
+        selectedProgramItemId: suggestion.progItem.id,
+        selectedSections: suggestion.suggestedSections || [],
+        selectedSectionIds: suggestion.suggestedSectionIds || [],
+        customContent: suggestion.suggestedContent || '',
+        isHeaderSéance: suggestion.isHeaderSéance || false
+      });
+    } else {
+      const todayStr = formatLocalDate();
+      const todaySlots = getScheduledSlotsForDate(todayStr, selectedClass?.id);
+      const defaultTime = todaySlots.length > 0 ? todaySlots[0].displayTime : '08:00 - 10:00';
+
+      setFormData({
+        date: todayStr,
+        time: defaultTime,
         component: 'Cours',
         subject: 'Mathématiques',
         lessonId: '',
@@ -1763,34 +1961,8 @@ export default function AdminLogbook() {
         customContent: '',
         isHeaderSéance: false
       });
-      setModalOpen(true);
-      return;
     }
 
-    handleOpenAddSpecificProgramItem(nextItem, true);
-  };
-
-  // Primary Add Séance handler (strictly focused on class curriculum)
-  const handleOpenAddModal = () => {
-    setIsProgramOnlyMode(true);
-    setModalEditorTab('edit');
-    setEditingEntry(null);
-    const todayStr = formatLocalDate();
-    const todaySlots = getScheduledSlotsForDate(todayStr, selectedClass?.id);
-    const defaultTime = todaySlots.length > 0 ? todaySlots[0].displayTime : '08:00 - 10:00';
-
-    setFormData({
-      date: todayStr,
-      time: defaultTime,
-      component: 'Cours',
-      subject: 'Mathématiques',
-      lessonId: '',
-      selectedProgramItemId: '',
-      selectedSections: [],
-      selectedSectionIds: [],
-      customContent: '',
-      isHeaderSéance: false
-    });
     setModalOpen(true);
   };
 
@@ -1906,24 +2078,78 @@ export default function AdminLogbook() {
         const nextSlots = getScheduledSlotsForDate(nextDate, selectedClass.id);
         const nextTime = nextSlots.length > 0 ? nextSlots[0].displayTime : formData.time;
 
-        // Auto-advance to next program item if available
-        let nextProgId = '';
-        let nextLessonId = '';
-        let nextContent = '';
-        let nextComp = 'Cours';
-        let nextIsHeader = false;
+        // Check if the current program item still has uncovered sections after this session
+        let nextProgItem = null;
+        let isContinuation = false;
+        let nextUncovered = [];
 
-        if (selectedClass.program && selectedClass.program.length > 0) {
+        if (formData.selectedProgramItemId && selectedClass.program) {
+          const curProgItem = selectedClass.program.find(p => p.id === formData.selectedProgramItemId);
+          if (curProgItem && curProgItem.lessonId) {
+            const lesson = lessons.find(l => l.id === curProgItem.lessonId);
+            const allSections = lesson?.content?.sections || [];
+            
+            // Recompute coverage including the newly saved session
+            const currentSelectedIds = new Set(formData.selectedSectionIds || []);
+            const coverage = getLessonCoverage(curProgItem.lessonId);
+            
+            nextUncovered = allSections
+              .map((s, idx) => ({ ...s, _origIdx: idx, _secKey: getSectionKey(s, idx) }))
+              .filter(s => !coverage.isSectionCovered(s, s._origIdx) && !currentSelectedIds.has(s._secKey));
+
+            if (nextUncovered.length > 0) {
+              nextProgItem = curProgItem;
+              isContinuation = true;
+            }
+          }
+        }
+
+        // If the current item is complete or has no more sections, advance to the next program item in order
+        if (!nextProgItem && selectedClass.program && selectedClass.program.length > 0) {
           const curIdx = selectedClass.program.findIndex(p => p.id === formData.selectedProgramItemId);
           const nextIdx = (curIdx !== -1 && curIdx + 1 < selectedClass.program.length) ? curIdx + 1 : -1;
           if (nextIdx !== -1) {
-            const nextItem = selectedClass.program[nextIdx];
-            nextProgId = nextItem.id;
-            nextLessonId = nextItem.lessonId || '';
+            nextProgItem = selectedClass.program[nextIdx];
+            isContinuation = false;
+          }
+        }
+
+        let nextProgId = nextProgItem?.id || '';
+        let nextLessonId = nextProgItem?.lessonId || '';
+        let nextContent = '';
+        let nextComp = formData.component || 'Cours';
+        let nextIsHeader = false;
+        let nextSections = [];
+        let nextSectionIds = [];
+
+        if (nextProgItem) {
+          if (isContinuation) {
+            // Continuation of same item
+            nextComp = formData.component;
+            nextIsHeader = false;
+            if (nextUncovered.length > 0) {
+              const cleanSec = nextUncovered[0].title.replace(/\*\*/g, '').trim();
+              nextContent = `• ${cleanSec}`;
+              nextSections = [nextUncovered[0].title];
+              nextSectionIds = [nextUncovered[0]._secKey];
+            }
+          } else {
+            // New item in program
             nextIsHeader = true;
-            nextContent = `=== ${nextItem.title.toUpperCase()} ===\n`;
-            if (nextItem.type === 'exercises') nextComp = 'Exercices';
-            if (nextItem.type === 'homework' || nextItem.type === 'exam' || nextItem.title.includes('فرض') || nextItem.title.toUpperCase().includes('CONTRÔLE')) nextComp = 'Contrôle';
+            nextContent = `=== ${nextProgItem.title.toUpperCase()} ===\n`;
+            if (nextProgItem.type === 'exercises') nextComp = 'Exercices';
+            if (nextProgItem.type === 'homework' || nextProgItem.type === 'exam' || nextProgItem.title.includes('فرض') || nextProgItem.title.toUpperCase().includes('CONTRÔLE')) nextComp = 'Contrôle';
+            
+            if (nextProgItem.lessonId) {
+              const lsn = lessons.find(l => l.id === nextProgItem.lessonId);
+              const firstSec = lsn?.content?.sections?.[0];
+              if (firstSec) {
+                const cleanSec = firstSec.title.replace(/\*\*/g, '').trim();
+                nextContent += `• ${cleanSec}`;
+                nextSections = [firstSec.title];
+                nextSectionIds = [getSectionKey(firstSec, 0)];
+              }
+            }
           }
         }
 
@@ -1935,13 +2161,16 @@ export default function AdminLogbook() {
           subject: formData.subject,
           lessonId: nextLessonId,
           selectedProgramItemId: nextProgId,
-          selectedSections: [],
-          selectedSectionIds: [],
+          selectedSections: nextSections,
+          selectedSectionIds: nextSectionIds,
           customContent: nextContent,
           isHeaderSéance: nextIsHeader
         });
         setModalEditorTab('edit');
-        setSuccess(isArMode ? '⚡ تم حفظ الحصة بنجاح! جاهز لتسجيل الحصة الموالية...' : '⚡ Séance enregistrée ! Prêt pour la séance suivante...');
+        setSuccess(isArMode 
+          ? (isContinuation ? '⚡ تم حفظ الحصة بنجاح! تم اقتراح باقي فقرات الحصة...' : '⚡ تم حفظ الحصة بنجاح! جاهز لتسجيل الدرس الموالي...') 
+          : (isContinuation ? '⚡ Séance enregistrée ! Prêt pour la suite de cette fiche...' : '⚡ Séance enregistrée ! Prêt pour la séance suivante...')
+        );
         setTimeout(() => setSuccess(''), 3500);
       } else {
         setModalOpen(false);
@@ -4305,6 +4534,90 @@ export default function AdminLogbook() {
                   )}
                 </div>
 
+                {/* Intelligent Continuation Suggestion Banner */}
+                {(() => {
+                  const suggestion = continuationSuggestion || getContinuationSuggestion();
+                  if (!suggestion || !suggestion.progItem || editingEntry) return null;
+                  const isCurrentSelected = formData.selectedProgramItemId === suggestion.progItem.id;
+                  return (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '0.75rem',
+                      padding: '0.65rem 0.95rem',
+                      background: suggestion.isContinuation 
+                        ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(5, 150, 105, 0.05) 100%)' 
+                        : 'linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(139, 92, 246, 0.05) 100%)',
+                      border: suggestion.isContinuation 
+                        ? '1px solid rgba(16, 185, 129, 0.35)' 
+                        : '1px solid rgba(99, 102, 241, 0.35)',
+                      borderRadius: '12px',
+                      marginBottom: '0.75rem',
+                      flexWrap: 'wrap'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0, flex: 1 }}>
+                        <span style={{ fontSize: '1.2rem', flexShrink: 0 }}>
+                          {suggestion.isContinuation ? '🔄' : '⏩'}
+                        </span>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>
+                            {isArMode ? suggestion.reasonAr : suggestion.reasonFr}
+                          </div>
+                          <div style={{ fontSize: '0.86rem', fontWeight: 900, color: suggestion.isContinuation ? 'var(--emerald)' : 'var(--violet)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {suggestion.progItem.title}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                        {isCurrentSelected ? (
+                          <span style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                            padding: '0.25rem 0.65rem',
+                            borderRadius: '6px',
+                            background: suggestion.isContinuation ? 'rgba(16, 185, 129, 0.2)' : 'rgba(99, 102, 241, 0.2)',
+                            color: suggestion.isContinuation ? '#059669' : 'var(--violet)',
+                            border: suggestion.isContinuation ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(99, 102, 241, 0.4)'
+                          }}>
+                            ✓ {isArMode ? 'محدد تلقائياً للاستكمال' : 'Appliqué automatiquement'}
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFormData(prev => ({
+                                ...prev,
+                                lessonId: suggestion.progItem.lessonId || '',
+                                selectedProgramItemId: suggestion.progItem.id,
+                                component: suggestion.suggestedComponent,
+                                selectedSections: suggestion.suggestedSections || [],
+                                selectedSectionIds: suggestion.suggestedSectionIds || [],
+                                customContent: suggestion.suggestedContent || prev.customContent,
+                                isHeaderSéance: suggestion.isHeaderSéance || false
+                              }));
+                            }}
+                            style={{
+                              fontSize: '0.74rem',
+                              fontWeight: 800,
+                              padding: '0.3rem 0.75rem',
+                              borderRadius: '7px',
+                              background: suggestion.isContinuation ? 'var(--emerald)' : 'var(--violet)',
+                              color: '#ffffff',
+                              border: 'none',
+                              cursor: 'pointer',
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+                            }}
+                          >
+                            ⚡ {isArMode ? 'تطبيق اقتراح الاستكمال' : 'Appliquer la suggestion'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {selectedClass?.program && selectedClass.program.length > 0 ? (
                   <select
                     className="modal-input"
@@ -4314,9 +4627,13 @@ export default function AdminLogbook() {
                     <option value="">{isArMode ? '-- اختر عنصراً من البرنامج الدراسي للقسم --' : '-- Sélectionner un élément du programme --'}</option>
                     {selectedClass.program.map((item, pIdx) => {
                       const status = getProgramItemStatus(item);
+                      const isSuggested = continuationSuggestion?.progItem?.id === item.id;
+                      const badge = isSuggested
+                        ? (isArMode ? ' ⭐ [مقترح للاستكمال تلقائياً]' : ' ⭐ [Suggéré automatiquement]')
+                        : (status.isDone ? (isArMode ? ' ✓ (منجز)' : ' ✓ (Terminé)') : (status.pct > 0 ? ` (${status.pct}%)` : ''));
                       return (
                         <option key={`prog_${item.id}`} value={`prog_item_${item.id}`}>
-                          {pIdx + 1}. {item.title} {status.isDone ? (isArMode ? '✓ (منجز)' : '✓ (Terminé)') : (status.pct > 0 ? `(${status.pct}%)` : '')}
+                          {pIdx + 1}. {item.title}{badge}
                         </option>
                       );
                     })}
