@@ -1,0 +1,1617 @@
+// src/utils/generateMasterLogbookBookPDF.js
+// High-Fidelity Moroccan Official Teacher's Master Logbook Book Generator
+// (كتاب دفتر النصوص الشامل لجميع الأقسام وفق المعايير الوزارية الرسمية للمملكة المغربية)
+
+import { 
+  esc, 
+  renderActivityCellHTML, 
+  chunkActivityContent, 
+  getTranslatedComponent, 
+  getLevelDisplayName, 
+  getAcademicYear 
+} from './generateLogbookPDF.js';
+import { mergeConsecutiveEntries, ORDERED_TIME_SLOTS } from './scheduleHelpers.js';
+import { getOfficialMoroccanHolidays } from '../services/schoolService.js';
+
+// Moroccan Kingdom Coat of Arms SVG Vector
+const MOROCCAN_EMBLEM_SVG = `
+<svg viewBox="0 0 160 160" width="80" height="80" xmlns="http://www.w3.org/2000/svg" style="display:inline-block;vertical-align:middle;">
+  <defs>
+    <radialGradient id="sunGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fbbf24" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#d97706" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="shieldGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#b91c1c"/>
+      <stop offset="100%" stop-color="#991b1b"/>
+    </linearGradient>
+    <linearGradient id="goldRibbon" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fbbf24"/>
+      <stop offset="50%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#b45309"/>
+    </linearGradient>
+  </defs>
+  <!-- Decorative halo -->
+  <circle cx="80" cy="80" r="76" fill="none" stroke="#d97706" stroke-width="1.5" stroke-dasharray="3,3" opacity="0.6"/>
+  <circle cx="80" cy="80" r="72" fill="none" stroke="#b45309" stroke-width="0.8"/>
+  
+  <!-- Royal Crown on top -->
+  <path d="M 66 38 L 70 48 L 80 42 L 90 48 L 94 38 L 98 52 L 62 52 Z" fill="#d97706" stroke="#78350f" stroke-width="0.8"/>
+  <circle cx="66" cy="36" r="2.2" fill="#fbbf24"/>
+  <circle cx="80" cy="40" r="2.8" fill="#fbbf24"/>
+  <circle cx="94" cy="36" r="2.2" fill="#fbbf24"/>
+  <rect x="64" y="52" width="32" height="3" rx="1.5" fill="#047857"/>
+
+  <!-- Main Shield -->
+  <path d="M 52 56 Q 80 50 108 56 Q 108 92 80 114 Q 52 92 52 56 Z" fill="url(#shieldGrad)" stroke="#d97706" stroke-width="2.5"/>
+  
+  <!-- Rising Sun inside shield -->
+  <path d="M 62 82 Q 80 68 98 82 Z" fill="#fbbf24" opacity="0.85"/>
+  <!-- Atlas Mountain peaks inside shield -->
+  <polygon points="56,92 72,76 86,90 80,92" fill="#047857"/>
+  <polygon points="76,92 90,78 104,92" fill="#065f46"/>
+  
+  <!-- Green Moroccan Star (Pentagram) -->
+  <polygon points="80,82 82.5,89.5 90,89.5 84,94 86.5,101 80,96.5 73.5,101 76,94 70,89.5 77.5,89.5" fill="none" stroke="#10b981" stroke-width="2.2" stroke-linejoin="round"/>
+  
+  <!-- Golden Banner / Scroll below shield -->
+  <path d="M 40 120 Q 80 128 120 120 Q 112 130 80 132 Q 48 130 40 120 Z" fill="url(#goldRibbon)" stroke="#78350f" stroke-width="0.8"/>
+  <!-- Verse: إِنْ تَنْصُرُوا اللَّهَ يَنْصُرْكُمْ -->
+  <text x="80" y="127.5" font-size="5.2" font-family="'Amiri', 'Cairo', serif" font-weight="bold" fill="#451a03" text-anchor="middle">إِنْ تَنْصُرُوا اللَّهَ يَنْصُرْكُمْ</text>
+
+  <!-- Side Atlas Laurel Branches -->
+  <path d="M 44 64 Q 38 88 48 112" fill="none" stroke="#d97706" stroke-width="1.8"/>
+  <path d="M 116 64 Q 122 88 112 112" fill="none" stroke="#d97706" stroke-width="1.8"/>
+</svg>
+`;
+
+// Moroccan Map Silhouette SVG (Complete Map with Moroccan Sahara)
+const MOROCCAN_MAP_SVG = `
+<svg viewBox="0 0 240 240" width="130" height="130" xmlns="http://www.w3.org/2000/svg" style="display:inline-block;vertical-align:middle;opacity:0.88;">
+  <defs>
+    <linearGradient id="mapGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#047857"/>
+      <stop offset="100%" stop-color="#065f46"/>
+    </linearGradient>
+  </defs>
+  <!-- Stylized outline of the Kingdom of Morocco (Tanger to Lagouira) -->
+  <path d="M 170 30 
+           Q 185 32 195 40 
+           Q 188 52 175 60 
+           Q 180 75 190 85 
+           Q 175 105 160 120 
+           Q 145 135 135 155 
+           Q 120 180 100 205 
+           Q 85 225 75 220 
+           Q 70 205 78 190 
+           Q 85 170 95 150 
+           Q 105 135 110 115 
+           Q 115 95 125 75 
+           Q 140 50 155 35 Z" 
+        fill="url(#mapGrad)" stroke="#d97706" stroke-width="1.5" stroke-linejoin="round"/>
+  <!-- Sahara coordinates lines -->
+  <line x1="80" y1="165" x2="140" y2="165" stroke="#fbbf24" stroke-width="0.8" stroke-dasharray="2,2" opacity="0.6"/>
+  <circle cx="170" cy="38" r="2.5" fill="#fbbf24" title="Tanger"/>
+  <circle cx="152" cy="55" r="2.5" fill="#fbbf24" title="Rabat"/>
+  <circle cx="145" cy="65" r="2.5" fill="#fbbf24" title="Casablanca"/>
+  <circle cx="135" cy="95" r="2.5" fill="#fbbf24" title="Marrakech"/>
+  <circle cx="120" cy="120" r="2.5" fill="#fbbf24" title="Agadir"/>
+  <circle cx="95" cy="175" r="2.5" fill="#fbbf24" title="Laâyoune"/>
+  <circle cx="80" cy="210" r="2.5" fill="#fbbf24" title="Dakhla"/>
+  <text x="120" y="235" font-size="8" font-family="'Cairo', sans-serif" font-weight="800" fill="#047857" text-anchor="middle">المملكة المغربية الشريفة</text>
+</svg>
+`;
+
+/**
+ * Builds the combined chronological logbook sessions for a given class,
+ * interleaving holidays and absences up to the current date.
+ */
+function buildClassLogbookRows(cls, allEntries = [], holidays = [], absences = [], academicYear = '2026/2027') {
+  if (!cls) return [];
+  const startYear = parseInt(String(academicYear).split(/[-/]/)[0], 10) || 2026;
+  const yearStart = new Date(`${startYear}-09-01T00:00:00`);
+  const yearEnd = new Date(`${startYear + 1}-08-31T23:59:59`);
+  
+  const isAr = Boolean(
+    cls.language === 'ar' || 
+    cls.isArabic || 
+    (cls.name && cls.name.includes('عرب')) ||
+    (cls.level && cls.level.includes('arts'))
+  );
+
+  // 1. Class manual entries
+  const clsRaw = allEntries.filter(e => e.classId === cls.id && e.date);
+  const filtered = clsRaw.filter(e => {
+    const d = new Date(e.date);
+    return d >= yearStart && d <= yearEnd;
+  });
+  const mergedActual = mergeConsecutiveEntries(filtered);
+
+  // Effective cutoff
+  const todayStr = new Date().toISOString().split('T')[0];
+  let maxEntryDate = '';
+  for (const e of mergedActual) {
+    if (e.date && e.date > maxEntryDate) maxEntryDate = e.date;
+  }
+  const effectiveCutoff = todayStr > maxEntryDate ? todayStr : maxEntryDate;
+
+  // 2. Holidays
+  const holidayEntries = (holidays || []).map(h => {
+    if (!h || !h.startDate || !h.endDate) return null;
+    const hStart = new Date(h.startDate);
+    const hEnd = new Date(h.endDate);
+    if (hEnd < yearStart || hStart > yearEnd) return null;
+    if (h.startDate > effectiveCutoff) return null;
+
+    const isSingleDay = h.startDate === h.endDate;
+    const dateDisplay = isSingleDay 
+      ? h.startDate 
+      : (isAr ? `من ${h.startDate} إلى ${h.endDate}` : `Du ${h.startDate} au ${h.endDate}`);
+
+    return {
+      id: `hol-${h.id || h.startDate}`,
+      classId: cls.id,
+      date: h.startDate,
+      displayDate: dateDisplay,
+      endDate: h.endDate,
+      time: '—',
+      component: isAr ? 'عطلة مدرسية' : 'Vacances',
+      subject: cls.subject || (isAr ? 'الرياضيات' : 'Mathématiques'),
+      customContent: isAr ? `=== عطلة مدرسية: ${h.label} ===` : `=== Vacances scolaires : ${h.label} ===`,
+      holidayLabel: h.label,
+      isHeaderSéance: true,
+      isHolidayEntry: true
+    };
+  }).filter(Boolean);
+
+  // 3. Absences
+  const absenceEntries = (absences || []).map(a => {
+    if (!a || !a.startDate || !a.endDate) return null;
+    const aStart = new Date(a.startDate);
+    const aEnd = new Date(a.endDate);
+    if (aEnd < yearStart || aStart > yearEnd) return null;
+    if (a.startDate > effectiveCutoff) return null;
+
+    const isSingleDay = a.startDate === a.endDate;
+    const dateDisplay = isSingleDay 
+      ? a.startDate 
+      : (isAr ? `من ${a.startDate} إلى ${a.endDate}` : `Du ${a.startDate} au ${a.endDate}`);
+
+    return {
+      id: `abs-${a.id || a.startDate}`,
+      classId: cls.id,
+      date: a.startDate,
+      displayDate: dateDisplay,
+      endDate: a.endDate,
+      time: '—',
+      component: isAr ? 'غياب الأستاذ' : 'Absence Enseignant',
+      subject: cls.subject || (isAr ? 'الرياضيات' : 'Mathématiques'),
+      customContent: isAr 
+        ? `=== رخصة / غياب: ${a.type || 'رخصة إدارية'} ===\nالسبب: ${a.reason || 'غير محدد'}`
+        : `=== Absence / Congé : ${a.type || 'Autorisation'} ===\nMotif : ${a.reason || 'non spécifié'}`,
+      isHeaderSéance: true,
+      isAbsenceEntry: true
+    };
+  }).filter(Boolean);
+
+  // Combine and sort chronologically
+  const combined = [...mergedActual, ...holidayEntries, ...absenceEntries];
+  combined.sort((a, b) => {
+    const diff = (a.date || '').localeCompare(b.date || '');
+    if (diff !== 0) return diff;
+    return (a.time || '').localeCompare(b.time || '');
+  });
+
+  return combined;
+}
+
+/**
+ * Generates the full master book HTML string containing all 10 official sections.
+ */
+export function generateMasterLogbookBookHTML({
+  classes = [],
+  allLogbookEntries = [],
+  schedule = {},
+  holidays = [],
+  absences = [],
+  teacherInfo = {},
+  styleConfig = {}
+}) {
+  const academicYear = teacherInfo.profAcademicYear || getAcademicYear();
+  const profName = teacherInfo.profName || 'الأستاذ(ة)';
+  const profSchool = teacherInfo.profSchool || 'الثانوية التأهيلية';
+  const profDirection = teacherInfo.profDirection || 'المديرية الإقليمية';
+  const profAcademy = teacherInfo.profAcademy || 'الأكاديمية الجهوية للتربية والتكوين';
+  const profSOM = teacherInfo.profSOM || '—';
+  const profSubject = teacherInfo.profSubject || 'الرياضيات / Mathématiques';
+  const profEmail = teacherInfo.profEmail || '—';
+  const profPhone = teacherInfo.profPhone || '—';
+  const profCity = teacherInfo.profCity || '—';
+  const profCIN = teacherInfo.profCIN || '—';
+  const profCadre = teacherInfo.profCadre || 'أستاذ التعليم الثانوي التأهيلي';
+  const profGrade = teacherInfo.profGrade || 'الدرجة الأولى (ممتازة)';
+  const profEchelon = teacherInfo.profEchelon || '—';
+
+  // Fonts and Styles
+  const arFont = styleConfig.arFont || 'Cairo';
+  const frFont = styleConfig.frFont || 'Outfit';
+  const gridLineHeight = styleConfig.gridLineHeight || 20;
+  const showHoraire = styleConfig.showHoraire !== false;
+  const showComposant = styleConfig.showComposant !== false;
+
+  // Ensure full Moroccan official holidays fallback
+  const effectiveHolidays = (holidays && holidays.length > 0) 
+    ? holidays 
+    : getOfficialMoroccanHolidays(academicYear);
+
+  // Total weekly timetable hours
+  const totalWeeklyHours = Object.values(schedule || {}).filter(s => s && s.classId).length;
+
+  // Days of week mapping
+  const daysOfWeek = [
+    { key: 'Lundi', ar: 'الإثنين', fr: 'Lundi' },
+    { key: 'Mardi', ar: 'الثلاثاء', fr: 'Mardi' },
+    { key: 'Mercredi', ar: 'الأربعاء', fr: 'Mercredi' },
+    { key: 'Jeudi', ar: 'الخميس', fr: 'Jeudi' },
+    { key: 'Vendredi', ar: 'الجمعة', fr: 'Vendredi' },
+    { key: 'Samedi', ar: 'السبت', fr: 'Samedi' }
+  ];
+
+  // Time periods
+  const timePeriods = [
+    { id: '08-09', label: '08h30 - 09h30' },
+    { id: '09-10', label: '09h30 - 10h30' },
+    { id: '10-11', label: '10h30 - 11h30' },
+    { id: '11-12', label: '11h30 - 12h30' },
+    { id: '14-15', label: '14h30 - 15h30' },
+    { id: '15-16', label: '15h30 - 16h30' },
+    { id: '16-17', label: '16h30 - 17h30' },
+    { id: '17-18', label: '17h30 - 18h30' }
+  ];
+
+  return `
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <title>دفتر النصوص الشامل — ${esc(profName)} — الموسم الدراسي ${esc(academicYear)}</title>
+  
+  <!-- Official Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Amiri:ital,wght@0,400;0,700;1,400;1,700&family=Outfit:wght@400;500;600;700;800;900&family=Noto+Naskh+Arabic:wght@400;600;700&display=swap" rel="stylesheet">
+  
+  <!-- KaTeX CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+
+  <style>
+    /* Reset & Base Book Styles */
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background: #e2e8f0;
+      color: #0f172a;
+      font-family: 'Cairo', '${arFont}', sans-serif;
+      font-size: 11.5px;
+      line-height: 1.45;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    /* Screen Reader Book Canvas */
+    @media screen {
+      .book-container {
+        max-width: 212mm;
+        margin: 20px auto 60px auto;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+      }
+      .book-page {
+        background: #ffffff;
+        box-shadow: 0 4px 30px rgba(15, 23, 42, 0.15);
+        border-radius: 4px;
+        padding: 16mm 14mm;
+        min-height: 297mm;
+        position: relative;
+        box-sizing: border-box;
+      }
+    }
+
+    /* Print Setup */
+    @media print {
+      @page {
+        size: A4 portrait;
+        margin: 12mm 10mm 12mm 10mm;
+      }
+      html, body {
+        background: #ffffff !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+      #bookActionBar {
+        display: none !important;
+      }
+      .book-container {
+        margin: 0 !important;
+        padding: 0 !important;
+        max-width: 100% !important;
+        width: 100% !important;
+      }
+      .book-page {
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        min-height: auto !important;
+        page-break-before: always !important;
+        break-before: page !important;
+      }
+      .book-page:first-child {
+        page-break-before: avoid !important;
+        break-before: avoid !important;
+      }
+      .no-break {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+      }
+      .page-footer {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+      }
+    }
+
+    /* Column visibility toggles */
+    body.hide-horaire .col-horaire { display: none !important; }
+    body.hide-composant .col-composant { display: none !important; }
+    body.hide-horaire:not(.hide-composant) .col-activity { width: 68% !important; }
+    body.hide-composant:not(.hide-horaire) .col-activity { width: 68% !important; }
+    body.hide-horaire.hide-composant .col-activity { width: 78% !important; }
+
+    /* Moroccan Ornate Borders */
+    .moroccan-double-frame {
+      border: 4px double #1e3a8a;
+      border-radius: 8px;
+      padding: 16px;
+      position: relative;
+      background: #ffffff;
+    }
+    .moroccan-double-frame::before {
+      content: '';
+      position: absolute;
+      top: 4px; left: 4px; right: 4px; bottom: 4px;
+      border: 1px solid rgba(217, 119, 6, 0.45);
+      border-radius: 6px;
+      pointer-events: none;
+    }
+
+    /* Official Ministry Header */
+    .ministry-header-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 12px;
+      font-size: 9.5px;
+      color: #1e293b;
+    }
+    .ministry-header-table td {
+      border: none !important;
+      padding: 2px 4px !important;
+      vertical-align: middle;
+    }
+
+    /* Badges & Tables */
+    .official-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+      font-size: 10px;
+    }
+    .official-table th {
+      background: #f1f5f9;
+      color: #0f2942;
+      border: 1px solid #94a3b8;
+      padding: 6px 4px;
+      font-weight: 800;
+      text-align: center;
+    }
+    .official-table td {
+      border: 1px solid #cbd5e1;
+      padding: 6px 6px;
+      vertical-align: middle;
+    }
+
+    /* Notebook Seyès / Ruled Lines */
+    .ruled-notebook-area {
+      background: repeating-linear-gradient(
+        to bottom,
+        transparent,
+        transparent 25px,
+        #cbd5e1 26px
+      );
+      min-height: 380px;
+      line-height: 26px;
+      padding: 0 8px;
+      font-family: 'Amiri', serif;
+      font-size: 13px;
+      color: #1e3a8a;
+    }
+
+    /* Signatures Block */
+    .signatures-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 18px;
+      padding-top: 10px;
+      border-top: 1.5px dashed #cbd5e1;
+    }
+    .signature-card {
+      flex: 1;
+      border: 1px solid #94a3b8;
+      border-radius: 6px;
+      padding: 8px 6px 36px 6px;
+      text-align: center;
+      background: #fafafa;
+      font-size: 9.5px;
+      font-weight: 700;
+      color: #1e293b;
+    }
+
+    /* Section Divider Page */
+    .class-divider-box {
+      border: 3px double #1e3a8a;
+      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+      border-radius: 10px;
+      padding: 16px 20px;
+      margin-bottom: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Interactive screen action bar */
+    #bookActionBar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 999999;
+      background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 24px;
+      box-shadow: 0 4px 25px rgba(0,0,0,0.4);
+      gap: 12px;
+      font-family: 'Cairo', sans-serif;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Interactive Action Bar (Screen Only) -->
+  <div id="bookActionBar">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <span style="font-size:1.3rem;">📚</span>
+      <div>
+        <div style="font-weight:900;font-size:0.95rem;color:#f8fafc;">
+          دفتر النصوص الشامل — كتاب جميع الأقسام (${classes.length} أقسام)
+        </div>
+        <div style="font-size:0.75rem;color:#94a3b8;">
+          المملكة المغربية • ${esc(profName)} • ${esc(academicYear)}
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Jump Selector -->
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <select id="jumpSelect" onchange="scrollToSection(this.value)" style="
+        background: rgba(255,255,255,0.12);
+        color: #fff;
+        border: 1px solid rgba(255,255,255,0.25);
+        border-radius: 8px;
+        padding: 6px 12px;
+        font-family: inherit;
+        font-size: 0.8rem;
+        cursor: pointer;
+      ">
+        <option value="sec-cover" style="color:#000;">📖 الغلاف والصفحة التقديمية</option>
+        <option value="sec-anthem" style="color:#000;">🇲🇦 النشيد الوطني المغربي</option>
+        <option value="sec-teacher-id" style="color:#000;">👤 بطاقة معلومات الأستاذ(ة)</option>
+        <option value="sec-timetable" style="color:#000;">⏱️ استعمال الزمن الأسبوعي</option>
+        <option value="sec-holidays" style="color:#000;">🌴 لائحة العطل المدرسية</option>
+        <option value="sec-diagnostic" style="color:#000;">📝 تقرير التقويم التشخيصي</option>
+        <option value="sec-programs" style="color:#000;">📑 فهرس وتوزيع المقررات</option>
+        ${classes.map((c, i) => `
+          <option value="sec-class-${c.id}" style="color:#000;">📓 سجل حصص: ${esc(c.name)}</option>
+          <option value="sec-roster-${c.id}" style="color:#000;">👥 لائحة تلاميذ: ${esc(c.name)}</option>
+        `).join('')}
+        <option value="sec-absences" style="color:#000;">📋 الرخص وملاحظات المفتش</option>
+      </select>
+
+      <button onclick="toggleHoraire()" style="
+        background: rgba(255,255,255,0.12);
+        color: #fff;
+        border: 1px solid rgba(255,255,255,0.25);
+        border-radius: 8px;
+        padding: 6px 12px;
+        font-size: 0.8rem;
+        font-weight: 700;
+        cursor: pointer;
+      ">
+        ⏱️ التوقيت
+      </button>
+
+      <button onclick="toggleComposant()" style="
+        background: rgba(255,255,255,0.12);
+        color: #fff;
+        border: 1px solid rgba(255,255,255,0.25);
+        border-radius: 8px;
+        padding: 6px 12px;
+        font-size: 0.8rem;
+        font-weight: 700;
+        cursor: pointer;
+      ">
+        🏷️ المكون
+      </button>
+
+      <button onclick="window.print()" style="
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        padding: 7px 22px;
+        font-size: 0.88rem;
+        font-weight: 900;
+        cursor: pointer;
+        box-shadow: 0 4px 14px rgba(16,185,129,0.4);
+      ">
+        🖨️ طباعة الكتاب كاملاً (PDF)
+      </button>
+
+      <button onclick="window.close()" style="
+        background: rgba(255,255,255,0.12);
+        color: #fff;
+        border: 1px solid rgba(255,255,255,0.25);
+        border-radius: 8px;
+        padding: 6px 14px;
+        font-size: 0.8rem;
+        font-weight: 700;
+        cursor: pointer;
+      ">
+        ✕ إغلاق
+      </button>
+    </div>
+  </div>
+
+  <div class="book-container">
+
+    <!-- =========================================================================
+         PAGE 1: الغلاف الخارجي التقديمي الفاخر (DELUXE OFFICIAL BOOK COVER)
+         ========================================================================= -->
+    <div id="sec-cover" class="book-page">
+      <div class="moroccan-double-frame" style="min-height:265mm;display:flex;flex-direction:column;justify-content:space-between;text-align:center;padding:26px 20px;">
+        
+        <!-- Official Ministry Header -->
+        <div>
+          <table class="ministry-header-table" style="font-size:10.5px;">
+            <tr>
+              <td style="width:38%;text-align:right;line-height:1.6;">
+                <div style="font-weight:900;font-size:11.5px;color:#0f2942;">المملكة المغربية</div>
+                <div style="font-weight:800;color:#1e3a8a;">وزارة التربية الوطنية والتعليم الأولي والرياضة</div>
+                <div style="color:#475569;">الأكاديمية الجهوية: <strong>${esc(profAcademy)}</strong></div>
+                <div style="color:#475569;">المديرية الإقليمية: <strong>${esc(profDirection)}</strong></div>
+                <div style="color:#475569;">المؤسسة التعليمية: <strong>${esc(profSchool)}</strong></div>
+              </td>
+              <td style="width:24%;text-align:center;">
+                ${MOROCCAN_EMBLEM_SVG}
+              </td>
+              <td style="width:38%;text-align:left;line-height:1.6;direction:ltr;font-family:'Outfit',sans-serif;font-size:9.5px;">
+                <div style="font-weight:900;font-size:10.5px;color:#0f2942;">ROYAUME DU MAROC</div>
+                <div style="font-weight:700;color:#1e3a8a;">Ministère de l'Éducation Nationale</div>
+                <div style="color:#475569;">AREF : <strong>${esc(profAcademy)}</strong></div>
+                <div style="color:#475569;">Direction : <strong>${esc(profDirection)}</strong></div>
+                <div style="color:#475569;">Établissement : <strong>${esc(profSchool)}</strong></div>
+              </td>
+            </tr>
+          </table>
+
+          <div style="margin:20px 0 10px 0;height:3px;background:linear-gradient(90deg, #1e3a8a 0%, #d97706 50%, #047857 100%);border-radius:2px;"></div>
+        </div>
+
+        <!-- Centerpiece Title -->
+        <div style="margin:30px 0;">
+          <div style="font-size:11px;font-weight:800;color:#d97706;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:8px;">
+            — وثائقي التربوية الرسمية —
+          </div>
+          <h1 style="font-family:'Amiri', serif;font-size:3.4rem;font-weight:900;color:#0f2942;margin:0 0 6px 0;letter-spacing:-0.02em;text-shadow:0 2px 4px rgba(15,41,66,0.1);">
+            دَفْـتَـرُ النُّـصُـوصِ
+          </h1>
+          <div style="font-family:'Outfit', sans-serif;font-size:1.4rem;font-weight:800;color:#1e3a8a;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:12px;">
+            LE CAHIER DE TEXTES
+          </div>
+          <div style="display:inline-block;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:99px;padding:5px 22px;font-size:11px;font-weight:700;color:#334155;">
+            خاص بالتعليم الثانوي التأهيلي والتقني (العمومي والخصوصي)
+          </div>
+        </div>
+
+        <!-- Teacher & Classes Profile Card -->
+        <div style="max-width:540px;margin:0 auto;width:100%;background:#ffffff;border:2px solid #1e3a8a;border-radius:10px;padding:16px 20px;box-shadow:0 4px 14px rgba(30,58,138,0.06);text-align:right;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:11px;">
+            <div>
+              <span style="color:#64748b;font-weight:600;">الأستاذ(ة) المشرف(ة) :</span>
+              <div style="font-size:13px;font-weight:900;color:#0f2942;margin-top:2px;">${esc(profName)}</div>
+            </div>
+            <div>
+              <span style="color:#64748b;font-weight:600;">مادة التدريس :</span>
+              <div style="font-size:13px;font-weight:900;color:#047857;margin-top:2px;">${esc(profSubject)}</div>
+            </div>
+            <div>
+              <span style="color:#64748b;font-weight:600;">رقم التأجير (SOM / PPR) :</span>
+              <div style="font-size:12px;font-weight:800;color:#1e293b;margin-top:2px;">${esc(profSOM)}</div>
+            </div>
+            <div>
+              <span style="color:#64748b;font-weight:600;">الموسم الدراسي :</span>
+              <div style="font-size:12px;font-weight:900;color:#d97706;margin-top:2px;">${esc(academicYear)}</div>
+            </div>
+          </div>
+
+          <div style="margin-top:12px;padding-top:10px;border-top:1px dashed #cbd5e1;">
+            <span style="color:#64748b;font-weight:600;font-size:10.5px;">الأقسام والمسالك المسندة :</span>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">
+              ${classes.map(c => `
+                <span style="background:#e0e7ff;color:#1e3a8a;border:1px solid #c7d2fe;border-radius:6px;padding:3px 10px;font-size:11px;font-weight:800;">
+                  ${esc(c.name)} (${esc(getLevelDisplayName(c.level, true))})
+                </span>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+
+        <!-- Kingdom Motto Stamp -->
+        <div style="margin-top:24px;">
+          <div style="font-family:'Amiri', serif;font-size:1.6rem;font-weight:900;color:#b45309;letter-spacing:0.12em;">
+            الله — الـوَطَـن — المَـلِـك
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+
+    <!-- =========================================================================
+         PAGE 2: النشيد الوطني المغربي وشعار المملكة (NATIONAL ANTHEM PAGE)
+         ========================================================================= -->
+    <div id="sec-anthem" class="book-page">
+      <div class="moroccan-double-frame" style="min-height:265mm;display:flex;flex-direction:column;justify-content:space-between;text-align:center;padding:26px 24px;">
+        
+        <div>
+          <div style="display:flex;justify-content:center;margin-bottom:8px;">
+            ${MOROCCAN_EMBLEM_SVG}
+          </div>
+          <h2 style="font-family:'Amiri', serif;font-size:2rem;font-weight:900;color:#0f2942;margin:0;">
+            النَّشِيدُ الوَطَنِيُّ المَغْرِبِيُّ
+          </h2>
+          <div style="font-size:10px;font-weight:700;color:#d97706;letter-spacing:0.1em;margin-top:2px;">
+            HYMNE NATIONAL DU ROYAUME DU MAROC
+          </div>
+          <div style="width:120px;height:2px;background:#d97706;margin:10px auto;"></div>
+        </div>
+
+        <!-- Moroccan Anthem Poetic Grid (Diacritics Complete) -->
+        <div style="max-width:540px;margin:10px auto;width:100%;background:rgba(248,250,252,0.85);border:1.5px solid #cbd5e1;border-radius:12px;padding:20px 24px;">
+          <table style="width:100%;border-collapse:collapse;font-family:'Amiri', serif;font-size:1.22rem;font-weight:700;color:#0f2942;line-height:2.1;">
+            <tr>
+              <td style="width:48%;text-align:right;">مَنْبِتَ الأَحْرَار</td>
+              <td style="width:4%;text-align:center;color:#d97706;">✦</td>
+              <td style="width:48%;text-align:left;">مَشْرِقَ الأَنْوَار</td>
+            </tr>
+            <tr>
+              <td style="text-align:right;">مُنْتَدَى السُّؤْدَدِ وَحِمَاه</td>
+              <td style="text-align:center;color:#d97706;">✦</td>
+              <td style="text-align:left;">دُمْتَ مُنْتَدَاهُ وَحِمَاه</td>
+            </tr>
+            <tr>
+              <td style="text-align:right;">عِشْتَ فِي الأَوْطَان</td>
+              <td style="text-align:center;color:#d97706;">✦</td>
+              <td style="text-align:left;">لِلْعُلا عُنْوَان</td>
+            </tr>
+            <tr>
+              <td style="text-align:right;">مِلْءَ كُلِّ جَنَان</td>
+              <td style="text-align:center;color:#d97706;">✦</td>
+              <td style="text-align:left;">ذِكْرَى كُلِّ لِسَان</td>
+            </tr>
+            <tr>
+              <td style="text-align:right;color:#047857;font-weight:900;">بِالرُّوحِ</td>
+              <td style="text-align:center;color:#d97706;">✦</td>
+              <td style="text-align:left;color:#047857;font-weight:900;">بِالْجَسَد</td>
+            </tr>
+            <tr>
+              <td style="text-align:right;">هَبَّ فَتَاك</td>
+              <td style="text-align:center;color:#d97706;">✦</td>
+              <td style="text-align:left;">لَبَّى نِدَاك</td>
+            </tr>
+            <tr>
+              <td style="text-align:right;">فِي فَمِي وَفِي دَمِي</td>
+              <td style="text-align:center;color:#d97706;">✦</td>
+              <td style="text-align:left;">هَوَاكَ ثَارَ نُور وَنَار</td>
+            </tr>
+            <tr>
+              <td style="text-align:right;">إِخْوَتِي هَيَّا</td>
+              <td style="text-align:center;color:#d97706;">✦</td>
+              <td style="text-align:left;">لِلْعُلا سَعْيَا</td>
+            </tr>
+            <tr>
+              <td style="text-align:right;">نُشْهِدِ الدُّنْيَا</td>
+              <td style="text-align:center;color:#d97706;">✦</td>
+              <td style="text-align:left;">أَنَّ هُنَا نَحْيَا</td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- Center Map Silhouette & Sacred Motto -->
+        <div>
+          ${MOROCCAN_MAP_SVG}
+          <div style="margin-top:12px;font-family:'Amiri', serif;font-size:1.8rem;font-weight:900;color:#991b1b;letter-spacing:0.12em;">
+            شِـعَـارُنَـا الخَـالِـد: اللَّهُ — الوَطَـن — المَلِـك
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+
+    <!-- =========================================================================
+         PAGE 3: بطاقة المعلومات الشخصية والإدارية والمهنية للأستاذ(ة)
+         ========================================================================= -->
+    <div id="sec-teacher-id" class="book-page">
+      <div class="moroccan-double-frame" style="min-height:265mm;padding:20px;">
+        
+        <!-- Header -->
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1e3a8a;padding-bottom:12px;margin-bottom:16px;">
+          <div>
+            <div style="font-size:10px;font-weight:800;color:#0f2942;">المملكة المغربية • وزارة التربية الوطنية</div>
+            <h2 style="font-size:1.35rem;font-weight:900;color:#1e3a8a;margin:2px 0;">
+              بطاقة المعلومات الشخصية والإدارية والمهنية للأستاذ(ة)
+            </h2>
+            <div style="font-size:10px;color:#64748b;">الموسم الدراسي: <strong>${esc(academicYear)}</strong></div>
+          </div>
+          
+          <!-- Photo Box (4x4) -->
+          <div style="width:90px;height:105px;border:2px dashed #94a3b8;border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#f8fafc;font-size:9.5px;color:#64748b;text-align:center;padding:4px;">
+            <div style="font-size:1.4rem;margin-bottom:2px;">📷</div>
+            صورة الأستاذ(ة)<br><span style="font-size:8px;">(Photo 4×4)</span>
+          </div>
+        </div>
+
+        <!-- Section 1: المعلومات الشخصية -->
+        <div style="margin-bottom:14px;">
+          <div style="background:#1e3a8a;color:#fff;padding:4px 10px;border-radius:4px;font-weight:800;font-size:10.5px;margin-bottom:6px;">
+            أولاً : المعلومات الشخصية (Renseignements Personnels)
+          </div>
+          <table class="official-table">
+            <tr>
+              <td style="width:25%;background:#f8fafc;font-weight:700;">الاسم العائلي والشخصي :</td>
+              <td style="width:40%;font-weight:900;color:#0f2942;">${esc(profName)}</td>
+              <td style="width:15%;background:#f8fafc;font-weight:700;">رقم ب.ت.و (CIN) :</td>
+              <td style="width:20%;font-weight:800;">${esc(profCIN)}</td>
+            </tr>
+            <tr>
+              <td style="background:#f8fafc;font-weight:700;">تاريخ ومكان الازدياد :</td>
+              <td>...................................................</td>
+              <td style="background:#f8fafc;font-weight:700;">الحالة العائلية :</td>
+              <td>..............................</td>
+            </tr>
+            <tr>
+              <td style="background:#f8fafc;font-weight:700;">رقم التأجير (PPR / SOM) :</td>
+              <td style="font-weight:900;color:#1e3a8a;">${esc(profSOM)}</td>
+              <td style="background:#f8fafc;font-weight:700;">الهاتف :</td>
+              <td style="font-weight:700;">${esc(profPhone)}</td>
+            </tr>
+            <tr>
+              <td style="background:#f8fafc;font-weight:700;">العنوان الشخصي :</td>
+              <td>${esc(profCity)}</td>
+              <td style="background:#f8fafc;font-weight:700;">البريد الإلكتروني :</td>
+              <td style="font-size:9px;">${esc(profEmail)}</td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- Section 2: المعلومات الإدارية -->
+        <div style="margin-bottom:14px;">
+          <div style="background:#047857;color:#fff;padding:4px 10px;border-radius:4px;font-weight:800;font-size:10.5px;margin-bottom:6px;">
+            ثانياً : المعلومات الإدارية (Situation Administrative)
+          </div>
+          <table class="official-table">
+            <tr>
+              <td style="width:25%;background:#f8fafc;font-weight:700;">الإطار :</td>
+              <td style="width:40%;font-weight:800;">${esc(profCadre)}</td>
+              <td style="width:15%;background:#f8fafc;font-weight:700;">الدرجة والرتبة :</td>
+              <td style="width:20%;font-weight:800;">${esc(profGrade)} ${profEchelon !== '—' ? `(الرتبة: ${esc(profEchelon)})` : ''}</td>
+            </tr>
+            <tr>
+              <td style="background:#f8fafc;font-weight:700;">تاريخ أول توظيف :</td>
+              <td>...................................................</td>
+              <td style="background:#f8fafc;font-weight:700;">تاريخ الترسيم :</td>
+              <td>..............................</td>
+            </tr>
+            <tr>
+              <td style="background:#f8fafc;font-weight:700;">الأكاديمية الجهوية :</td>
+              <td style="font-weight:800;">${esc(profAcademy)}</td>
+              <td style="background:#f8fafc;font-weight:700;">المديرية الإقليمية :</td>
+              <td style="font-weight:800;">${esc(profDirection)}</td>
+            </tr>
+            <tr>
+              <td style="background:#f8fafc;font-weight:700;">تاريخ التعيين بالمؤسسة :</td>
+              <td>...................................................</td>
+              <td style="background:#f8fafc;font-weight:700;">مقر العمل السابق :</td>
+              <td>..............................</td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- Section 3: المعلومات المهنية والتربوية -->
+        <div style="margin-bottom:14px;">
+          <div style="background:#d97706;color:#fff;padding:4px 10px;border-radius:4px;font-weight:800;font-size:10.5px;margin-bottom:6px;">
+            ثالثاً : المعلومات المهنية والتربوية (Profil Professionnel & Pédagogique)
+          </div>
+          <table class="official-table">
+            <tr>
+              <td style="width:25%;background:#f8fafc;font-weight:700;">المؤسسة الحالية :</td>
+              <td style="width:40%;font-weight:900;">${esc(profSchool)}</td>
+              <td style="width:15%;background:#f8fafc;font-weight:700;">مادة التدريس :</td>
+              <td style="width:20%;font-weight:900;color:#047857;">${esc(profSubject)}</td>
+            </tr>
+            <tr>
+              <td style="background:#f8fafc;font-weight:700;">مركز التكوين وتاريخ التخرج :</td>
+              <td>...................................................</td>
+              <td style="background:#f8fafc;font-weight:700;">ساعات العمل أسبوعياً :</td>
+              <td style="font-weight:900;color:#1e3a8a;">${totalWeeklyHours || '21'} ساعة / أسبوع</td>
+            </tr>
+            <tr>
+              <td style="background:#f8fafc;font-weight:700;">الأقسام المسندة ومجموعها :</td>
+              <td colspan="3">
+                <strong>${classes.length} أقسام :</strong> 
+                ${classes.map(c => `${c.name} (${getLevelDisplayName(c.level, true)})`).join(' • ')}
+              </td>
+            </tr>
+            <tr>
+              <td style="background:#f8fafc;font-weight:700;">تاريخ ونقطة آخر تفتيش :</td>
+              <td>...................................................</td>
+              <td style="background:#f8fafc;font-weight:700;">المفتش(ة) التربوي(ة) :</td>
+              <td>..............................</td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- Signatures Block -->
+        <div class="signatures-row" style="margin-top:28px;">
+          <div class="signature-card">
+            توقيع السيد(ة) الأستاذ(ة)<br>
+            <span style="font-weight:400;color:#64748b;font-size:8.5px;">Signature de l'Enseignant(e)</span>
+          </div>
+          <div class="signature-card">
+            تأشيرة وخاتم السيد(ة) رئيس(ة) المؤسسة<br>
+            <span style="font-weight:400;color:#64748b;font-size:8.5px;">Visa du Chef d'Établissement</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+
+    <!-- =========================================================================
+         PAGE 4: جدول استعمال الزمن الأسبوعي للأستاذ(ة)
+         ========================================================================= -->
+    <div id="sec-timetable" class="book-page">
+      <div class="moroccan-double-frame" style="min-height:265mm;padding:20px;display:flex;flex-direction:column;justify-content:space-between;">
+        
+        <div>
+          <!-- Header -->
+          <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #1e3a8a;padding-bottom:10px;margin-bottom:16px;">
+            <div>
+              <div style="font-size:10px;font-weight:800;color:#0f2942;">وزارة التربية الوطنية • الأكاديمية الجهوية: ${esc(profAcademy)}</div>
+              <h2 style="font-size:1.35rem;font-weight:900;color:#1e3a8a;margin:2px 0;">
+                جدول استعمال الزمن الأسبوعي للأستاذ(ة)
+              </h2>
+              <div style="font-size:10px;color:#64748b;">
+                الأستاذ(ة): <strong>${esc(profName)}</strong> • المادة: <strong>${esc(profSubject)}</strong> • الموسم: <strong>${esc(academicYear)}</strong>
+              </div>
+            </div>
+            <div style="text-align:left;font-size:11px;font-weight:800;color:#047857;">
+              الغلاف الزمني: <strong>${totalWeeklyHours || '21'} ساعة أسبوعية</strong>
+            </div>
+          </div>
+
+          <!-- Weekly Schedule Grid -->
+          <table class="official-table" style="font-size:9.5px;text-align:center;">
+            <thead>
+              <tr>
+                <th style="width:12%;background:#1e3a8a;color:#fff;">اليوم / الفترات</th>
+                ${timePeriods.map(p => `
+                  <th style="width:11%;background:#f1f5f9;color:#0f2942;font-weight:800;">${p.label}</th>
+                `).join('')}
+              </tr>
+            </thead>
+            <tbody>
+              ${daysOfWeek.map(d => `
+                <tr style="height:44px;">
+                  <td style="background:#f8fafc;font-weight:900;color:#1e3a8a;border-left:2px solid #1e3a8a;">
+                    ${d.ar}<br><span style="font-size:8px;color:#64748b;font-weight:600;">${d.fr}</span>
+                  </td>
+                  ${timePeriods.map(p => {
+                    const slotKey = `${d.key}-${p.id}`;
+                    const slotData = schedule[slotKey];
+                    if (!slotData || !slotData.classId) {
+                      return `<td style="color:#cbd5e1;font-weight:300;">—</td>`;
+                    }
+                    const matchingClass = classes.find(c => c.id === slotData.classId || c.name === slotData.classId);
+                    const className = matchingClass ? matchingClass.name : slotData.classId;
+                    return `
+                      <td style="background:#e0f2fe;border:1px solid #7dd3fc;color:#0369a1;padding:4px 2px;">
+                        <div style="font-weight:900;font-size:10px;">${esc(className)}</div>
+                        ${slotData.room ? `<div style="font-size:8px;color:#0284c7;">قاعة: ${esc(slotData.room)}</div>` : ''}
+                      </td>
+                    `;
+                  }).join('')}
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          <!-- Timetable Notes -->
+          <div style="margin-top:14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px 12px;font-size:9.5px;color:#475569;">
+            📌 <strong>تنبيه إداري:</strong> يلتزم السيد(ة) الأستاذ(ة) باحترام الحصص المحددة في جدول استعمال الزمن أعلاه وتوثيق الأنشطة المنجزة في حينها بكل دقة.
+          </div>
+        </div>
+
+        <!-- Three Official Signatures Block -->
+        <div class="signatures-row" style="margin-top:20px;">
+          <div class="signature-card">
+            توقيع السيد(ة) الأستاذ(ة)<br>
+            <span style="font-weight:400;color:#64748b;font-size:8.5px;">L'Enseignant(e)</span>
+          </div>
+          <div class="signature-card">
+            تأشيرة وخاتم السيد(ة) المدير(ة)<br>
+            <span style="font-weight:400;color:#64748b;font-size:8.5px;">Le Chef d'Établissement</span>
+          </div>
+          <div class="signature-card">
+            تأشيرة وخاتم السيد(ة) المفتش(ة) التربوي(ة)<br>
+            <span style="font-weight:400;color:#64748b;font-size:8.5px;">L'Inspecteur Pédagogique</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+
+    <!-- =========================================================================
+         PAGE 5: لائحة العطل المدرسية الرسمية
+         ========================================================================= -->
+    <div id="sec-holidays" class="book-page">
+      <div class="moroccan-double-frame" style="min-height:265mm;padding:20px;display:flex;flex-direction:column;justify-content:space-between;">
+        
+        <div>
+          <!-- Header -->
+          <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #047857;padding-bottom:10px;margin-bottom:14px;">
+            <div>
+              <div style="font-size:10px;font-weight:800;color:#0f2942;">المملكة المغربية • وزارة التربية الوطنية والتعليم الأولي والرياضة</div>
+              <h2 style="font-size:1.35rem;font-weight:900;color:#047857;margin:2px 0;">
+                لائحة العطل المدرسية المقررة برسم الموسم الدراسي ${esc(academicYear)}
+              </h2>
+              <div style="font-size:10px;color:#64748b;">
+                بمقتضى المقرر الوزاري لتنظيم السنة الدراسية ${esc(academicYear)}
+              </div>
+            </div>
+            <div style="font-size:1.6rem;">🌴</div>
+          </div>
+
+          <!-- Holidays Table -->
+          <table class="official-table" style="font-size:9.5px;">
+            <thead>
+              <tr style="background:#047857;color:#fff;">
+                <th style="width:6%;background:#047857;color:#fff;">الرقم</th>
+                <th style="width:38%;background:#047857;color:#fff;text-align:right;padding-right:8px;">العطلة المدرسية / المناسبة</th>
+                <th style="width:20%;background:#047857;color:#fff;">تاريخ البداية</th>
+                <th style="width:20%;background:#047857;color:#fff;">تاريخ النهاية</th>
+                <th style="width:16%;background:#047857;color:#fff;">عدد الأيام</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${effectiveHolidays.map((h, idx) => {
+                const s = new Date(h.startDate);
+                const e = new Date(h.endDate);
+                const diffDays = Math.max(1, Math.round((e - s) / (1000 * 60 * 60 * 24)) + 1);
+                return `
+                  <tr>
+                    <td style="text-align:center;font-weight:700;color:#64748b;">${idx + 1}</td>
+                    <td style="font-weight:800;color:#0f2942;text-align:right;padding-right:8px;">${esc(h.label)}</td>
+                    <td style="text-align:center;font-weight:600;">${esc(h.startDate)}</td>
+                    <td style="text-align:center;font-weight:600;">${esc(h.endDate)}</td>
+                    <td style="text-align:center;font-weight:900;color:#047857;">${diffDays} ${diffDays === 1 ? 'يوم' : 'أيام'}</td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+
+          <div style="margin-top:12px;background:#f8fafc;border:1px solid #cbd5e1;border-radius:6px;padding:8px 12px;display:flex;justify-content:space-between;font-size:10px;font-weight:800;color:#1e3a8a;">
+            <span>مجموع العطل المبرمجة : ${effectiveHolidays.length} عطلة رسمية</span>
+            <span>تراعى التعديلات الطارئة أو الدينية بحسب ثبوت رؤية الهلال</span>
+          </div>
+        </div>
+
+        <!-- Three Official Signatures Block -->
+        <div class="signatures-row" style="margin-top:20px;">
+          <div class="signature-card">
+            توقيع السيد(ة) الأستاذ(ة)<br>
+            <span style="font-weight:400;color:#64748b;font-size:8.5px;">L'Enseignant(e)</span>
+          </div>
+          <div class="signature-card">
+            تأشيرة وخاتم السيد(ة) المدير(ة)<br>
+            <span style="font-weight:400;color:#64748b;font-size:8.5px;">Le Chef d'Établissement</span>
+          </div>
+          <div class="signature-card">
+            تأشيرة وخاتم السيد(ة) المفتش(ة) التربوي(ة)<br>
+            <span style="font-weight:400;color:#64748b;font-size:8.5px;">L'Inspecteur Pédagogique</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+
+    <!-- =========================================================================
+         PAGE 6: تقرير التقويم التشخيصي والدعم الاستدراكي
+         ========================================================================= -->
+    <div id="sec-diagnostic" class="book-page">
+      <div class="moroccan-double-frame" style="min-height:265mm;padding:20px;display:flex;flex-direction:column;justify-content:space-between;">
+        
+        <div>
+          <!-- Header -->
+          <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #1e3a8a;padding-bottom:10px;margin-bottom:14px;">
+            <div>
+              <div style="font-size:10px;font-weight:800;color:#0f2942;">المملكة المغربية • وزارة التربية الوطنية</div>
+              <h2 style="font-size:1.35rem;font-weight:900;color:#1e3a8a;margin:2px 0;">
+                تقرير التقويم التشخيصي وأنشطة الدعم الاستدراكي
+              </h2>
+              <div style="font-size:10px;color:#64748b;">
+                الأستاذ(ة): <strong>${esc(profName)}</strong> • المادة: <strong>${esc(profSubject)}</strong> • الموسم الدراسي: <strong>${esc(academicYear)}</strong>
+              </div>
+            </div>
+            <div style="font-size:1.6rem;">📝</div>
+          </div>
+
+          <!-- Structured Pedagogical Overview Box -->
+          <div style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:10px;line-height:1.6;">
+            <div style="font-weight:900;color:#1e3a8a;margin-bottom:4px;">📌 العناصر البيداغوجية الأساسية للتقرير :</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              <div>• <strong>أهداف التقويم :</strong> تشخيص المكتسبات القبلية وتحديد مواطن القوة والتعثر.</div>
+              <div>• <strong>المجالات المقومة :</strong> الحساب العددي، الجبر، الدوال، الهندسة، وحل المسائل.</div>
+              <div>• <strong>خطة الدعم المعتمدة :</strong> ورشات معالجة جماعية وفردية، تمارين داعمة وبطاقات تقوية.</div>
+              <div>• <strong>أثر المعالجة :</strong> تحسين جاهزية المتعلمات والمتعلمين لولوج برنامج المستوى الجديد.</div>
+            </div>
+          </div>
+
+          <!-- Ruled Lined Notebook Sheet for Handwriting or Inspection Record -->
+          <div style="font-weight:800;font-size:10.5px;color:#0f2942;margin-bottom:6px;">
+            نص التقرير التركيبي وملاحظات الإنجاز :
+          </div>
+          <div class="ruled-notebook-area" style="min-height:340px;">
+            <!-- Official lines ready for writing -->
+          </div>
+        </div>
+
+        <!-- Three Official Signatures Block -->
+        <div class="signatures-row" style="margin-top:20px;">
+          <div class="signature-card">
+            توقيع السيد(ة) الأستاذ(ة)<br>
+            <span style="font-weight:400;color:#64748b;font-size:8.5px;">L'Enseignant(e)</span>
+          </div>
+          <div class="signature-card">
+            تأشيرة وخاتم السيد(ة) المدير(ة)<br>
+            <span style="font-weight:400;color:#64748b;font-size:8.5px;">Le Chef d'Établissement</span>
+          </div>
+          <div class="signature-card">
+            تأشيرة وخاتم السيد(ة) المفتش(ة) التربوي(ة)<br>
+            <span style="font-weight:400;color:#64748b;font-size:8.5px;">L'Inspecteur Pédagogique</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+
+    <!-- =========================================================================
+         PAGE 7: فهرس البرامج والتوزيع السنوي للمقررات
+         ========================================================================= -->
+    <div id="sec-programs" class="book-page">
+      <div class="moroccan-double-frame" style="min-height:265mm;padding:20px;">
+        
+        <!-- Header -->
+        <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #1e3a8a;padding-bottom:10px;margin-bottom:14px;">
+          <div>
+            <div style="font-size:10px;font-weight:800;color:#0f2942;">المملكة المغربية • وزارة التربية الوطنية</div>
+            <h2 style="font-size:1.35rem;font-weight:900;color:#1e3a8a;margin:2px 0;">
+              فهرس وتوزيع المقررات الدراسية السنوية للأقسام المسندة
+            </h2>
+            <div style="font-size:10px;color:#64748b;">
+              الموسم الدراسي: <strong>${esc(academicYear)}</strong> • مجموع الأقسام المسندة: <strong>${classes.length}</strong>
+            </div>
+          </div>
+          <div style="font-size:1.6rem;">📑</div>
+        </div>
+
+        <!-- Programs for each class -->
+        ${classes.map(cls => {
+          const prog = (cls.program && cls.program.length > 0) ? cls.program : [];
+          return `
+            <div style="margin-bottom:16px;border:1px solid #cbd5e1;border-radius:8px;padding:10px;background:#fafafa;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <span style="font-weight:900;font-size:11.5px;color:#0f2942;">
+                  قسم: <strong>${esc(cls.name)}</strong> (${esc(getLevelDisplayName(cls.level, true))})
+                </span>
+                <span style="font-size:9.5px;color:#64748b;background:#e2e8f0;padding:2px 8px;border-radius:4px;font-weight:700;">
+                  عدد المحاور: ${prog.length}
+                </span>
+              </div>
+
+              ${prog.length > 0 ? `
+                <table class="official-table" style="font-size:9px;">
+                  <thead>
+                    <tr style="background:#f1f5f9;">
+                      <th style="width:8%;">رقم</th>
+                      <th style="width:48%;text-align:right;padding-right:8px;">عنوان الدرس / المحور المبرمج</th>
+                      <th style="width:20%;">المكون</th>
+                      <th style="width:24%;">حالة الإنجاز والتقدم</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${prog.map((item, pIdx) => `
+                      <tr>
+                        <td style="text-align:center;font-weight:700;color:#64748b;">${pIdx + 1}</td>
+                        <td style="font-weight:800;color:#1e293b;text-align:right;padding-right:8px;">${esc(item.title)}</td>
+                        <td style="text-align:center;font-weight:600;color:#64748b;">${esc(item.type || 'درس / تمارين')}</td>
+                        <td style="text-align:center;font-weight:800;color:#047857;">
+                          ${item.covered ? '✓ مُنجز بالكامل' : 'قيد الإنجاز / مبرمج'}
+                        </td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              ` : `
+                <div style="padding:10px;text-align:center;color:#94a3b8;font-size:10px;">
+                  — لم يتم ضبط برنامج مخصص لهذا القسم بعد (يتم الاعتماد على التوزيع السنوي الرسمي للوزارة) —
+                </div>
+              `}
+            </div>
+          `;
+        }).join('')}
+
+      </div>
+    </div>
+
+
+    <!-- =========================================================================
+         SECTION 8: سجل الحصص والأنشطة اليومية لكل قسم (LOGBOOK ENTRIES PER CLASS)
+         ========================================================================= -->
+    ${classes.map(cls => {
+      const isArMode = Boolean(
+        cls.language === 'ar' || 
+        cls.isArabic || 
+        (cls.name && cls.name.includes('عرب')) ||
+        (cls.level && cls.level.includes('arts'))
+      );
+      const dir = isArMode ? 'rtl' : 'ltr';
+      const align = isArMode ? 'right' : 'left';
+      const mainFont = isArMode ? arFont : frFont;
+      
+      const classEntries = buildClassLogbookRows(cls, allLogbookEntries, effectiveHolidays, absences, academicYear);
+
+      // Render table rows
+      const rowsHtml = classEntries.length > 0 
+        ? classEntries.flatMap(e => {
+            const isHolidayOrAbsence = e.isHolidayEntry || e.isAbsenceEntry;
+            const signatureText = isHolidayOrAbsence ? '—' : (isArMode ? 'موقّع' : 'Signé');
+            const signatureStyle = isHolidayOrAbsence ? 'color:#94a3b8;font-style:italic;' : 'color:#10b981;font-weight:bold;font-size:0.75rem;';
+            const componentText = getTranslatedComponent(e.component, isArMode);
+            const dateText = e.displayDate 
+              ? (e.displayDate.includes('من') || e.displayDate.includes('Du') 
+                  ? esc(e.displayDate) 
+                  : new Date(e.date).toLocaleDateString('fr-FR'))
+              : (e.date ? new Date(e.date).toLocaleDateString('fr-FR') : '');
+
+            if (isHolidayOrAbsence) {
+              const bg = e.isHolidayEntry ? '#ecfdf5' : '#fffbeb';
+              const border = e.isHolidayEntry ? '#a7f3d0' : '#fde68a';
+              const color = e.isHolidayEntry ? '#065f46' : '#92400e';
+              return `
+                <tr class="no-break" style="background:${bg};border-top:1px solid ${border};border-bottom:1px solid ${border};">
+                  <td style="text-align:center;font-weight:700;color:${color};padding:8px 4px;vertical-align:middle;">
+                    ${dateText}
+                  </td>
+                  <td class="col-horaire" style="text-align:center;color:#94a3b8;font-style:italic;padding:8px 4px;vertical-align:middle;">—</td>
+                  <td class="col-composant" style="text-align:center;font-weight:700;color:${color};padding:8px 4px;vertical-align:middle;">
+                    ${esc(componentText)}
+                  </td>
+                  <td class="col-activity" style="padding:8px 12px;font-weight:800;color:${color};text-align:${align};vertical-align:middle;">
+                    ${esc(e.customContent || e.holidayLabel || '')}
+                  </td>
+                  <td style="text-align:center;color:#94a3b8;padding:8px 4px;vertical-align:middle;">—</td>
+                </tr>
+              `;
+            }
+
+            const rawContent = e.customContent || e.content || '';
+            const chunks = chunkActivityContent(rawContent);
+
+            return chunks.map((chunk, cIdx) => {
+              const isFirst = cIdx === 0;
+              const cellDateHtml = isFirst ? `<strong>${dateText}</strong>` : `<span style="color:#cbd5e1;font-size:0.7rem;">〃</span>`;
+              const cellTimeHtml = isFirst ? `<span style="font-weight:700;color:#475569;">${esc(e.time || '—')}</span>` : '';
+              const cellCompHtml = isFirst ? `<span style="font-weight:700;color:#2563eb;">${esc(componentText)}</span>` : '';
+              const cellSigHtml = isFirst ? signatureText : '';
+
+              return `
+                <tr class="no-break" style="border-bottom:${isFirst && chunks.length === 1 ? '1px solid #cbd5e1' : '1px dotted #e2e8f0'};">
+                  <td style="width:13%;text-align:center;vertical-align:top;padding:6px 4px;font-size:10px;">
+                    ${cellDateHtml}
+                  </td>
+                  <td class="col-horaire" style="width:10%;text-align:center;vertical-align:top;padding:6px 4px;font-size:10px;">
+                    ${cellTimeHtml}
+                  </td>
+                  <td class="col-composant" style="width:11%;text-align:center;vertical-align:top;padding:6px 4px;font-size:10px;">
+                    ${cellCompHtml}
+                  </td>
+                  <td class="col-activity" style="width:54%;vertical-align:top;padding:6px 8px;direction:${dir};text-align:${align};">
+                    ${renderActivityCellHTML(chunk, isFirst ? e.isHeaderSéance : false, isArMode, styleConfig)}
+                  </td>
+                  <td style="width:12%;text-align:center;vertical-align:top;padding:6px 4px;${signatureStyle}">
+                    ${cellSigHtml}
+                  </td>
+                </tr>
+              `;
+            });
+          }).join('')
+        : `
+          <!-- Empty Ruled Rows if class has no entries yet -->
+          ${[1, 2, 3, 4, 5, 6, 7, 8].map(() => `
+            <tr style="height:38px;">
+              <td style="border:1px solid #cbd5e1;"></td>
+              <td class="col-horaire" style="border:1px solid #cbd5e1;"></td>
+              <td class="col-composant" style="border:1px solid #cbd5e1;"></td>
+              <td class="col-activity" style="border:1px solid #cbd5e1;"></td>
+              <td style="border:1px solid #cbd5e1;"></td>
+            </tr>
+          `).join('')}
+        `;
+
+      return `
+        <div id="sec-class-${cls.id}" class="book-page">
+          <div class="moroccan-double-frame" style="min-height:265mm;padding:20px;display:flex;flex-direction:column;justify-content:space-between;">
+            
+            <div>
+              <!-- Class Cover Divider Banner -->
+              <div class="class-divider-box">
+                <div>
+                  <div style="font-size:10px;font-weight:800;color:#d97706;letter-spacing:0.1em;text-transform:uppercase;">
+                    سجل الأنشطة اليومية • CAHIER DE TEXTES
+                  </div>
+                  <h2 style="font-size:1.6rem;font-weight:900;color:#0f2942;margin:2px 0;">
+                    قسم: ${esc(cls.name)}
+                  </h2>
+                  <div style="font-size:10.5px;color:#475569;">
+                    المستوى: <strong>${esc(getLevelDisplayName(cls.level, isArMode))}</strong> • 
+                    عدد التلاميذ: <strong>${cls.studentCount || cls.students?.length || 0}</strong> • 
+                    الموسم الدراسي: <strong>${esc(academicYear)}</strong>
+                  </div>
+                </div>
+                <div style="text-align:left;font-family:'Outfit',sans-serif;">
+                  <span style="background:#1e3a8a;color:#fff;font-weight:800;padding:6px 14px;border-radius:8px;font-size:11px;">
+                    ${esc(cls.name)}
+                  </span>
+                </div>
+              </div>
+
+              <!-- Sessions Table -->
+              <table class="official-table" style="font-size:10px;">
+                <thead>
+                  <tr style="background:#1e3a8a;color:#fff;">
+                    <th style="width:13%;background:#1e3a8a;color:#fff;">التاريخ واليوم</th>
+                    <th class="col-horaire" style="width:10%;background:#1e3a8a;color:#fff;">التوقيت</th>
+                    <th class="col-composant" style="width:11%;background:#1e3a8a;color:#fff;">المكون</th>
+                    <th class="col-activity" style="width:54%;background:#1e3a8a;color:#fff;">الأنشطة المنجزة (الدروس والمفاهيم والتمارين والواجبات)</th>
+                    <th style="width:12%;background:#1e3a8a;color:#fff;">التأشيرة</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${rowsHtml}
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Periodic Inspector & Director Visa Block -->
+            <div class="signatures-row" style="margin-top:24px;">
+              <div class="signature-card">
+                تأشيرة وملاحظات السيد(ة) رئيس(ة) المؤسسة<br>
+                <span style="font-weight:400;color:#64748b;font-size:8.5px;">Visa et observations du Chef d'Établissement</span>
+              </div>
+              <div class="signature-card">
+                تأشيرة وملاحظات السيد(ة) المفتش(ة) التربوي(ة)<br>
+                <span style="font-weight:400;color:#64748b;font-size:8.5px;">Visa et observations de l'Inspecteur Pédagogique</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      `;
+    }).join('')}
+
+
+    <!-- =========================================================================
+         SECTION 9: لوائح التلاميذ والتلميذات وشبكات التنقيط لكل قسم
+         ========================================================================= -->
+    ${classes.map(cls => {
+      const studentsList = Array.isArray(cls.students) ? cls.students : [];
+      const totalRows = Math.max(studentsList.length, 36);
+
+      return `
+        <div id="sec-roster-${cls.id}" class="book-page">
+          <div class="moroccan-double-frame" style="min-height:265mm;padding:20px;display:flex;flex-direction:column;justify-content:space-between;">
+            
+            <div>
+              <!-- Header -->
+              <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #d97706;padding-bottom:10px;margin-bottom:14px;">
+                <div>
+                  <div style="font-size:10px;font-weight:800;color:#0f2942;">المملكة المغربية • وزارة التربية الوطنية</div>
+                  <h2 style="font-size:1.35rem;font-weight:900;color:#0f2942;margin:2px 0;">
+                    لائحة أسماء التلميذات والتلاميذ وتتبع المراقبة المستمرة
+                  </h2>
+                  <div style="font-size:10.5px;color:#475569;">
+                    قسم: <strong>${esc(cls.name)}</strong> • المستوى: <strong>${esc(getLevelDisplayName(cls.level, true))}</strong> • الموسم الدراسي: <strong>${esc(academicYear)}</strong>
+                  </div>
+                </div>
+                <div style="text-align:left;font-size:11px;font-weight:800;color:#d97706;">
+                  العدد الإجمالي: <strong>${studentsList.length || cls.studentCount || '—'} تلميذ(ة)</strong>
+                </div>
+              </div>
+
+              <!-- Student Roster Grid -->
+              <table class="official-table" style="font-size:9px;">
+                <thead>
+                  <tr style="background:#f1f5f9;color:#0f2942;">
+                    <th style="width:4%;">رقم</th>
+                    <th style="width:14%;">رقم مسار</th>
+                    <th style="width:26%;text-align:right;padding-right:6px;">الاسم والنسب (Nom & Prénom)</th>
+                    <th style="width:8%;">ف.م 1</th>
+                    <th style="width:8%;">ف.م 2</th>
+                    <th style="width:8%;">ف.م 3</th>
+                    <th style="width:8%;">ف.م 4</th>
+                    <th style="width:8%;">المواظبة</th>
+                    <th style="width:8%;">المعدل</th>
+                    <th style="width:8%;">ملاحظات</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${Array.from({ length: totalRows }).map((_, idx) => {
+                    const st = studentsList[idx];
+                    const num = idx + 1;
+                    return `
+                      <tr style="height:21px;">
+                        <td style="text-align:center;font-weight:700;color:#64748b;">${num}</td>
+                        <td style="text-align:center;font-family:'Outfit',sans-serif;font-weight:600;color:#1e3a8a;">
+                          ${st?.massarCode || st?.id || ''}
+                        </td>
+                        <td style="font-weight:800;color:#0f172a;text-align:right;padding-right:6px;">
+                          ${st?.name || ''}
+                        </td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Roster Footer -->
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding-top:10px;border-top:1.5px dashed #cbd5e1;font-size:9.5px;color:#64748b;">
+              <span>تأشيرة الأستاذ(ة) : ...................................</span>
+              <span>تأشيرة السيد(ة) الحارس(ة) العام(ة) : ...................................</span>
+              <span>تأشيرة السيد(ة) المدير(ة) : ...................................</span>
+            </div>
+
+          </div>
+        </div>
+      `;
+    }).join('')}
+
+
+    <!-- =========================================================================
+         PAGE 10: غياب الأستاذ(ة) والرخص وملاحظات المفتش التربوي
+         ========================================================================= -->
+    <div id="sec-absences" class="book-page">
+      <div class="moroccan-double-frame" style="min-height:265mm;padding:20px;display:flex;flex-direction:column;justify-content:space-between;">
+        
+        <div>
+          <!-- Header -->
+          <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #b45309;padding-bottom:10px;margin-bottom:14px;">
+            <div>
+              <div style="font-size:10px;font-weight:800;color:#0f2942;">المملكة المغربية • وزارة التربية الوطنية</div>
+              <h2 style="font-size:1.35rem;font-weight:900;color:#b45309;margin:2px 0;">
+                غياب الأستاذ(ة): الرخص الطبية والشخصية
+              </h2>
+              <div style="font-size:10px;color:#64748b;">
+                الأستاذ(ة): <strong>${esc(profName)}</strong> • رقم التأجير: <strong>${esc(profSOM)}</strong> • الموسم الدراسي: <strong>${esc(academicYear)}</strong>
+              </div>
+            </div>
+            <div style="font-size:1.6rem;">📋</div>
+          </div>
+
+          <!-- Absences & Leaves Table -->
+          <table class="official-table" style="font-size:9.5px;">
+            <thead>
+              <tr style="background:#b45309;color:#fff;">
+                <th style="width:6%;background:#b45309;color:#fff;">الرقم</th>
+                <th style="width:20%;background:#b45309;color:#fff;">نوع الغياب</th>
+                <th style="width:26%;background:#b45309;color:#fff;">نوع الرخصة</th>
+                <th style="width:12%;background:#b45309;color:#fff;">المدة (أيام)</th>
+                <th style="width:14%;background:#b45309;color:#fff;">من تاريخ</th>
+                <th style="width:14%;background:#b45309;color:#fff;">إلى تاريخ</th>
+                <th style="width:8%;background:#b45309;color:#fff;">تأشيرة الإدارة</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${Array.from({ length: Math.max(absences.length, 8) }).map((_, idx) => {
+                const a = absences[idx];
+                const s = a?.startDate ? new Date(a.startDate) : null;
+                const e = a?.endDate ? new Date(a.endDate) : null;
+                const days = (s && e) ? Math.max(1, Math.round((e - s) / (1000 * 60 * 60 * 24)) + 1) : '';
+
+                return `
+                  <tr style="height:26px;">
+                    <td style="text-align:center;font-weight:700;color:#64748b;">${idx + 1}</td>
+                    <td style="text-align:center;font-weight:700;">${a?.type ? esc(a.type) : ''}</td>
+                    <td style="text-align:center;">${a?.reason ? esc(a.reason) : ''}</td>
+                    <td style="text-align:center;font-weight:800;color:#b45309;">${days ? `${days} يوم` : ''}</td>
+                    <td style="text-align:center;">${a?.startDate ? esc(a.startDate) : ''}</td>
+                    <td style="text-align:center;">${a?.endDate ? esc(a.endDate) : ''}</td>
+                    <td></td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+
+          <!-- Section 2: ملاحظات وتوجيهات المفتش التربوي -->
+          <div style="margin-top:24px;">
+            <div style="background:#1e3a8a;color:#fff;padding:6px 12px;border-radius:4px;font-weight:800;font-size:11px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+              <span>ملاحظات وتوجيهات السيد(ة) المفتش(ة) التربوي(ة) والسيد(ة) المدير(ة)</span>
+              <span style="font-size:9px;font-weight:600;">(Visites & Directives Pédagogiques)</span>
+            </div>
+            
+            <div class="ruled-notebook-area" style="min-height:260px;">
+              <!-- Ruled lines for handwritten inspection advice -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Three Official Signatures Block -->
+        <div class="signatures-row" style="margin-top:20px;">
+          <div class="signature-card">
+            توقيع السيد(ة) الأستاذ(ة)<br>
+            <span style="font-weight:400;color:#64748b;font-size:8.5px;">L'Enseignant(e)</span>
+          </div>
+          <div class="signature-card">
+            تأشيرة وخاتم السيد(ة) المدير(ة)<br>
+            <span style="font-weight:400;color:#64748b;font-size:8.5px;">Le Chef d'Établissement</span>
+          </div>
+          <div class="signature-card">
+            تأشيرة وخاتم السيد(ة) المفتش(ة) التربوي(ة)<br>
+            <span style="font-weight:400;color:#64748b;font-size:8.5px;">L'Inspecteur Pédagogique</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // Adjust top padding on body for sticky header
+    document.body.style.paddingTop = '60px';
+
+    // Quick jump to section
+    function scrollToSection(id) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+
+    // Toggle Horaire
+    function toggleHoraire() {
+      document.body.classList.toggle('hide-horaire');
+    }
+
+    // Toggle Composant
+    function toggleComposant() {
+      document.body.classList.toggle('hide-composant');
+    }
+
+    // Hide action bar when printing
+    const bar = document.getElementById('bookActionBar');
+    window.addEventListener('beforeprint', () => { 
+      if (bar) bar.style.display = 'none'; 
+      document.body.style.paddingTop = '0'; 
+    });
+    window.addEventListener('afterprint', () => { 
+      if (bar) bar.style.display = 'flex'; 
+      document.body.style.paddingTop = '60px'; 
+    });
+  </script>
+</body>
+</html>
+  `;
+}
+
+/**
+ * Opens a print popup window or triggers download on mobile devices.
+ */
+export function openMasterLogbookBookPrintWindow({
+  classes = [],
+  allLogbookEntries = [],
+  schedule = {},
+  holidays = [],
+  absences = [],
+  teacherInfo = {},
+  styleConfig = {}
+}) {
+  const html = generateMasterLogbookBookHTML({
+    classes,
+    allLogbookEntries,
+    schedule,
+    holidays,
+    absences,
+    teacherInfo,
+    styleConfig
+  });
+
+  const academicYear = teacherInfo.profAcademicYear || getAcademicYear();
+  const title = `Livre_Cahier_de_Textes_Complet_${academicYear.replace(/[/\\s]/g, '_')}`;
+
+  const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth < 768;
+
+  if (isMobile) {
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${title}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    return;
+  }
+
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const win = window.open(url, '_blank', 'width=1040,height=850,scrollbars=yes');
+  if (!win) {
+    URL.revokeObjectURL(url);
+    alert('يرجى السماح بالنوافذ المنبثقة (Popups) لمعاينة وطباعة دفتر النصوص الشامل.');
+    return;
+  }
+  win.addEventListener('load', () => URL.revokeObjectURL(url), { once: true });
+}

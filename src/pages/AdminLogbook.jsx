@@ -26,6 +26,7 @@ import {
 } from '../services/schoolService';
 import { renderWithMath } from '../utils/mathRenderer';
 import { openLogbookPrintWindow } from '../utils/generateLogbookPDF';
+import { openMasterLogbookBookPrintWindow } from '../utils/generateMasterLogbookBookPDF';
 import { normalizeLevel, getLevelDisplayName } from '../utils/levelHelpers';
 import { 
   getMergedDaySessions, 
@@ -1767,6 +1768,47 @@ export default function AdminLogbook() {
     });
   };
 
+  const triggerMasterBookPrint = () => {
+    const teacherInfo = {
+      profName: profName || localStorage.getItem('profName') || '',
+      profSchool: profSchool || localStorage.getItem('profSchool') || '',
+      profDirection: localStorage.getItem('profDirection') || '',
+      profAcademy: profAcademy || localStorage.getItem('profAcademy') || '',
+      profSOM: localStorage.getItem('profSOM') || '',
+      profSubject: localStorage.getItem('profSubject') || 'الرياضيات / Mathématiques',
+      profEmail: localStorage.getItem('profEmail') || '',
+      profPhone: localStorage.getItem('profPhone') || '',
+      profAcademicYear: localStorage.getItem('profAcademicYear') || getAcademicYearDates().label,
+      profCity: localStorage.getItem('profCity') || '',
+      profCIN: localStorage.getItem('profCIN') || '',
+      profCadre: localStorage.getItem('profCadre') || 'أستاذ التعليم الثانوي التأهيلي',
+      profGrade: localStorage.getItem('profGrade') || 'الدرجة الأولى (ممتازة)',
+      profEchelon: localStorage.getItem('profEchelon') || '',
+    };
+
+    openMasterLogbookBookPrintWindow({
+      classes,
+      allLogbookEntries,
+      schedule,
+      holidays,
+      absences,
+      teacherInfo,
+      styleConfig: {
+        isArMode,
+        arFont,
+        frFont,
+        baseFontSize,
+        gridLineHeight,
+        colorInk,
+        colorChapter,
+        colorAxis,
+        colorExercise,
+        showHoraire: showHoraireCol,
+        showComposant: showComposantCol
+      }
+    });
+  };
+
   const selectedClassLevelLabel = selectedClass
     ? SYSTEM_LEVELS.find(lvl => lvl.id === selectedClass.level)?.label || selectedClass.level
     : '';
@@ -2397,6 +2439,30 @@ export default function AdminLogbook() {
             <span>{isSyncingDb ? (isArMode ? 'جاري المزامنة...' : 'Sync...') : (isArMode ? 'مزامنة MySQL' : 'Sync MySQL')}</span>
           </button>
 
+          <button
+            type="button"
+            onClick={triggerMasterBookPrint}
+            title={isArMode ? 'تجميع دفتر النصوص كاملاً لجميع الأقسام في كتاب رسمي شامل ومنظم' : 'Générer le livre complet du cahier de textes pour toutes les classes'}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              padding: '0.52rem 0.95rem',
+              borderRadius: '10px',
+              border: '1px solid rgba(16, 185, 129, 0.45)',
+              background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+              color: '#ffffff',
+              fontSize: '0.82rem',
+              fontWeight: 800,
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(4, 120, 87, 0.35)',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <BookOpen size={15} />
+            <span>{isArMode ? '📚 دفتر النصوص الشامل (جميع الأقسام)' : '📚 Livre Complet (Toutes Classes)'}</span>
+          </button>
+
           <label style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-muted)' }}>Classe :</label>
           <select
             className="input-control"
@@ -2862,6 +2928,18 @@ export default function AdminLogbook() {
                 border-color: var(--border-hover, rgba(255, 255, 255, 0.3));
               }
 
+              /* Livre Complet: Master Book official green gradient */
+              .logbook-btn-master-book {
+                background: linear-gradient(135deg, #059669 0%, #047857 100%);
+                color: #ffffff !important;
+                border: 1px solid rgba(255, 255, 255, 0.25);
+                box-shadow: 0 4px 14px rgba(4, 120, 87, 0.35);
+              }
+              .logbook-btn-master-book:hover {
+                background: linear-gradient(135deg, #047857 0%, #065f46 100%);
+                box-shadow: 0 6px 18px rgba(4, 120, 87, 0.5);
+              }
+
               /* Responsive Rules for Mobile */
               @media (max-width: 768px) {
                 .logbook-header-card {
@@ -2968,10 +3046,20 @@ export default function AdminLogbook() {
                 <button
                   onClick={triggerPrint}
                   className="logbook-action-btn logbook-btn-print"
-                  title={isArMode ? 'طباعة دفتر النصوص' : 'Imprimer le cahier de textes'}
+                  title={isArMode ? 'طباعة دفتر النصوص لهذا القسم' : 'Imprimer le cahier de textes de cette classe'}
                 >
                   <Printer size={16} /> 
-                  <span>{isArMode ? 'طباعة' : 'Imprimer'}</span>
+                  <span>{isArMode ? 'طباعة القسم' : 'Imprimer'}</span>
+                </button>
+
+                <button
+                  onClick={triggerMasterBookPrint}
+                  className="logbook-action-btn logbook-btn-master-book"
+                  title={isArMode ? 'تجميع دفتر النصوص كاملاً لجميع الأقسام في كتاب رسمي شامل ومنظم' : 'Générer le livre complet du cahier de textes pour toutes les classes'}
+                >
+                  <BookOpen size={16} /> 
+                  <span className="logbook-btn-label-long">{isArMode ? '📚 دفتر نصوص جميع الأقسام (الكتاب الشامل)' : '📚 Livre Toutes Classes'}</span>
+                  <span className="logbook-btn-label-short">{isArMode ? 'الكتاب الشامل' : 'Livre Complet'}</span>
                 </button>
               </div>
             </div>

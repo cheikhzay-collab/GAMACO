@@ -7,7 +7,7 @@ const KATEX_OPTIONS = {
   trust: false,
 };
 
-const esc = (s) => {
+export const esc = (s) => {
   if (typeof s !== 'string') return String(s ?? '');
   return s
     .replace(/&/g, '&amp;')
@@ -16,7 +16,7 @@ const esc = (s) => {
     .replace(/"/g, '&quot;');
 };
 
-const getLevelDisplayName = (levelKey, isArabic) => {
+export const getLevelDisplayName = (levelKey, isArabic) => {
   const mapping = {
     'common_core_sci': {
       fr: 'Tronc Commun Scientifique',
@@ -263,7 +263,7 @@ const getLineStyle = (raw, isHeader, index) => {
   return { type: hadBullet ? 'bullet' : 'text', text: clean };
 };
 
-const renderActivityCellHTML = (content, isHeader, isArMode, styleConfig) => {
+export const renderActivityCellHTML = (content, isHeader, isArMode, styleConfig) => {
   if (!content) return '';
   
   // 1. Normalize line breaks and merge orphan continuation lines
@@ -378,7 +378,7 @@ const renderActivityCellHTML = (content, isHeader, isArMode, styleConfig) => {
 
 // Splits a long multi-exercise session into compact logical chunks
 // to prevent massive whitespace gaps before page breaks in print
-const chunkActivityContent = (content) => {
+export const chunkActivityContent = (content) => {
   if (!content || !content.trim()) return [''];
   const rawLines = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
 
@@ -428,7 +428,7 @@ const chunkActivityContent = (content) => {
   return chunks.length > 0 ? chunks : [content];
 };
 
-const getTranslatedComponent = (comp, isAr) => {
+export const getTranslatedComponent = (comp, isAr) => {
   if (!comp) return '';
   const map = {
     'Cours': isAr ? 'درس' : 'Cours',
@@ -439,7 +439,7 @@ const getTranslatedComponent = (comp, isAr) => {
   return comp.split(/\s*\+\s*/).map(c => map[c] || c).join(isAr ? ' + ' : ' + ');
 };
 
-const getAcademicYear = () => {
+export const getAcademicYear = () => {
   if (typeof window !== 'undefined' && window.localStorage) {
     const stored = localStorage.getItem('profAcademicYear') || localStorage.getItem('academicYear');
     if (stored && stored.trim()) return stored.trim();
