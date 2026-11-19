@@ -423,6 +423,19 @@ const initMySQL = async () => {
     `);
 
     await connection.query(`
+      CREATE TABLE IF NOT EXISTS tbl_logbook (
+        id VARCHAR(64) PRIMARY KEY,
+        class_id VARCHAR(64),
+        entry_date VARCHAR(20),
+        data LONGTEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_logbook_class (class_id),
+        INDEX idx_logbook_date (entry_date)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    await connection.query(`
       CREATE TABLE IF NOT EXISTS tbl_users (
         id VARCHAR(64) PRIMARY KEY,
         email VARCHAR(255) UNIQUE,
