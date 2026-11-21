@@ -102,6 +102,216 @@ const MOROCCAN_MAP_SVG = `
 </svg>
 `;
 
+// Top-Left 3D Faceted Triangles + 'طبعة جديدة' Badge Vector (Matches Official Inspection Notebook)
+const COVER_TOP_LEFT_SVG = `
+<svg viewBox="0 0 290 270" width="290" height="270" xmlns="http://www.w3.org/2000/svg" style="display:block;">
+  <defs>
+    <!-- Facet Gradients for Top-Left 3D Cluster -->
+    <linearGradient id="tlSlateDark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#181f23"/>
+      <stop offset="100%" stop-color="#2c353b"/>
+    </linearGradient>
+    <linearGradient id="tlSlateMid" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#47555e"/>
+      <stop offset="100%" stop-color="#333e45"/>
+    </linearGradient>
+    <linearGradient id="tlSlateLight" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#647480"/>
+      <stop offset="100%" stop-color="#45535c"/>
+    </linearGradient>
+    <linearGradient id="tlRedBright" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#c0392b"/>
+      <stop offset="100%" stop-color="#962d22"/>
+    </linearGradient>
+    <linearGradient id="tlRedDark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#80241a"/>
+      <stop offset="100%" stop-color="#561811"/>
+    </linearGradient>
+    <filter id="badgeShadow" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#000000" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+
+  <!-- 3D Low-Poly Charcoal & Slate Facets -->
+  <polygon points="0,0 150,0 90,90" fill="url(#tlSlateDark)"/>
+  <polygon points="150,0 215,40 90,90" fill="url(#tlSlateMid)"/>
+  <polygon points="215,40 245,110 145,120 90,90" fill="url(#tlSlateLight)"/>
+  <polygon points="0,0 90,90 0,110" fill="#141a1d"/>
+  
+  <!-- 3D Low-Poly Terracotta / Brick Red Facets -->
+  <polygon points="0,110 90,90 48,160 0,175" fill="url(#tlRedBright)"/>
+  <polygon points="90,90 145,120 100,180 48,160" fill="url(#tlRedDark)"/>
+  <polygon points="145,120 205,145 100,180" fill="#6d1f16"/>
+  <polygon points="0,175 48,160 24,235 0,250" fill="#2d373c"/>
+  <polygon points="48,160 100,180 72,240 24,235" fill="#3f4d54"/>
+
+  <!-- Crisp 3D Wireframe Ridge Highlights -->
+  <line x1="90" y1="90" x2="150" y2="0" stroke="rgba(255,255,255,0.22)" stroke-width="1.2"/>
+  <line x1="90" y1="90" x2="215" y2="40" stroke="rgba(255,255,255,0.18)" stroke-width="1.2"/>
+  <line x1="90" y1="90" x2="48" y2="160" stroke="rgba(255,255,255,0.3)" stroke-width="1.4"/>
+  <line x1="48" y1="160" x2="100" y2="180" stroke="rgba(0,0,0,0.35)" stroke-width="1.2"/>
+
+  <!-- Official 'طبعة جديدة' Badge (Authentic Moroccan Inspection Notebook Seal) -->
+  <g transform="translate(100, 95) rotate(-6)">
+    <!-- Badge Base with Drop Shadow -->
+    <ellipse cx="0" cy="0" rx="44" ry="38" fill="#ffffff" stroke="#0f172a" stroke-width="2.6" filter="url(#badgeShadow)"/>
+    <ellipse cx="0" cy="0" rx="38" ry="32" fill="none" stroke="#0f172a" stroke-width="1.2"/>
+    
+    <!-- Curved Ribbon Wings and Tail Lines -->
+    <path d="M -35 25 Q 0 45 35 25" stroke="#0f172a" stroke-width="2.2" fill="none"/>
+    <path d="M -28 32 Q 0 49 28 32" stroke="#0f172a" stroke-width="1.2" fill="none"/>
+    <path d="M -40 18 Q -48 29 -36 34" stroke="#0f172a" stroke-width="1.6" fill="none"/>
+    <path d="M 40 18 Q 48 29 36 34" stroke="#0f172a" stroke-width="1.6" fill="none"/>
+    
+    <!-- Text: طبعة جديدة -->
+    <text x="0" y="-5" font-family="'Cairo', 'Amiri', sans-serif" font-weight="900" font-size="16.5" fill="#0f172a" text-anchor="middle" letter-spacing="0.5">طَبْعَة</text>
+    <text x="0" y="18" font-family="'Cairo', 'Amiri', sans-serif" font-weight="900" font-size="16.5" fill="#0f172a" text-anchor="middle" letter-spacing="0.5">جَدِيدَة</text>
+  </g>
+</svg>
+`;
+
+// Bottom-Right 3D Low-Poly Faceted Pyramids & Floating Crystals Vector
+const COVER_BOTTOM_RIGHT_SVG = `
+<svg viewBox="0 0 390 450" width="390" height="450" xmlns="http://www.w3.org/2000/svg" style="display:block;">
+  <defs>
+    <!-- Facet Gradients for Bottom-Right Polyhedrons -->
+    <linearGradient id="brRedApexLight" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ef4444"/>
+      <stop offset="40%" stop-color="#dc2626"/>
+      <stop offset="100%" stop-color="#b91c1c"/>
+    </linearGradient>
+    <linearGradient id="brRedApexDark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#991b1b"/>
+      <stop offset="65%" stop-color="#781d1d"/>
+      <stop offset="100%" stop-color="#551010"/>
+    </linearGradient>
+    <linearGradient id="brRedBase" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#7f1d1d"/>
+      <stop offset="100%" stop-color="#450a0a"/>
+    </linearGradient>
+
+    <!-- Sage / Slate Green Polyhedron Gradients -->
+    <linearGradient id="brSageLight" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#a3c4b5"/>
+      <stop offset="100%" stop-color="#7c9f90"/>
+    </linearGradient>
+    <linearGradient id="brSageDark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#557769"/>
+      <stop offset="100%" stop-color="#3a5247"/>
+    </linearGradient>
+    <linearGradient id="brSageDeep" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2c3e35"/>
+      <stop offset="100%" stop-color="#1c2822"/>
+    </linearGradient>
+
+    <!-- Terracotta Shard Gradients -->
+    <linearGradient id="brOrangeLight" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#ea580c"/>
+    </linearGradient>
+    <linearGradient id="brOrangeDark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#c2410c"/>
+      <stop offset="100%" stop-color="#9a3412"/>
+    </linearGradient>
+
+    <filter id="brDropShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="-3" dy="5" stdDeviation="7" flood-color="#000000" flood-opacity="0.22"/>
+    </filter>
+  </defs>
+
+  <!-- 1. Background Edge Shards -->
+  <polygon points="345,240 390,210 390,295 340,285" fill="#475569"/>
+  <polygon points="305,370 390,310 390,450 270,450" fill="#1e293b"/>
+  
+  <!-- 2. Lower Red Pyramid -->
+  <g filter="url(#brDropShadow)">
+    <polygon points="250,315 200,365 280,445" fill="url(#brRedApexLight)"/>
+    <polygon points="250,315 280,445 375,400" fill="url(#brRedApexDark)"/>
+    <polygon points="250,315 375,400 315,345" fill="url(#brRedBase)"/>
+  </g>
+
+  <!-- 3. Giant Dominant Red 3D Pyramid (Magnificent Focal Polyhedron) -->
+  <g filter="url(#brDropShadow)">
+    <!-- Top illuminated face (vibrant vermilion/crimson) -->
+    <polygon points="180,145 390,180 290,270" fill="url(#brRedApexLight)"/>
+    <!-- Left shadow face (deep mahogany wine) -->
+    <polygon points="180,145 290,270 208,360" fill="url(#brRedApexDark)"/>
+    <!-- Base face extending right -->
+    <polygon points="290,270 390,180 390,315 320,370" fill="url(#brRedBase)"/>
+
+    <!-- Sharp 3D Ridge Highlight Lines -->
+    <line x1="180" y1="145" x2="290" y2="270" stroke="rgba(255,255,255,0.45)" stroke-width="1.8"/>
+    <line x1="180" y1="145" x2="390" y2="180" stroke="rgba(255,255,255,0.3)" stroke-width="1.2"/>
+    <line x1="180" y1="145" x2="208" y2="360" stroke="rgba(0,0,0,0.35)" stroke-width="1.4"/>
+  </g>
+
+  <!-- 4. Sage-Green Faceted 3D Pyramid (Natural Moroccan Contrast) -->
+  <g filter="url(#brDropShadow)">
+    <!-- Apex at (135, 280) -->
+    <polygon points="135,280 82,355 150,380" fill="url(#brSageLight)"/>
+    <polygon points="135,280 150,380 190,325" fill="url(#brSageDark)"/>
+    <polygon points="82,355 150,380 128,410" fill="url(#brSageDeep)"/>
+    <!-- Ridge highlight -->
+    <line x1="135" y1="280" x2="150" y2="380" stroke="rgba(255,255,255,0.5)" stroke-width="1.4"/>
+  </g>
+
+  <!-- 5. Floating Sage-Green Crystal (Hovering upper left) -->
+  <g filter="url(#brDropShadow)">
+    <polygon points="100,195 74,238 122,248" fill="#a4beae"/>
+    <polygon points="100,195 122,248 136,218" fill="#5f7f6f"/>
+    <polygon points="74,238 122,248 108,264" fill="#3f554a"/>
+    <line x1="100" y1="195" x2="122" y2="248" stroke="rgba(255,255,255,0.55)" stroke-width="1.2"/>
+  </g>
+
+  <!-- 6. Floating Terracotta / Orange Shard (Hovering left edge) -->
+  <g filter="url(#brDropShadow)">
+    <polygon points="70,295 44,328 85,338" fill="url(#brOrangeLight)"/>
+    <polygon points="70,295 85,338 102,315" fill="url(#brOrangeDark)"/>
+    <polygon points="44,328 85,338 75,352" fill="#7c2d12"/>
+    <line x1="70" y1="295" x2="85" y2="338" stroke="rgba(255,255,255,0.5)" stroke-width="1.2"/>
+  </g>
+
+  <!-- 7. Tiny High Floating Crystal -->
+  <polygon points="220,95 204,120 234,125" fill="#9ebdb0" opacity="0.85"/>
+  <polygon points="220,95 234,125 242,110" fill="#557769" opacity="0.85"/>
+</svg>
+`;
+
+// Bottom-Left Official Publisher / Educational Emblem Vector
+const COVER_PUBLISHER_LOGO_SVG = `
+<div style="display: flex; flex-direction: column; align-items: flex-start; gap: 4px;">
+  <svg viewBox="0 0 160 70" width="138" height="60" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="pubBlueGrad" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#1d4ed8"/>
+        <stop offset="100%" stop-color="#1e3a8a"/>
+      </linearGradient>
+      <linearGradient id="pubCyanGrad" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#38bdf8"/>
+        <stop offset="100%" stop-color="#0284c7"/>
+      </linearGradient>
+    </defs>
+    
+    <!-- Geometric Angled Wing / Quill Shape -->
+    <path d="M 12 46 L 44 12 L 66 12 L 34 46 Z" fill="url(#pubBlueGrad)"/>
+    <!-- Sweeping Forward Swoosh -->
+    <path d="M 36 46 L 70 12 Q 102 16 120 34 Q 90 28 58 46 Z" fill="url(#pubCyanGrad)"/>
+    <!-- Bottom Underline Swoosh -->
+    <path d="M 20 52 Q 72 50 130 36 Q 98 56 34 56 Z" fill="#0369a1"/>
+    
+    <!-- Open Book Motif at lower fold -->
+    <path d="M 122 54 L 128 48 L 134 54 L 128 52 Z" fill="#1e3a8a"/>
+    <path d="M 134 54 L 140 48 L 146 54 L 140 52 Z" fill="#0284c7"/>
+
+    <!-- Brand Typography: المسار -->
+    <text x="58" y="38" font-family="'Cairo', sans-serif" font-weight="900" font-size="14.5" fill="#ffffff" text-anchor="middle" letter-spacing="1">المسار</text>
+  </svg>
+  <div style="font-family: 'Cairo', sans-serif; font-size: 9.5px; font-weight: 800; color: #1e293b; letter-spacing: 0.05em; padding-right: 4px;">
+    للنشر والتوزيع والتوثيق التربوي
+  </div>
+</div>
+`;
+
 /**
  * Builds the combined chronological logbook sessions for a given class,
  * interleaving holidays and absences up to the current date.
@@ -269,6 +479,16 @@ export function generateMasterLogbookBookHTML({
     { id: '17-18', label: '17h30 - 18h30' }
   ];
 
+  // Dynamic target audience text based on teacher's classes (Collège vs Lycée)
+  const hasQualifiant = classes.some(c => !c.level || c.level.includes('bac') || c.level.includes('tc') || c.level.includes('qualif') || c.level.includes('common_core'));
+  const hasCollege = classes.some(c => c.level && (c.level.includes('ac') || c.level.includes('coll')));
+  let levelTargetText = 'لأساتذة التعليم الثانوي التأهيلي';
+  if (hasCollege && !hasQualifiant) {
+    levelTargetText = 'لأساتذة التعليم الثانوي الإعدادي';
+  } else if (hasCollege && hasQualifiant) {
+    levelTargetText = 'لأساتذة التعليم الثانوي التأهيلي والإعدادي';
+  }
+
   return `
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -373,6 +593,58 @@ export function generateMasterLogbookBookHTML({
     body.hide-horaire:not(.hide-composant) .col-activity { width: 68% !important; }
     body.hide-composant:not(.hide-horaire) .col-activity { width: 68% !important; }
     body.hide-horaire.hide-composant .col-activity { width: 78% !important; }
+
+    /* Moroccan Inspection Notebook Master Cover */
+    #sec-cover {
+      background: #ffffff !important;
+      position: relative !important;
+      overflow: hidden !important;
+      min-height: 297mm !important;
+      height: 297mm !important;
+      max-height: 297mm !important;
+      padding: 0 !important;
+      margin: 0 auto !important;
+      box-sizing: border-box !important;
+      display: flex !important;
+      flex-direction: column !important;
+      justify-content: space-between !important;
+    }
+    @media print {
+      #sec-cover {
+        min-height: 297mm !important;
+        height: 297mm !important;
+        max-height: 297mm !important;
+        page-break-before: avoid !important;
+        break-before: avoid !important;
+        page-break-after: always !important;
+        break-after: page !important;
+      }
+    }
+    .cover-top-left-decor {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 1;
+      pointer-events: none;
+    }
+    .cover-bottom-right-decor {
+      position: absolute;
+      bottom: 0;
+      right: 0;
+      z-index: 1;
+      pointer-events: none;
+    }
+    .cover-inner-content {
+      position: relative;
+      z-index: 10;
+      height: 100%;
+      min-height: 297mm;
+      padding: 18mm 18mm 14mm 18mm;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      box-sizing: border-box;
+    }
 
     /* Moroccan Ornate Borders */
     .moroccan-double-frame {
@@ -592,92 +864,100 @@ export function generateMasterLogbookBookHTML({
   <div class="book-container">
 
     <!-- =========================================================================
-         PAGE 1: الغلاف الخارجي التقديمي الفاخر (DELUXE OFFICIAL BOOK COVER)
+         PAGE 1: الغلاف الخارجي التقديمي الفاخر (OFFICIAL MOROCCAN INSPECTION NOTEBOOK COVER)
          ========================================================================= -->
     <div id="sec-cover" class="book-page">
-      <div class="moroccan-double-frame" style="min-height:265mm;display:flex;flex-direction:column;justify-content:space-between;text-align:center;padding:26px 20px;">
+      <!-- Top-Left 3D Faceted Triangles + 'طبعة جديدة' Badge -->
+      <div class="cover-top-left-decor">
+        ${COVER_TOP_LEFT_SVG}
+      </div>
+
+      <!-- Bottom-Right 3D Low-Poly Faceted Pyramids & Floating Crystals -->
+      <div class="cover-bottom-right-decor">
+        ${COVER_BOTTOM_RIGHT_SVG}
+      </div>
+
+      <!-- Main Cover Content Area -->
+      <div class="cover-inner-content">
         
-        <!-- Official Ministry Header -->
-        <div>
-          <table class="ministry-header-table" style="font-size:10.5px;">
-            <tr>
-              <td style="width:38%;text-align:right;line-height:1.6;">
-                <div style="font-weight:900;font-size:11.5px;color:#0f2942;">المملكة المغربية</div>
-                <div style="font-weight:800;color:#1e3a8a;">وزارة التربية الوطنية والتعليم الأولي والرياضة</div>
-                <div style="color:#475569;">الأكاديمية الجهوية: <strong>${esc(profAcademy)}</strong></div>
-                <div style="color:#475569;">المديرية الإقليمية: <strong>${esc(profDirection)}</strong></div>
-                <div style="color:#475569;">المؤسسة التعليمية: <strong>${esc(profSchool)}</strong></div>
-              </td>
-              <td style="width:24%;text-align:center;">
-                ${MOROCCAN_EMBLEM_SVG}
-              </td>
-              <td style="width:38%;text-align:left;line-height:1.6;direction:ltr;font-family:'Outfit',sans-serif;font-size:9.5px;">
-                <div style="font-weight:900;font-size:10.5px;color:#0f2942;">ROYAUME DU MAROC</div>
-                <div style="font-weight:700;color:#1e3a8a;">Ministère de l'Éducation Nationale</div>
-                <div style="color:#475569;">AREF : <strong>${esc(profAcademy)}</strong></div>
-                <div style="color:#475569;">Direction : <strong>${esc(profDirection)}</strong></div>
-                <div style="color:#475569;">Établissement : <strong>${esc(profSchool)}</strong></div>
-              </td>
-            </tr>
-          </table>
-
-          <div style="margin:20px 0 10px 0;height:3px;background:linear-gradient(90deg, #1e3a8a 0%, #d97706 50%, #047857 100%);border-radius:2px;"></div>
+        <!-- Top Row: Official Ministry Hierarchy Header (Right-Aligned) -->
+        <div style="display: flex; justify-content: flex-end; align-items: flex-start; width: 100%;">
+          <div style="width: 290px; text-align: center; font-size: 11px; line-height: 1.55; color: #1e293b; font-family: 'Cairo', 'Amiri', serif;">
+            <div style="margin-bottom: 6px;">
+              ${MOROCCAN_EMBLEM_SVG}
+            </div>
+            <div style="font-weight: 800; font-size: 11.5px; color: #0f172a; margin-top: 2px;">
+              المملكة المغربية
+            </div>
+            <div style="font-weight: 800; font-size: 11px; color: #1e293b; margin-top: 2px; line-height: 1.45;">
+              وزارة التربية الوطنية والتكوين المهني<br>والتعليم العالي والبحث العلمي
+            </div>
+            <div style="font-size: 10.5px; font-weight: 700; color: #334155; margin-top: 6px;">
+              الأكاديمية الجهوية للتربية والتكوين
+            </div>
+            <div style="font-size: 10.5px; color: #334155; margin-top: 3px; display: flex; justify-content: center; align-items: baseline; gap: 4px;">
+              <span>لجهة:</span>
+              ${profAcademy && profAcademy !== 'الأكاديمية الجهوية للتربية والتكوين' 
+                ? `<strong style="color: #0f172a; border-bottom: 1px dotted #64748b; padding: 0 6px;">${esc(profAcademy)}</strong>` 
+                : '<span style="letter-spacing: 1.5px; color: #64748b;">...............................................</span>'}
+            </div>
+            <div style="font-size: 10.5px; color: #334155; margin-top: 3px; display: flex; justify-content: center; align-items: baseline; gap: 4px;">
+              <span>المديرية الإقليمية:</span>
+              ${profDirection && profDirection !== 'المديرية الإقليمية' 
+                ? `<strong style="color: #0f172a; border-bottom: 1px dotted #64748b; padding: 0 6px;">${esc(profDirection)}</strong>` 
+                : '<span style="letter-spacing: 1.5px; color: #64748b;">...................................</span>'}
+            </div>
+          </div>
         </div>
 
-        <!-- Centerpiece Title -->
-        <div style="margin:30px 0;">
-          <div style="font-size:11px;font-weight:800;color:#d97706;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:8px;">
-            — وثائقي التربوية الرسمية —
+        <!-- Upper-Middle Banner: Curriculum Standard -->
+        <div style="text-align: center; margin: 26px 0 10px 0;">
+          <div style="font-family: 'Cairo', sans-serif; font-size: 13.5px; font-weight: 800; color: #1e293b; letter-spacing: 0.01em;">
+            وفق برامج ومناهج وزارة التربية الوطنية والتكوين المهني والتعليم العالي والبحث العلمي
           </div>
-          <h1 style="font-family:'Amiri', serif;font-size:3.4rem;font-weight:900;color:#0f2942;margin:0 0 6px 0;letter-spacing:-0.02em;text-shadow:0 2px 4px rgba(15,41,66,0.1);">
-            دَفْـتَـرُ النُّـصُـوصِ
+        </div>
+
+        <!-- Centerpiece Title & Subtitles -->
+        <div style="text-align: center; margin: 35px 0 20px 0;">
+          <h1 style="font-family: 'Amiri', 'Cairo', serif; font-size: 70px; font-weight: 900; color: #9b2216; margin: 0; line-height: 1.1; letter-spacing: -0.01em; text-shadow: 0 2px 6px rgba(155, 34, 22, 0.15);">
+            دفتر النصوص
           </h1>
-          <div style="font-family:'Outfit', sans-serif;font-size:1.4rem;font-weight:800;color:#1e3a8a;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:12px;">
-            LE CAHIER DE TEXTES
+          <div style="font-family: 'Cairo', sans-serif; font-size: 28px; font-weight: 900; color: #0f172a; margin-top: 16px; letter-spacing: 0.01em;">
+            ${levelTargetText}
           </div>
-          <div style="display:inline-block;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:99px;padding:5px 22px;font-size:11px;font-weight:700;color:#334155;">
-            خاص بالتعليم الثانوي التأهيلي والتقني (العمومي والخصوصي)
-          </div>
-        </div>
-
-        <!-- Teacher & Classes Profile Card -->
-        <div style="max-width:540px;margin:0 auto;width:100%;background:#ffffff;border:2px solid #1e3a8a;border-radius:10px;padding:16px 20px;box-shadow:0 4px 14px rgba(30,58,138,0.06);text-align:right;">
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:11px;">
-            <div>
-              <span style="color:#64748b;font-weight:600;">الأستاذ(ة) المشرف(ة) :</span>
-              <div style="font-size:13px;font-weight:900;color:#0f2942;margin-top:2px;">${esc(profName)}</div>
-            </div>
-            <div>
-              <span style="color:#64748b;font-weight:600;">مادة التدريس :</span>
-              <div style="font-size:13px;font-weight:900;color:#047857;margin-top:2px;">${esc(profSubject)}</div>
-            </div>
-            <div>
-              <span style="color:#64748b;font-weight:600;">رقم التأجير (SOM / PPR) :</span>
-              <div style="font-size:12px;font-weight:800;color:#1e293b;margin-top:2px;">${esc(profSOM)}</div>
-            </div>
-            <div>
-              <span style="color:#64748b;font-weight:600;">الموسم الدراسي :</span>
-              <div style="font-size:12px;font-weight:900;color:#d97706;margin-top:2px;">${esc(academicYear)}</div>
-            </div>
-          </div>
-
-          <div style="margin-top:12px;padding-top:10px;border-top:1px dashed #cbd5e1;">
-            <span style="color:#64748b;font-weight:600;font-size:10.5px;">الأقسام والمسالك المسندة :</span>
-            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">
-              ${classes.map(c => `
-                <span style="background:#e0e7ff;color:#1e3a8a;border:1px solid #c7d2fe;border-radius:6px;padding:3px 10px;font-size:11px;font-weight:800;">
-                  ${esc(c.name)} (${esc(getLevelDisplayName(c.level, true))})
-                </span>
-              `).join('')}
-            </div>
+          <div style="font-family: 'Cairo', sans-serif; font-size: 21px; font-weight: 800; color: #1e293b; margin-top: 24px;">
+            خاص بالتعليم العمومي والخصوصي
           </div>
         </div>
 
-        <!-- Kingdom Motto Stamp -->
-        <div style="margin-top:24px;">
-          <div style="font-family:'Amiri', serif;font-size:1.6rem;font-weight:900;color:#b45309;letter-spacing:0.12em;">
-            الله — الـوَطَـن — المَـلِـك
+        <!-- Bottom Row: Publisher Emblem & Teacher Metadata Card (Left-Aligned) -->
+        <div style="display: flex; justify-content: space-between; align-items: flex-end; width: 100%; padding-bottom: 4px;">
+          <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 8px; max-width: 320px;">
+            ${COVER_PUBLISHER_LOGO_SVG}
+
+            <!-- Elegant Official Teacher Profile Card -->
+            <div style="background: rgba(255,255,255,0.95); border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 10px 14px; font-size: 10.5px; line-height: 1.6; width: 100%; box-shadow: 0 3px 12px rgba(0,0,0,0.04); text-align: right; box-sizing: border-box;">
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #e2e8f0; padding-bottom: 4px; margin-bottom: 4px;">
+                <span style="color: #64748b; font-weight: 700;">الأستاذ(ة):</span>
+                <strong style="color: #0f2942; font-size: 11.5px;">${esc(profName)}</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #e2e8f0; padding-bottom: 4px; margin-bottom: 4px;">
+                <span style="color: #64748b; font-weight: 700;">المادة:</span>
+                <strong style="color: #9b2216;">${esc(profSubject)}</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #e2e8f0; padding-bottom: 4px; margin-bottom: 4px;">
+                <span style="color: #64748b; font-weight: 700;">المؤسسة:</span>
+                <strong style="color: #1e293b;">${esc(profSchool)}</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between;">
+                <span style="color: #64748b; font-weight: 700;">الموسم الدراسي:</span>
+                <strong style="color: #047857; font-weight: 900;">${esc(academicYear)}</strong>
+              </div>
+            </div>
           </div>
+
+          <!-- Spacer on the right so the 3D low-poly faceted pyramids remain unobstructed -->
+          <div style="width: 260px; height: 10px;"></div>
         </div>
 
       </div>
