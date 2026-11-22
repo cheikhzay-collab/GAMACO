@@ -2466,7 +2466,7 @@ export default function AdminLogbook() {
             direction: lineDirection,
             textAlign: lineTextAlign,
             boxSizing: 'border-box',
-            fontFamily: `'${isArabic ? arFont : frFont}', 'Outfit', 'Cairo', sans-serif`,
+            fontFamily: `'${isArabic ? arFont : frFont}', cursive, 'Outfit', 'Cairo', sans-serif`,
             margin: '0',
             lineHeight: `${gridLineHeight}px`,
             minHeight: `${gridLineHeight}px`,
@@ -2727,7 +2727,7 @@ export default function AdminLogbook() {
         }
 
         .notebook-line-text {
-          font-family: '${isArMode ? arFont : frFont}', 'Outfit', 'Cairo', sans-serif;
+          font-family: '${isArMode ? arFont : frFont}', cursive, 'Outfit', 'Cairo', sans-serif;
           font-size: ${baseFontSize};
           line-height: ${gridLineHeight}px; /* Aligns text with grid size */
           color: ${colorInk};

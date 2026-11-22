@@ -496,10 +496,10 @@ export function generateMasterLogbookBookHTML({
   <meta charset="utf-8">
   <title>دفتر النصوص الشامل — ${esc(profName)} — الموسم الدراسي ${esc(academicYear)}</title>
   
-  <!-- Official Fonts -->
+  <!-- Official Fonts & French handwriting cursive fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Amiri:ital,wght@0,400;0,700;1,400;1,700&family=Outfit:wght@400;500;600;700;800;900&family=Noto+Naskh+Arabic:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Amiri:ital,wght@0,400;0,700;1,400;1,700&family=Outfit:wght@400;500;600;700;800;900&family=Noto+Naskh+Arabic:wght@400;600;700&family=Architects+Daughter&family=Caveat:wght@400;500;600;700&family=Dancing+Script:wght@400;600;700&family=Indie+Flower&family=Kalam:wght@400;700&family=Marck+Script&family=Patrick+Hand&family=Aref+Ruqaa:wght@400;700&display=swap" rel="stylesheet">
   
   <!-- KaTeX CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">

@@ -333,7 +333,7 @@ export const renderActivityCellHTML = (content, isHeader, isArMode, styleConfig)
     const align = isArabic ? 'right' : 'left';
     const font = isArabic ? styleConfig.arFont : styleConfig.frFont;
 
-    const commonStyle = `direction:${direction};text-align:${align};font-family:'${font}',sans-serif;margin:0;line-height:${gridLineHeight}px;min-height:${gridLineHeight}px;box-sizing:border-box;color:${styleConfig.colorInk};font-size:${styleConfig.baseFontSize};`;
+    const commonStyle = `direction:${direction};text-align:${align};font-family:'${font}',cursive,sans-serif;margin:0;line-height:${gridLineHeight}px;min-height:${gridLineHeight}px;box-sizing:border-box;color:${styleConfig.colorInk};font-size:${styleConfig.baseFontSize};`;
 
     if (type === 'chapter') {
       html += `<div style="${commonStyle}font-size:calc(${styleConfig.baseFontSize} * 1.25);font-weight:800;color:${styleConfig.colorChapter};letter-spacing:-0.01em;text-transform:uppercase;border-bottom:1.5px solid rgba(15,23,42,0.15);padding-bottom:1px;margin-bottom:3px;display:block;">${renderLineContent(text, isArabic)}</div>`;
@@ -564,10 +564,10 @@ export const generateLogbookHTML = (selectedClass, entries, profName, styleConfi
   <meta charset="utf-8">
   <title>${esc(selectedClass.name)} - ${esc(titleText)}</title>
   
-  <!-- Modern fonts -->
+  <!-- Modern fonts & French handwriting cursive fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Outfit:wght@400;500;600;700;800;900&family=Amiri:ital,wght@0,400;0,700;1,400&family=Noto+Naskh+Arabic:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Outfit:wght@400;500;600;700;800;900&family=Amiri:ital,wght@0,400;0,700;1,400&family=Noto+Naskh+Arabic:wght@400;700&family=Architects+Daughter&family=Caveat:wght@400;500;600;700&family=Dancing+Script:wght@400;600;700&family=Indie+Flower&family=Kalam:wght@400;700&family=Marck+Script&family=Patrick+Hand&family=Aref+Ruqaa:wght@400;700&display=swap" rel="stylesheet">
   
   <!-- KaTeX CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
@@ -617,7 +617,7 @@ export const generateLogbookHTML = (selectedClass, entries, profName, styleConfi
       padding: 0;
       background: #ffffff;
       color: #0f172a;
-      font-family: '${mainFont}', 'Cairo', 'Outfit', sans-serif;
+      font-family: '${mainFont}', cursive, 'Cairo', 'Outfit', sans-serif;
       font-size: 13px;
       line-height: 1.4;
       -webkit-print-color-adjust: exact !important;

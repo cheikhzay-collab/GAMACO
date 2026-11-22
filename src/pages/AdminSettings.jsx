@@ -4249,6 +4249,7 @@ export default function AdminSettings() {
                       <label className="settings-label">Police de la langue arabe</label>
                       <select className="input-control" value={logbookArFont} onChange={e => setLogbookArFont(e.target.value)}>
                         <option value="UKIJ Merdane">UKIJ Merdane (classique)</option>
+                        <option value="Aref Ruqaa">✍️ Aref Ruqaa (خط الرقعة اليدوي)</option>
                         <option value="Noto Naskh Arabic">Noto Naskh Arabic</option>
                         <option value="Amiri">Amiri (académique)</option>
                         <option value="Tajawal">Tajawal (moderne)</option>
@@ -4259,10 +4260,21 @@ export default function AdminSettings() {
                     <div className="settings-field">
                       <label className="settings-label">Police de la langue française</label>
                       <select className="input-control" value={logbookFrFont} onChange={e => setLogbookFrFont(e.target.value)}>
-                        <option value="Outfit">Outfit (moderne)</option>
-                        <option value="Inter">Inter (clair)</option>
-                        <option value="Computer Modern Serif">Computer Modern Serif</option>
-                        <option value="Times New Roman">Times New Roman</option>
+                        <optgroup label="✍️ Polices Manuscrites & Cursives (Écriture à la main)">
+                          <option value="Caveat">✍️ Caveat (Stylo plume fluide élégant)</option>
+                          <option value="Patrick Hand">✍️ Patrick Hand (Manuscrit scolaire soigné)</option>
+                          <option value="Kalam">✍️ Kalam (Écriture feutre / stylo bille)</option>
+                          <option value="Marck Script">✍️ Marck Script (Cursive traditionnelle liée)</option>
+                          <option value="Dancing Script">✍️ Dancing Script (Cursif calligraphique)</option>
+                          <option value="Indie Flower">✍️ Indie Flower (Manuscrit naturel décontracté)</option>
+                          <option value="Architects Daughter">✍️ Architects Daughter (Manuscrit d'architecte net)</option>
+                        </optgroup>
+                        <optgroup label="📐 Polices Typographiques Classiques">
+                          <option value="Outfit">Outfit (Moderne sans-serif)</option>
+                          <option value="Inter">Inter (Clair & géométrique)</option>
+                          <option value="Computer Modern Serif">Computer Modern Serif (LaTeX académique)</option>
+                          <option value="Times New Roman">Times New Roman (Standard classique)</option>
+                        </optgroup>
                       </select>
                     </div>
 
@@ -4284,6 +4296,66 @@ export default function AdminSettings() {
                         value={logbookLineHeight}
                         onChange={e => setLogbookLineHeight(parseInt(e.target.value, 10) || 20)}
                       />
+                    </div>
+
+                    {/* Live Real-Time Handwriting Preview Card */}
+                    <div style={{
+                      gridColumn: '1 / -1',
+                      marginTop: '0.25rem',
+                      padding: '0.85rem 1.25rem',
+                      borderRadius: '12px',
+                      background: 'rgba(255, 255, 255, 0.02)',
+                      border: '1px solid var(--border)',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.5rem'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          ✍️ Aperçu en direct du texte manuscrit dans le cahier de textes :
+                        </span>
+                        <span style={{ fontSize: '0.74rem', color: '#6366f1', fontWeight: 800, background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', padding: '2px 10px', borderRadius: '6px' }}>
+                          Police active : {logbookFrFont}
+                        </span>
+                      </div>
+                      
+                      {/* Notebook Ruled Line Simulation */}
+                      <div style={{
+                        backgroundImage: 'linear-gradient(rgba(186, 230, 253, 0.35) 1px, transparent 1px)',
+                        backgroundSize: `100% ${logbookLineHeight || 20}px`,
+                        lineHeight: `${logbookLineHeight || 20}px`,
+                        padding: '6px 12px',
+                        borderRadius: '8px',
+                        backgroundRepeat: 'repeat-y',
+                        backgroundPosition: '0 0'
+                      }}>
+                        <div style={{
+                          fontFamily: `'${logbookFrFont}', cursive, 'Outfit', sans-serif`,
+                          fontSize: logbookFontSize || '0.8rem',
+                          color: logbookColorInk || '#334155',
+                          fontWeight: ['Caveat', 'Kalam', 'Dancing Script'].includes(logbookFrFont) ? 600 : 500,
+                          direction: 'ltr',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}>
+                          <span style={{ color: logbookColorChapter || '#0f172a', fontWeight: 800 }}>Chapitre 2 :</span> Continuité d&apos;une fonction &bull; Théorème des valeurs intermédiaires (TVI).
+                        </div>
+                        <div style={{
+                          fontFamily: `'${logbookArFont}', 'Amiri', 'Cairo', serif`,
+                          fontSize: logbookFontSize || '0.8rem',
+                          color: logbookColorAxis || '#2563eb',
+                          fontWeight: 700,
+                          direction: 'rtl',
+                          textAlign: 'right',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}>
+                          المحور الأول: دراسة الدوال العددية وحساب النهايات وتحديد الفروع اللانهائية.
+                        </div>
+                      </div>
                     </div>
                   </div>
 
