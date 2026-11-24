@@ -1,1 +1,106 @@
-[]
+[
+  {
+    "id": "grade-MOCK-L-Z6I2GWJY4",
+    "lesson_id": "MOCK-L-Z6I2GWJY4",
+    "title": "Devoir Surveillé N°1 - Modèle 01",
+    "doc_type": "devoir_prime",
+    "total_points": 18,
+    "data": {
+      "points_table": [
+        {
+          "exercise": "Exercice N° 01",
+          "title": "On pose que $a = 2160$ et $b = 4860$.",
+          "points": 6,
+          "subpoints": [
+            {
+              "question": "1.",
+              "points": 1
+            },
+            {
+              "question": "2.",
+              "points": 1
+            },
+            {
+              "question": "3.",
+              "points": 1
+            },
+            {
+              "question": "4.",
+              "points": 1
+            },
+            {
+              "question": "5.",
+              "points": 1
+            }
+          ]
+        },
+        {
+          "exercise": "Exercice N° 02",
+          "title": "On pose $a = 6n + 11$ et $b = 2n + 4$; $n \\in \\mathbb{N}$.",
+          "points": 6,
+          "subpoints": [
+            {
+              "question": "1.",
+              "points": 1
+            },
+            {
+              "question": "2.",
+              "points": 1
+            },
+            {
+              "question": "3.",
+              "points": 1
+            },
+            {
+              "question": "4.",
+              "points": 1
+            }
+          ]
+        },
+        {
+          "exercise": "Exercice N° 03",
+          "title": "Soit $ABCD$ est un parallélogramme du plan.",
+          "points": 3,
+          "subpoints": [
+            {
+              "question": "1.",
+              "points": 1
+            },
+            {
+              "question": "2.",
+              "points": 1
+            },
+            {
+              "question": "3.",
+              "points": 1
+            }
+          ]
+        },
+        {
+          "exercise": "Exercice N° 04",
+          "title": "Soit $ABC$ est un triangle et $E$ un point tel que : $\\overr",
+          "points": 3,
+          "subpoints": [
+            {
+              "question": "1.",
+              "points": 1
+            },
+            {
+              "question": "2.",
+              "points": 1
+            },
+            {
+              "question": "3.",
+              "points": 1
+            }
+          ]
+        }
+      ],
+      "total_points": 18,
+      "title": "Devoir Surveillé N°1 - Modèle 01",
+      "level": "common_core_sci"
+    },
+    "updatedAt": "2026-11-18T11:00:34.517Z",
+    "createdAt": "2026-11-18T11:00:34.517Z"
+  }
+]

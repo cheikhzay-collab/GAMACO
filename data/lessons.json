@@ -37419,15 +37419,15 @@
     "id": "MOCK-L-Z6I2GWJY4",
     "title": "Devoir Surveillé N°1 - Modèle 01",
     "subject": "Mathématiques",
-    "chapter_number": null,
+    "chapter_number": "",
     "teacher": "ZAYANI",
     "phone": null,
     "schools": [],
     "level": "common_core_sci",
-    "doc_type": "homework",
+    "doc_type": "devoir_prime",
     "content": {
       "level": "common_core_sci",
-      "doc_type": "homework",
+      "doc_type": "devoir_prime",
       "is_national_exam": false,
       "national_exam_meta": null,
       "is_summary": false,
@@ -37445,7 +37445,99 @@
         "is_national_exam": false,
         "national_exam_meta": null,
         "is_summary": false,
-        "summary_meta": null
+        "summary_meta": null,
+        "doc_type": "devoir_prime",
+        "points_table": [
+          {
+            "exercise": "Exercice N° 01",
+            "title": "On pose que $a = 2160$ et $b = 4860$.",
+            "points": 6,
+            "subpoints": [
+              {
+                "question": "1.",
+                "points": 1
+              },
+              {
+                "question": "2.",
+                "points": 1
+              },
+              {
+                "question": "3.",
+                "points": 1
+              },
+              {
+                "question": "4.",
+                "points": 1
+              },
+              {
+                "question": "5.",
+                "points": 1
+              }
+            ]
+          },
+          {
+            "exercise": "Exercice N° 02",
+            "title": "On pose $a = 6n + 11$ et $b = 2n + 4$; $n \\in \\mathbb{N}$.",
+            "points": 6,
+            "subpoints": [
+              {
+                "question": "1.",
+                "points": 1
+              },
+              {
+                "question": "2.",
+                "points": 1
+              },
+              {
+                "question": "3.",
+                "points": 1
+              },
+              {
+                "question": "4.",
+                "points": 1
+              }
+            ]
+          },
+          {
+            "exercise": "Exercice N° 03",
+            "title": "Soit $ABCD$ est un parallélogramme du plan.",
+            "points": 3,
+            "subpoints": [
+              {
+                "question": "1.",
+                "points": 1
+              },
+              {
+                "question": "2.",
+                "points": 1
+              },
+              {
+                "question": "3.",
+                "points": 1
+              }
+            ]
+          },
+          {
+            "exercise": "Exercice N° 04",
+            "title": "Soit $ABC$ est un triangle et $E$ un point tel que : $\\overr",
+            "points": 3,
+            "subpoints": [
+              {
+                "question": "1.",
+                "points": 1
+              },
+              {
+                "question": "2.",
+                "points": 1
+              },
+              {
+                "question": "3.",
+                "points": 1
+              }
+            ]
+          }
+        ],
+        "total_points": 18
       },
       "sections": [
         {
@@ -37584,11 +37676,435 @@
           "interactive_answers": [],
           "language": "fr"
         }
-      ]
+      ],
+      "devoir_prime_meta": {
+        "title": "Devoir Surveillé N°1 - Modèle 01",
+        "semester": "الدورة الأولى",
+        "academicYear": "2025 - 2026",
+        "teacher": "Pr. ZAYANI",
+        "brandName": "MATHS PRIME",
+        "handle": "+212708072844",
+        "subject": "الرياضيات",
+        "branch": "الجذع المشترك العلمي (خيار فرنسية)",
+        "duration": "2س",
+        "coefficient": "4",
+        "ministryLine1": "المملكة المغربية",
+        "ministryLine2": "وزارة التربية الوطنية والتعليم الأولي والرياضة",
+        "ministryLine3": "18 NOVE",
+        "showQR": true,
+        "showStudentStrip": true,
+        "solutionStyle": "handwritten",
+        "level": "common_core_sci"
+      },
+      "devoir_prime_exercises": [
+        {
+          "id": "ex-1",
+          "title": "Exercice N° 01",
+          "points": "6",
+          "preamble": "On pose que $a = 2160$ et $b = 4860$.",
+          "preambleImage": null,
+          "questions": [
+            {
+              "id": "dp-ex1-q1",
+              "number": "1.",
+              "text": "Décomposer en produit de facteurs premiers les deux nombres $a$ et $b$.",
+              "points": "1 pt",
+              "linesCount": 5,
+              "layout": "single",
+              "steps": [],
+              "finalBox": "",
+              "leftTitle": "",
+              "leftSteps": [],
+              "leftConclusion": "",
+              "rightTitle": "",
+              "rightSteps": [],
+              "rightConclusion": "",
+              "qrUrl": "",
+              "image": null
+            },
+            {
+              "id": "dp-ex1-q2",
+              "number": "2.",
+              "text": "En déduire $pgcd(a;b)$ et $ppcm(a;b)$.",
+              "points": "1 pt",
+              "linesCount": 5,
+              "layout": "single",
+              "steps": [],
+              "finalBox": "",
+              "leftTitle": "",
+              "leftSteps": [],
+              "leftConclusion": "",
+              "rightTitle": "",
+              "rightSteps": [],
+              "rightConclusion": "",
+              "qrUrl": "",
+              "image": null
+            },
+            {
+              "id": "dp-ex1-q3",
+              "number": "3.",
+              "text": "Déterminer la décomposition en produit de facteurs premiers : $a^3 \\times b^2$.",
+              "points": "1 pt",
+              "linesCount": 5,
+              "layout": "single",
+              "steps": [],
+              "finalBox": "",
+              "leftTitle": "",
+              "leftSteps": [],
+              "leftConclusion": "",
+              "rightTitle": "",
+              "rightSteps": [],
+              "rightConclusion": "",
+              "qrUrl": "",
+              "image": null
+            },
+            {
+              "id": "dp-ex1-q4",
+              "number": "4.",
+              "text": "Montrer que $\\sqrt{a \\times b}$ est un entier naturel.",
+              "points": "1 pt",
+              "linesCount": 5,
+              "layout": "single",
+              "steps": [],
+              "finalBox": "",
+              "leftTitle": "",
+              "leftSteps": [],
+              "leftConclusion": "",
+              "rightTitle": "",
+              "rightSteps": [],
+              "rightConclusion": "",
+              "qrUrl": "",
+              "image": null
+            },
+            {
+              "id": "dp-ex1-q5",
+              "number": "5.",
+              "text": "Écrire le nombre $\\dfrac{a}{b}$ sous forme de fraction irréductible.",
+              "points": "1 pt",
+              "linesCount": 5,
+              "layout": "single",
+              "steps": [],
+              "finalBox": "",
+              "leftTitle": "",
+              "leftSteps": [],
+              "leftConclusion": "",
+              "rightTitle": "",
+              "rightSteps": [],
+              "rightConclusion": "",
+              "qrUrl": "",
+              "image": null
+            }
+          ]
+        },
+        {
+          "id": "ex-2",
+          "title": "Exercice N° 02",
+          "points": "6",
+          "preamble": "On pose $a = 6n + 11$ et $b = 2n + 4$; $n \\in \\mathbb{N}$.",
+          "preambleImage": null,
+          "questions": [
+            {
+              "id": "dp-ex2-q1",
+              "number": "1.",
+              "text": "Étudier la parité des nombres $a$ et $b$.",
+              "points": "1 pt",
+              "linesCount": 5,
+              "layout": "single",
+              "steps": [],
+              "finalBox": "",
+              "leftTitle": "",
+              "leftSteps": [],
+              "leftConclusion": "",
+              "rightTitle": "",
+              "rightSteps": [],
+              "rightConclusion": "",
+              "qrUrl": "",
+              "image": null
+            },
+            {
+              "id": "dp-ex2-q2",
+              "number": "2.",
+              "text": "En déduire la parité du nombre : $c = (6n + 11)(-1)^b + (2n + 3)(-1)^a$.",
+              "points": "1 pt",
+              "linesCount": 5,
+              "layout": "single",
+              "steps": [],
+              "finalBox": "",
+              "leftTitle": "",
+              "leftSteps": [],
+              "leftConclusion": "",
+              "rightTitle": "",
+              "rightSteps": [],
+              "rightConclusion": "",
+              "qrUrl": "",
+              "image": null
+            },
+            {
+              "id": "dp-ex2-q3",
+              "number": "3.",
+              "text": "Montrer que le nombre $(a + 1)^2 + b^2$ est un multiple de 40.",
+              "points": "1 pt",
+              "linesCount": 5,
+              "layout": "single",
+              "steps": [],
+              "finalBox": "",
+              "leftTitle": "",
+              "leftSteps": [],
+              "leftConclusion": "",
+              "rightTitle": "",
+              "rightSteps": [],
+              "rightConclusion": "",
+              "qrUrl": "",
+              "image": null
+            },
+            {
+              "id": "dp-ex2-q4",
+              "number": "4.",
+              "text": "Déterminer les valeurs de l'entier naturel $n$ pour lesquelles : $\\dfrac{n + 7}{n + 1} \\in \\mathbb{N}$.",
+              "points": "1 pt",
+              "linesCount": 5,
+              "layout": "single",
+              "steps": [],
+              "finalBox": "",
+              "leftTitle": "",
+              "leftSteps": [],
+              "leftConclusion": "",
+              "rightTitle": "",
+              "rightSteps": [],
+              "rightConclusion": "",
+              "qrUrl": "",
+              "image": null
+            }
+          ]
+        },
+        {
+          "id": "ex-3",
+          "title": "Exercice N° 03",
+          "points": "3",
+          "preamble": "Soit $ABCD$ est un parallélogramme du plan.",
+          "preambleImage": null,
+          "questions": [
+            {
+              "id": "dp-ex3-q1",
+              "number": "1.",
+              "text": "Construire les points $E$ et $F$ tel que $\\overrightarrow{AE} = \\dfrac{3}{2}\\overrightarrow{AB}$ et $\\overrightarrow{DF} = -2\\overrightarrow{DA}$.",
+              "points": "1 pt",
+              "linesCount": 5,
+              "layout": "single",
+              "steps": [],
+              "finalBox": "",
+              "leftTitle": "",
+              "leftSteps": [],
+              "leftConclusion": "",
+              "rightTitle": "",
+              "rightSteps": [],
+              "rightConclusion": "",
+              "qrUrl": "",
+              "image": null
+            },
+            {
+              "id": "dp-ex3-q2",
+              "number": "2.",
+              "text": "Montrer que $\\overrightarrow{CE} = \\dfrac{1}{2}\\overrightarrow{AB} - \\overrightarrow{AD}$ et $\\overrightarrow{FE} = \\dfrac{3}{2}\\overrightarrow{AB} - 3\\overrightarrow{AD}$.",
+              "points": "1 pt",
+              "linesCount": 5,
+              "layout": "single",
+              "steps": [],
+              "finalBox": "",
+              "leftTitle": "",
+              "leftSteps": [],
+              "leftConclusion": "",
+              "rightTitle": "",
+              "rightSteps": [],
+              "rightConclusion": "",
+              "qrUrl": "",
+              "image": null
+            },
+            {
+              "id": "dp-ex3-q3",
+              "number": "3.",
+              "text": "En déduire que $E$, $F$ et $C$ sont alignés.",
+              "points": "1 pt",
+              "linesCount": 5,
+              "layout": "single",
+              "steps": [],
+              "finalBox": "",
+              "leftTitle": "",
+              "leftSteps": [],
+              "leftConclusion": "",
+              "rightTitle": "",
+              "rightSteps": [],
+              "rightConclusion": "",
+              "qrUrl": "",
+              "image": null
+            }
+          ]
+        },
+        {
+          "id": "ex-4",
+          "title": "Exercice N° 04",
+          "points": "3",
+          "preamble": "Soit $ABC$ est un triangle et $E$ un point tel que : $\\overrightarrow{AE} = \\dfrac{2}{3}\\overrightarrow{AB}$.",
+          "preambleImage": null,
+          "questions": [
+            {
+              "id": "dp-ex4-q1",
+              "number": "1.",
+              "text": "Construire le point $E'$ le projeté de $E$ sur la droite $(AC)$ parallèlement à $(BC)$.",
+              "points": "1 pt",
+              "linesCount": 5,
+              "layout": "single",
+              "steps": [],
+              "finalBox": "",
+              "leftTitle": "",
+              "leftSteps": [],
+              "leftConclusion": "",
+              "rightTitle": "",
+              "rightSteps": [],
+              "rightConclusion": "",
+              "qrUrl": "",
+              "image": null
+            },
+            {
+              "id": "dp-ex4-q2",
+              "number": "2.",
+              "text": "Montrer que : $\\overrightarrow{AE'} = \\dfrac{2}{3}\\overrightarrow{AC}$.",
+              "points": "1 pt",
+              "linesCount": 5,
+              "layout": "single",
+              "steps": [],
+              "finalBox": "",
+              "leftTitle": "",
+              "leftSteps": [],
+              "leftConclusion": "",
+              "rightTitle": "",
+              "rightSteps": [],
+              "rightConclusion": "",
+              "qrUrl": "",
+              "image": null
+            },
+            {
+              "id": "dp-ex4-q3",
+              "number": "3.",
+              "text": "En déduire que les droites $(EE')$ et $(BC)$ sont parallèles.",
+              "points": "1 pt",
+              "linesCount": 5,
+              "layout": "single",
+              "steps": [],
+              "finalBox": "",
+              "leftTitle": "",
+              "leftSteps": [],
+              "leftConclusion": "",
+              "rightTitle": "",
+              "rightSteps": [],
+              "rightConclusion": "",
+              "qrUrl": "",
+              "image": null
+            }
+          ]
+        }
+      ],
+      "points_table": [
+        {
+          "exercise": "Exercice N° 01",
+          "title": "On pose que $a = 2160$ et $b = 4860$.",
+          "points": 6,
+          "subpoints": [
+            {
+              "question": "1.",
+              "points": 1
+            },
+            {
+              "question": "2.",
+              "points": 1
+            },
+            {
+              "question": "3.",
+              "points": 1
+            },
+            {
+              "question": "4.",
+              "points": 1
+            },
+            {
+              "question": "5.",
+              "points": 1
+            }
+          ]
+        },
+        {
+          "exercise": "Exercice N° 02",
+          "title": "On pose $a = 6n + 11$ et $b = 2n + 4$; $n \\in \\mathbb{N}$.",
+          "points": 6,
+          "subpoints": [
+            {
+              "question": "1.",
+              "points": 1
+            },
+            {
+              "question": "2.",
+              "points": 1
+            },
+            {
+              "question": "3.",
+              "points": 1
+            },
+            {
+              "question": "4.",
+              "points": 1
+            }
+          ]
+        },
+        {
+          "exercise": "Exercice N° 03",
+          "title": "Soit $ABCD$ est un parallélogramme du plan.",
+          "points": 3,
+          "subpoints": [
+            {
+              "question": "1.",
+              "points": 1
+            },
+            {
+              "question": "2.",
+              "points": 1
+            },
+            {
+              "question": "3.",
+              "points": 1
+            }
+          ]
+        },
+        {
+          "exercise": "Exercice N° 04",
+          "title": "Soit $ABC$ est un triangle et $E$ un point tel que : $\\overr",
+          "points": 3,
+          "subpoints": [
+            {
+              "question": "1.",
+              "points": 1
+            },
+            {
+              "question": "2.",
+              "points": 1
+            },
+            {
+              "question": "3.",
+              "points": 1
+            }
+          ]
+        }
+      ],
+      "total_points": 18
     },
     "is_active": true,
-    "updated_at": "2026-11-01T09:23:51.633Z",
+    "updated_at": "2026-11-18T11:00:34.463Z",
     "created_at": "2026-11-01T09:23:51.632Z",
-    "updatedAt": "2026-11-01T09:23:51.655Z"
+    "updatedAt": "2026-11-18T11:00:34.463Z",
+    "chapterNumber": "",
+    "docType": "devoir_prime",
+    "isActive": true,
+    "createdAt": "2026-11-01T09:23:51.632Z",
+    "isArchived": false,
+    "is_archived": false
   }
 ]

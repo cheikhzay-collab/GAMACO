@@ -152,7 +152,7 @@ export default function Layout() {
     );
   }
 
-  const publicPaths = ['/schools', '/study/suites-numeriques', '/exam', '/study', '/scanner', '/scan'];
+  const publicPaths = ['/schools', '/study/suites-numeriques', '/exam', '/study', '/scanner', '/scan', '/national-exams'];
   const isPublicPath = publicPaths.some(p => 
     location.pathname === p || 
     location.pathname.startsWith('/schools/') || 

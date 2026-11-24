@@ -34,6 +34,7 @@ const RankingPage        = lazy(() => import('./pages/RankingPage'));
 const AuthCallback       = lazy(() => import('./pages/AuthCallback'));
 const AdminSelfLearning   = lazy(() => import('./pages/AdminSelfLearning'));
 const PrintView          = lazy(() => import('./pages/PrintView'));
+const NationalExamsPage  = lazy(() => import('./pages/NationalExamsPage'));
 
 // ─── Route Guards ─────────────────────────────────────────────────────────────
 
@@ -191,9 +192,11 @@ function AppContent() {
             <Route path="/scanner" element={<OMRScannerPage />} />
             <Route path="/scan" element={<Navigate to="/scanner" replace />} />
             <Route path="/ranking" element={<RankingPage />} />
+            <Route path="/national-exams" element={<NationalExamsPage />} />
 
             {/* Admin-only Routes — wrapped with AdminRoute guard */}
             <Route path="/admin/dashboard" element={<AdminRoute><AdminOverview /></AdminRoute>} />
+            <Route path="/admin/national-exams" element={<AdminRoute><NationalExamsPage /></AdminRoute>} />
             <Route path="/admin/exams" element={<AdminRoute><AdminExams /></AdminRoute>} />
             <Route path="/admin/exams/:id/edit" element={<AdminRoute><AdminExamEdit /></AdminRoute>} />
             <Route path="/admin/classes" element={<AdminRoute><AdminClasses /></AdminRoute>} />

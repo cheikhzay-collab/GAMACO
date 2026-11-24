@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, ClipboardList, Sparkles, FileText,
   BookMarked, Camera, GraduationCap, FileUp, Layers, Settings,
   Trophy, BookOpen, Sun, Moon, LogOut, Menu, X, ChevronLeft, ChevronRight,
-  BrainCircuit, ArrowLeft
+  BrainCircuit, ArrowLeft, Award
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import LconqLogo from './LconqLogo';
@@ -13,6 +13,7 @@ function getMobileRouteMeta(pathname) {
   if (pathname === '/admin/dashboard') return { title: 'لوحة التحكم', isRoot: true };
   if (pathname === '/dashboard') return { title: 'الرئيسية', isRoot: true };
   if (pathname === '/admin/lessons') return { title: 'الوثائق والدروس', isRoot: true };
+  if (pathname === '/admin/national-exams' || pathname === '/national-exams') return { title: 'الامتحانات الوطنية', isRoot: true };
   if (pathname.startsWith('/admin/lessons/') || pathname.startsWith('/lessons/')) return { title: 'عرض الوثيقة', isRoot: false };
   if (pathname === '/admin/logbook') return { title: 'دفتر النصوص', isRoot: true };
   if (pathname === '/admin/classes') return { title: 'الأقسام والتلاميذ', isRoot: true };
@@ -64,6 +65,7 @@ export default function Sidebar() {
     { to: '/admin/logbook',        icon: ClipboardList,   label: 'Cahier de textes'  },
     { to: '/admin/ai-generator',   icon: Sparkles,        label: 'Générateur IA'     },
     { to: '/admin/lessons',        icon: FileText,        label: 'Fiches de cours'   },
+    { to: '/admin/national-exams', icon: Award,           label: 'Examens Nationaux' },
     { to: '/admin/exams',          icon: GraduationCap,   label: 'Banque QCM'        },
     { to: '/admin/upload',         icon: FileUp,          label: 'Upload QCM'        },
     { to: '/scanner',              icon: Camera,          label: 'Scanner OMR'       },
@@ -74,8 +76,9 @@ export default function Sidebar() {
   ];
 
   const studentLinks = [
-    { to: '/dashboard', icon: LayoutDashboard, label: 'Accueil'     },
-    { to: '/levels',    icon: Layers,          label: 'Cours'       },
+    { to: '/dashboard',      icon: LayoutDashboard, label: 'Accueil'           },
+    { to: '/national-exams', icon: Award,           label: 'Nationaux 2 Bac'   },
+    { to: '/levels',         icon: Layers,          label: 'Cours'             },
     { to: '/scanner',   icon: Camera,          label: 'Scanner'     },
     { to: '/study',     icon: BookOpen,        label: 'Révision'    },
     { to: '/ranking',   icon: Trophy,          label: 'Classement'  },
