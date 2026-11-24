@@ -2062,10 +2062,21 @@ export default function AdminSettings() {
                       onChange={e => setPdfFontFamily(e.target.value)}
                       className="input-control"
                     >
-                      <option value="Computer Modern Serif">Computer Modern Serif (Scientifique LaTeX)</option>
-                      <option value="STIX Two Text">STIX Two Text (Serif classique)</option>
-                      <option value="Times New Roman">Times New Roman (Format Examen)</option>
-                      <option value="Inter">Inter (Sans-Serif épurée)</option>
+                      <optgroup label="✍️ Polices Manuscrites &amp; Cursives (Écriture à la main)">
+                        <option value="Caveat">✍️ Caveat (Stylo plume fluide élégant)</option>
+                        <option value="Patrick Hand">✍️ Patrick Hand (Manuscrit scolaire soigné)</option>
+                        <option value="Kalam">✍️ Kalam (Écriture feutre / stylo bille)</option>
+                        <option value="Marck Script">✍️ Marck Script (Cursive traditionnelle liée)</option>
+                        <option value="Dancing Script">✍️ Dancing Script (Cursif calligraphique)</option>
+                        <option value="Indie Flower">✍️ Indie Flower (Manuscrit naturel décontracté)</option>
+                        <option value="Architects Daughter">✍️ Architects Daughter (Manuscrit d&apos;architecte net)</option>
+                      </optgroup>
+                      <optgroup label="📐 Polices Typographiques Classiques">
+                        <option value="Computer Modern Serif">Computer Modern Serif (Scientifique LaTeX)</option>
+                        <option value="STIX Two Text">STIX Two Text (Serif classique)</option>
+                        <option value="Times New Roman">Times New Roman (Format Examen)</option>
+                        <option value="Inter">Inter (Sans-Serif épurée)</option>
+                      </optgroup>
                     </select>
                   </div>
 
