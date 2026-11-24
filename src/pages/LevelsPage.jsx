@@ -5,7 +5,7 @@ import { getActiveLessons } from '../services/lessonService';
 import { 
   GraduationCap, Search, ArrowLeft, BookOpen, 
   User, ChevronRight, Sparkles, BookOpenCheck, FolderOpen,
-  FileDown, Play, Clock, BrainCircuit, LayoutGrid, List, Calendar
+  FileDown, Play, Clock, BrainCircuit, LayoutGrid, List, Calendar, Award
 } from 'lucide-react';
 import { renderWithMath } from '../utils/mathRenderer';
 import { mapLegacySchoolToLevel, normalizeLevel } from '../utils/levelHelpers';
@@ -416,12 +416,82 @@ export default function LevelsPage() {
 
       {/* ── STEP 1: MAIN LEVELS SELECTION ── */}
       {!selectedParentId && (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 290px), 1fr))',
-          gap: '1.5rem',
-          marginTop: '1rem'
-        }}>
+        <>
+          {/* Direct Access Banner: Examens Nationaux 2 Bac */}
+          <div 
+            onClick={() => navigate('/national-exams')}
+            className="glass-panel"
+            style={{
+              marginBottom: '1.5rem',
+              padding: '1.25rem 1.75rem',
+              borderRadius: '16px',
+              background: 'linear-gradient(135deg, rgba(217, 119, 6, 0.12) 0%, rgba(245, 158, 11, 0.05) 100%)',
+              border: '1px solid rgba(245, 158, 11, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '1rem',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              boxShadow: '0 4px 20px rgba(245, 158, 11, 0.08)'
+            }}
+            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = 'none'; }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div style={{
+                width: '46px',
+                height: '46px',
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, #d97706, #f59e0b)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#fff',
+                flexShrink: 0,
+                boxShadow: '0 4px 12px rgba(217, 119, 6, 0.35)'
+              }}>
+                <Award size={24} />
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)' }}>
+                    الامتحانات الوطنية الموحدة — 2ème Baccalauréat
+                  </h3>
+                  <span style={{ fontSize: '0.7rem', fontWeight: 800, padding: '2px 8px', borderRadius: '6px', background: '#d97706', color: '#fff' }}>
+                    جديد • متاح الآن
+                  </span>
+                </div>
+                <p style={{ margin: '0.2rem 0 0', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                  تصفح جميع مواضيع الامتحانات الوطنية مع عناصر الإجابة، التصنيف حسب المجالات، وطباعة الكتاب الشامل بالغلاف والفهرس.
+                </p>
+              </div>
+            </div>
+            <button 
+              type="button" 
+              className="btn" 
+              style={{ 
+                background: 'linear-gradient(135deg, #d97706, #f59e0b)', 
+                color: '#fff', 
+                border: 'none', 
+                padding: '0.6rem 1.2rem', 
+                borderRadius: '10px', 
+                fontWeight: 700, 
+                fontSize: '0.85rem',
+                whiteSpace: 'nowrap',
+                flexShrink: 0
+              }}
+            >
+              عرض الامتحانات &larr;
+            </button>
+          </div>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 290px), 1fr))',
+            gap: '1.5rem',
+            marginTop: '1rem'
+          }}>
           {MAIN_LEVELS.map((parent) => {
             const IconComponent = parent.icon;
             const count = parentCounts[parent.id] || 0;

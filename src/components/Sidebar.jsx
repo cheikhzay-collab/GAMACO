@@ -33,7 +33,7 @@ function getMobileRouteMeta(pathname) {
 }
 
 // ─── NAV ITEM COMPONENT ────────────────────────────────────────────────────────
-const SidebarNavItem = ({ to, icon: Icon, label, collapsed }) => (
+const SidebarNavItem = ({ to, icon: Icon, label, collapsed, badge }) => (
   <NavLink
     to={to}
     className={({ isActive }) => `sidebar-nav-item${isActive ? ' sidebar-nav-item--active' : ''}`}
@@ -42,7 +42,26 @@ const SidebarNavItem = ({ to, icon: Icon, label, collapsed }) => (
     <span className="sidebar-nav-item__icon">
       <Icon size={19} />
     </span>
-    {!collapsed && <span className="sidebar-nav-item__label">{label}</span>}
+    {!collapsed && (
+      <span className="sidebar-nav-item__label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '0.5rem' }}>
+        <span>{label}</span>
+        {badge && (
+          <span style={{
+            fontSize: '0.62rem',
+            fontWeight: 800,
+            padding: '2px 7px',
+            borderRadius: '999px',
+            background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+            color: '#fff',
+            letterSpacing: '0.02em',
+            boxShadow: '0 2px 6px rgba(245,158,11,0.25)',
+            marginLeft: 'auto'
+          }}>
+            {badge}
+          </span>
+        )}
+      </span>
+    )}
   </NavLink>
 );
 
@@ -57,15 +76,15 @@ export default function Sidebar() {
 
   const handleLogout = () => { logout(); navigate('/login'); };
   const isStudent = user?.role === 'student';
-  const isAdmin   = user?.role === 'admin';
+  const isAdmin   = user?.role === 'admin' || user?.role === 'prof' || user?.role === 'teacher';
 
   const adminLinks = [
     { to: '/admin/dashboard',      icon: LayoutDashboard, label: 'Tableau de bord'   },
+    { to: '/admin/national-exams', icon: Award,           label: 'Examens Nationaux', badge: '2 Bac' },
+    { to: '/admin/lessons',        icon: FileText,        label: 'Fiches de cours'   },
     { to: '/admin/classes',        icon: Users,           label: 'Classes'           },
     { to: '/admin/logbook',        icon: ClipboardList,   label: 'Cahier de textes'  },
     { to: '/admin/ai-generator',   icon: Sparkles,        label: 'Générateur IA'     },
-    { to: '/admin/lessons',        icon: FileText,        label: 'Fiches de cours'   },
-    { to: '/admin/national-exams', icon: Award,           label: 'Examens Nationaux' },
     { to: '/admin/exams',          icon: GraduationCap,   label: 'Banque QCM'        },
     { to: '/admin/upload',         icon: FileUp,          label: 'Upload QCM'        },
     { to: '/scanner',              icon: Camera,          label: 'Scanner OMR'       },
@@ -77,15 +96,17 @@ export default function Sidebar() {
 
   const studentLinks = [
     { to: '/dashboard',      icon: LayoutDashboard, label: 'Accueil'           },
-    { to: '/national-exams', icon: Award,           label: 'Nationaux 2 Bac'   },
+    { to: '/national-exams', icon: Award,           label: 'Examens Nationaux', badge: '2 Bac' },
     { to: '/levels',         icon: Layers,          label: 'Cours'             },
-    { to: '/scanner',   icon: Camera,          label: 'Scanner'     },
-    { to: '/study',     icon: BookOpen,        label: 'Révision'    },
-    { to: '/ranking',   icon: Trophy,          label: 'Classement'  },
+    { to: '/scanner',        icon: Camera,          label: 'Scanner'           },
+    { to: '/study',          icon: BookOpen,        label: 'Révision'          },
+    { to: '/ranking',        icon: Trophy,          label: 'Classement'        },
   ];
 
   const guestLinks = [
-    { to: '/levels', icon: Layers, label: 'Niveaux' },
+    { to: '/national-exams', icon: Award,           label: 'Examens Nationaux', badge: '2 Bac' },
+    { to: '/levels',         icon: Layers,          label: 'Niveaux & Cours'   },
+    { to: '/scanner',        icon: Camera,          label: 'Scanner OMR'       },
   ];
 
   const links = isAdmin ? adminLinks : isStudent ? studentLinks : guestLinks;
@@ -155,6 +176,7 @@ export default function Sidebar() {
               to={link.to}
               icon={link.icon}
               label={link.label}
+              badge={link.badge}
               collapsed={collapsed}
             />
           ))}

@@ -3,7 +3,7 @@ import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, BookOpen, Trophy, GraduationCap,
   Library, Users, UploadCloud, LogOut, Sun, Moon, Camera, Zap, Settings,
-  ClipboardList, Sparkles, FileText, BookMarked, Layers
+  ClipboardList, Sparkles, FileText, BookMarked, Layers, Award
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -16,7 +16,7 @@ export default function BottomNav() {
   const [showSheet, setShowSheet] = useState(false);
 
   const isStudent = user?.role === 'student';
-  const isAdmin   = user?.role === 'admin';
+  const isAdmin   = user?.role === 'admin' || user?.role === 'prof' || user?.role === 'teacher';
   const dueToday  = isStudent ? (dueTodayCount || 0) : 0;
 
   const studentItems = [
@@ -34,7 +34,8 @@ export default function BottomNav() {
   ];
 
   const guestItems = [
-    { to: '/levels', icon: GraduationCap, label: 'المستويات' },
+    { to: '/national-exams', icon: Award,         label: 'الوطنيات' },
+    { to: '/levels',         icon: GraduationCap, label: 'المستويات' },
   ];
 
   const items = !user ? guestItems : (isStudent ? studentItems : adminItems);
@@ -61,6 +62,7 @@ export default function BottomNav() {
   const initial = (user?.name || user?.email || '?')[0].toUpperCase();
 
   const adminTools = [
+    { label: 'Examens Nationaux', icon: Award, to: '/admin/national-exams', color: '#D97706', bg: 'rgba(217, 119, 6, 0.15)' },
     { label: 'Upload PDF', icon: UploadCloud, to: '/admin/upload', color: '#10B981', bg: 'rgba(16, 185, 129, 0.12)' },
     { label: 'Import IA', icon: Sparkles, to: '/admin/ai-generator', color: '#F59E0B', bg: 'rgba(245, 158, 11, 0.12)' },
     { label: 'Leçons', icon: FileText, to: '/admin/lessons', color: '#7C3AED', bg: 'rgba(124, 58, 237, 0.12)' },
@@ -75,6 +77,7 @@ export default function BottomNav() {
 
   const studentTools = [
     { label: 'Accueil', icon: LayoutDashboard, to: '/dashboard', color: '#716DF2', bg: 'rgba(113, 109, 242, 0.12)' },
+    { label: 'Examens Nationaux', icon: Award, to: '/national-exams', color: '#D97706', bg: 'rgba(217, 119, 6, 0.15)' },
     { label: 'Cours', icon: Layers, to: '/levels', color: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.12)' },
     { label: 'Scanner OMR', icon: Camera, to: '/scanner', color: '#10B981', bg: 'rgba(16, 185, 129, 0.12)' },
     { label: 'Révision SRS', icon: BookOpen, to: '/study', color: '#7C3AED', bg: 'rgba(124, 58, 237, 0.12)' },
