@@ -7,7 +7,7 @@ import {
   Edit, ArrowRight
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { getLessons } from '../services/lessonService';
+import { getAllLessons } from '../services/lessonService';
 import {
   normalizeNationalExam,
   isNationalExamDocument,
@@ -61,7 +61,7 @@ export default function NationalExamsPage() {
     async function loadData() {
       try {
         setLoading(true);
-        const allLessons = await getLessons();
+        const allLessons = await getAllLessons();
         if (!mounted) return;
 
         const natExams = allLessons

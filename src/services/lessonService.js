@@ -326,6 +326,8 @@ export const getAllLessons = async (options = {}) => {
   });
 };
 
+export const getLessons = getAllLessons;
+
 /**
  * Fetch only active lessons (student view).
  */
