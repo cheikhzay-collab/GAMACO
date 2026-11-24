@@ -1478,6 +1478,18 @@ export default function LessonViewerPage() {
     header?.doc_type === 'devoir_prime'
   );
 
+  // National Exam detection
+  const isNat = Boolean(
+    lesson?.docType === 'national' ||
+    lesson?.type === 'national' ||
+    content?.doc_type === 'national' ||
+    content?.type === 'national' ||
+    header?.doc_type === 'national' ||
+    content?.header?.is_national_exam ||
+    lesson?.is_national_exam ||
+    /national|وطني|baccalaur[ée]at/i.test(lesson?.title || header?.fiche_title || '')
+  );
+
   // E-Book detection
   const isEbook = !isDevoirPrime && Boolean(
     lesson?.docType === 'ebook' ||
