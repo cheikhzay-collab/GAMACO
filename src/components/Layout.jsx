@@ -3,6 +3,7 @@ import { Outlet, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import BottomNav from './BottomNav';
 import MobileInstallBanner from './MobileInstallBanner';
+import PWAUpdateBanner from './PWAUpdateBanner';
 import { useAuth } from '../context/AuthContext';
 import WhatsAppButton from './WhatsAppButton';
 import CommandPalette from './CommandPalette';
@@ -170,6 +171,7 @@ export default function Layout() {
   if (isFocusMode) {
     return (
       <div className="focus-layout" style={{ minHeight: '100vh', width: '100%', maxWidth: '100vw', background: 'var(--bg-base)', color: 'var(--text-main)', transition: 'background 0.3s, color 0.3s', paddingTop: '1rem' }}>
+        <PWAUpdateBanner />
         <Suspense fallback={<LayoutLoadingFallback />}>
           <Outlet />
         </Suspense>
@@ -184,6 +186,8 @@ export default function Layout() {
 
       {/* Main content area */}
       <main className="main-content">
+        {/* PWA Update Banner (prompts user to reload without manually clearing cache) */}
+        <PWAUpdateBanner />
         {/* Mobile PWA Install Banner (auto-hides on desktop & when installed) */}
         {isMobile && <MobileInstallBanner />}
         {/* Offline Banner */}

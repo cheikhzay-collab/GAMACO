@@ -3864,6 +3864,66 @@ export default function AdminSettings() {
                 </div>
               </div>
 
+              {/* ⚡ PWA & Mobile Cache Flush Tool Card */}
+              <div className="bento-card" style={{ border: '1.5px solid rgba(99, 102, 241, 0.28)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, minWidth: '260px' }}>
+                    <div style={{ width: 42, height: 42, borderRadius: 12, background: 'rgba(99, 102, 241, 0.12)', border: '1px solid rgba(99, 102, 241, 0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6366f1' }}>
+                      <RefreshCw size={22} />
+                    </div>
+                    <div>
+                      <h2 className="settings-title" style={{ margin: 0, fontSize: '1.18rem' }}>
+                        تحديث المنصة الفوري ومسح كاش الموبايل (Force Clear Cache &amp; Reload)
+                      </h2>
+                      <p style={{ margin: '0.2rem 0 0', fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                        إذا واجهت أي شاشة قديمة أو لم تظهر التحديثات على هاتفك، اضغط هنا لتفريغ Service Worker والكاش المخزن مؤقتاً وتحميل أحدث نسخة فورياً دون الحاجة لمسح بيانات المتصفح يدوياً.
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        if ('serviceWorker' in navigator) {
+                          const regs = await navigator.serviceWorker.getRegistrations();
+                          for (const reg of regs) { await reg.unregister(); }
+                        }
+                        if ('caches' in window) {
+                          const keys = await caches.keys();
+                          await Promise.all(keys.map(k => caches.delete(k)));
+                        }
+                        if (typeof indexedDB !== 'undefined') {
+                          try { indexedDB.deleteDatabase('lconq_cache_v3'); } catch {}
+                        }
+                        window.location.reload(true);
+                      } catch (_) {
+                        window.location.reload();
+                      }
+                    }}
+                    className="btn"
+                    style={{
+                      padding: '0.75rem 1.35rem',
+                      borderRadius: '12px',
+                      fontSize: '0.86rem',
+                      fontWeight: 800,
+                      background: 'linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%)',
+                      color: '#fff',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      boxShadow: '0 4px 14px rgba(79, 70, 229, 0.3)',
+                      border: 'none',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    <RefreshCw size={16} />
+                    تحديث فوري ومسح الكاش الآن
+                  </button>
+                </div>
+              </div>
+
               {/* ── ZONE DE DANGER : RÉINITIALISATION & PURGE COMPLÈTE DE LA PLATEFORME ── */}
               <div 
                 className="bento-card" 

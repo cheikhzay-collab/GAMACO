@@ -872,7 +872,7 @@ Tu dois analyser la question et :
   /* ───────────────── RENDER ───────────────── */
   return (
     <>
-    <div className="animate-fade-in" style={{ maxWidth: 1400, margin: '0 auto', display: 'flex', flexDirection: 'column', height: isMobile ? 'auto' : 'calc(100vh - 80px)', minHeight: isMobile ? 'auto' : 600 }}>
+    <div className="animate-fade-in" style={{ maxWidth: 1400, margin: '0 auto', display: 'flex', flexDirection: 'column', height: isMobile ? 'auto' : 'calc(100vh - 80px)', minHeight: isMobile ? 'auto' : 600, paddingBottom: isMobile ? '5.5rem' : 0 }}>
 
       {/* ══ Top header bar ══════════════════════════════════════ */}
       <div style={{
@@ -1719,6 +1719,71 @@ Tu dois analyser la question et :
         setShowVariantModal(false);
       }}
     />
+
+    {/* ── MOBILE FLOATING QUICK-SAVE BAR ── */}
+    {isMobile && (
+      <div
+        dir="rtl"
+        style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          zIndex: 150,
+          padding: '0.55rem 0.85rem calc(0.55rem + env(safe-area-inset-bottom, 0px))',
+          background: 'rgba(15, 23, 42, 0.94)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          borderTop: '1px solid rgba(255, 255, 255, 0.12)',
+          boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.35)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '0.6rem',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0, flex: 1 }}>
+          {hasUnsaved ? (
+            <span style={{ fontSize: '0.78rem', color: '#fbbf24', display: 'flex', alignItems: 'center', gap: '0.3rem', fontWeight: 700 }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#fbbf24', display: 'inline-block' }} />
+              تعديلات غير محفوظة
+            </span>
+          ) : saved ? (
+            <span style={{ fontSize: '0.78rem', color: '#34d399', display: 'flex', alignItems: 'center', gap: '0.3rem', fontWeight: 700 }}>
+              <CheckCircle2 size={14} /> تم الحفظ بنجاح
+            </span>
+          ) : (
+            <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+              {localQuestions.length} سؤال جاهز
+            </span>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          <button
+            type="button"
+            onClick={handleSave}
+            className="btn"
+            style={{
+              padding: '0.45rem 1.15rem',
+              borderRadius: '8px',
+              fontSize: '0.82rem',
+              fontWeight: 900,
+              background: hasUnsaved ? '#4f46e5' : '#10b981',
+              color: '#fff',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              boxShadow: hasUnsaved ? '0 0 14px rgba(79, 70, 229, 0.55)' : 'none',
+              cursor: 'pointer',
+            }}
+          >
+            <Save size={15} />
+            <span>حفظ الامتحان</span>
+          </button>
+        </div>
+      </div>
+    )}
     </>
   );
 }

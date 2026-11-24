@@ -1034,7 +1034,7 @@ export default function AdminLessonEdit() {
     : sections.map((sec, idx) => ({ sec, idx }));
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-main)', paddingBottom: '3.5rem' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-main)', paddingBottom: isMobile ? '5.5rem' : '3.5rem' }}>
       {/* SINGLE SLIM 56px STICKY TOP BAR */}
       <header
         style={{
@@ -1567,6 +1567,91 @@ export default function AdminLessonEdit() {
         }
         isArMode={isArMode}
       />
+
+      {/* ── MOBILE FLOATING QUICK-SAVE BAR ── */}
+      {isMobile && (
+        <div
+          dir="rtl"
+          style={{
+            position: 'fixed',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            zIndex: 150,
+            padding: '0.55rem 0.85rem calc(0.55rem + env(safe-area-inset-bottom, 0px))',
+            background: 'rgba(15, 23, 42, 0.94)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+            borderTop: '1px solid rgba(255, 255, 255, 0.12)',
+            boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.35)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '0.6rem',
+          }}
+        >
+          {/* Status info */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0, flex: 1 }}>
+            {autoSaving || saving ? (
+              <span style={{ fontSize: '0.78rem', color: '#818cf8', display: 'flex', alignItems: 'center', gap: '0.3rem', fontWeight: 700 }}>
+                <Loader2 size={14} className="animate-spin" /> جاري الحفظ...
+              </span>
+            ) : hasUnsavedChanges ? (
+              <span style={{ fontSize: '0.78rem', color: '#fbbf24', display: 'flex', alignItems: 'center', gap: '0.3rem', fontWeight: 700 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#fbbf24', display: 'inline-block' }} />
+                تعديلات غير محفوظة
+              </span>
+            ) : (
+              <span style={{ fontSize: '0.76rem', color: '#34d399', display: 'flex', alignItems: 'center', gap: '0.3rem', fontWeight: 700 }}>
+                <CheckCircle2 size={14} /> {lastSavedTime ? `محفوظ ${lastSavedTime}` : 'محفوظ في السيرفر'}
+              </span>
+            )}
+          </div>
+
+          {/* Action buttons */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <button
+              type="button"
+              onClick={() => handleSetViewMode(viewMode === 'write' ? 'preview' : 'write')}
+              className="btn-outline"
+              style={{
+                padding: '0.42rem 0.7rem',
+                borderRadius: '8px',
+                fontSize: '0.76rem',
+                fontWeight: 700,
+                background: 'rgba(255, 255, 255, 0.08)',
+                color: '#fff',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+              }}
+            >
+              {viewMode === 'write' ? 'معاينة' : 'كتابة'}
+            </button>
+
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => performSave({ silent: false })}
+              className="btn"
+              style={{
+                padding: '0.42rem 1.1rem',
+                borderRadius: '8px',
+                fontSize: '0.82rem',
+                fontWeight: 900,
+                background: hasUnsavedChanges ? '#4f46e5' : '#10b981',
+                color: '#fff',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                boxShadow: hasUnsavedChanges ? '0 0 14px rgba(79, 70, 229, 0.55)' : 'none',
+                cursor: 'pointer',
+              }}
+            >
+              {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+              <span>حفظ التعديل</span>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
