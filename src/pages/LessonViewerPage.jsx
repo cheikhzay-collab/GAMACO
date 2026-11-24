@@ -1437,9 +1437,21 @@ export default function LessonViewerPage() {
         phone: lesson?.phone || ''
       };
 
-  const sections = Array.isArray(content?.sections) ? content.sections : (Array.isArray(parsedContent) ? parsedContent : []);
-  const theorySections = sections?.filter(s => s?.type !== 'exercise') || [];
-  const exerciseSections = sections?.filter(s => s?.type === 'exercise') || [];
+  const sections = (Array.isArray(content?.sections) && content.sections.length > 0)
+    ? content.sections
+    : ((Array.isArray(lesson?.sections) && lesson.sections.length > 0)
+        ? lesson.sections
+        : ((Array.isArray(content?.exercises) && content.exercises.length > 0)
+            ? content.exercises
+            : ((Array.isArray(lesson?.exercises) && lesson.exercises.length > 0)
+                ? lesson.exercises
+                : ((Array.isArray(content?.devoir_prime_exercises) && content.devoir_prime_exercises.length > 0)
+                    ? content.devoir_prime_exercises
+                    : ((Array.isArray(lesson?.content?.devoir_prime_exercises) && lesson.content.devoir_prime_exercises.length > 0)
+                        ? lesson.content.devoir_prime_exercises
+                        : (Array.isArray(parsedContent) ? parsedContent : []))))));
+  const theorySections = sections?.filter(s => s?.type !== 'exercise' && s?.type !== 'application') || [];
+  const exerciseSections = sections?.filter(s => s?.type === 'exercise' || s?.type === 'application') || [];
 
   // دعم RTL للنسخ المترجمة للعربية
   const checkArabicText = () => {
@@ -1871,7 +1883,7 @@ export default function LessonViewerPage() {
           width: 100% !important;
         }
 
-        @media (min-width: 768px) {
+        @media (min-width: 1025px) {
           .exercises-one-column-layout {
             display: block !important;
             column-count: 1 !important;
@@ -2031,7 +2043,7 @@ export default function LessonViewerPage() {
           }
         }
 
-        @media (max-width: 768px) {
+        @media (max-width: 1024px) {
           .sheet-body {
             padding: 1.25rem 0.75rem !important;
             gap: 1.25rem !important;
@@ -3759,8 +3771,36 @@ export default function LessonViewerPage() {
               ? (seriesColumns === 3 ? 'exercises-three-columns-layout' : (seriesColumns === 2 ? 'exercises-two-columns-layout' : 'exercises-one-column-layout'))
               : 'homework-sections-container exercises-one-column'
           }`}>
-            {sections?.map((sec, idx) => {
-              const isTheory = sec.type !== 'exercise';
+            {(!sections || sections.length === 0) ? (
+              <div style={{
+                padding: '3rem 1.5rem',
+                textAlign: 'center',
+                background: 'var(--bg-glass)',
+                borderRadius: '16px',
+                border: '1.5px dashed var(--border)',
+                margin: '1.5rem 0'
+              }}>
+                <div style={{ fontSize: '2.2rem', marginBottom: '0.5rem' }}>📄</div>
+                <h3 style={{ fontWeight: 800, color: 'var(--text-main)', marginBottom: '0.5rem', fontSize: '1.1rem' }}>
+                  {isArabic ? 'لا توجد تمارين أو فقرات مسجلة في هذه الوثيقة' : 'Aucun exercice ou section trouvé dans ce document'}
+                </h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', marginBottom: '1.25rem' }}>
+                  {isArabic ? 'يمكنك إضافة محتوى جديد أو تعديل الوثيقة بالضغط على الزر أسفله.' : 'Vous pouvez ajouter des exercices en cliquant sur le bouton ci-dessous.'}
+                </p>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => setIsDirectEdit(true)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
+                >
+                  <Edit size={16} /> {isArabic ? 'تعديل الوثيقة وإضافة تمارين' : 'Éditer et ajouter du contenu'}
+                </button>
+              </div>
+            ) : sections.map((sec, idx) => {
+              const secType = sec?.type || '';
+              const secTitleLower = (sec?.title || '').toLowerCase();
+              const isExplicitExercise = secType === 'exercise' || secType === 'application' || secTitleLower.startsWith('exercice') || secTitleLower.startsWith('application') || secTitleLower.startsWith('تمرين') || secTitleLower.startsWith('تطبيق');
+              const isTheory = !isExplicitExercise && (secType === 'definition' || secType === 'property' || secType === 'theorem' || secType === 'corollary' || secType === 'example' || secType === 'remark' || secType === 'activity' || secType === 'content');
               const { number: exeNumber, label: exeLabel, prefix: exePrefix } = !isTheory 
                 ? parseExerciseTitle(sec.title, idx, isArabic, sec.section_number)
                 : { number: '', label: '', prefix: '' };
@@ -4283,6 +4323,31 @@ export default function LessonViewerPage() {
                           </div>
                         );
                       })}
+
+                      {/* Render text if stored in sec.content */}
+                      {sec.content && (
+                        <div style={{ marginTop: '0.65rem', marginBottom: '0.65rem', width: '100%', direction: lessonDir, fontFamily: isArabic ? arabicFont : 'inherit' }}>
+                          {isDirectEdit ? (
+                            <textarea
+                              value={sec.content || ''}
+                              onChange={e => handleUpdateSectionContent(sec.id, e.target.value)}
+                              rows={Math.max(2, (sec.content || '').split('\n').length)}
+                              style={{
+                                width: '100%',
+                                border: '1px dashed #005086',
+                                borderRadius: '6px',
+                                padding: '0.5rem',
+                                fontSize: '0.92rem',
+                                background: 'rgba(255,255,255,0.7)',
+                                color: '#1a202c',
+                                direction: lessonDir
+                              }}
+                            />
+                          ) : (
+                            renderMathWithSectionFigures(sec.content, sec)
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })() : (
@@ -4642,10 +4707,10 @@ export default function LessonViewerPage() {
 
                                 {isDirectEdit ? (
                                   <textarea
-                                    value={sec.content || ''}
+                                    value={sec.content !== undefined ? sec.content : (Array.isArray(sec.items) ? sec.items.filter(it => it && it.type !== 'image' && it.type !== 'table').map(it => it.text || (typeof it === 'string' ? it : '')).join('\n') : '')}
                                     onChange={e => handleUpdateSectionContent(sec.id, e.target.value)}
                                     placeholder="Énoncé de l'exercice..."
-                                    rows={Math.max(3, (sec.content || '').split('\n').length)}
+                                    rows={Math.max(3, (sec.content || (Array.isArray(sec.items) ? sec.items.map(it => it.text || '').join('\n') : '')).split('\n').length)}
                                     style={{
                                       width: '100%',
                                       border: '1px dashed #005086',
@@ -4661,7 +4726,25 @@ export default function LessonViewerPage() {
                                     }}
                                   />
                                 ) : (
-                                  renderMathWithSectionFigures(sec.content, sec)
+                                  <>
+                                    {sec.content ? renderMathWithSectionFigures(sec.content, sec) : null}
+                                    {(!sec.content || (Array.isArray(sec.items) && sec.items.some(it => it && it.type !== 'image' && it.type !== 'table'))) && (
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: sec.content ? '0.75rem' : '0' }}>
+                                        {(sec.items || [])
+                                          .filter(it => it && it.type !== 'image' && it.type !== 'table')
+                                          .map((it, itIdx) => {
+                                            const itText = it?.text || (typeof it === 'string' ? it : '');
+                                            if (!itText) return null;
+                                            return (
+                                              <div key={itIdx} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.45rem' }}>
+                                                {it.type === 'bullet' && <span style={{ color: 'var(--violet)', fontWeight: 900, fontSize: '0.9rem', lineHeight: 1.5 }}>•</span>}
+                                                <span style={{ flex: 1 }}>{renderMathWithSectionFigures(itText, sec)}</span>
+                                              </div>
+                                            );
+                                          })}
+                                      </div>
+                                    )}
+                                  </>
                                 )}
 
                             {/* Attached images and tables inside exercise (default / after, skip images placed via [[FIG:N]]) */}

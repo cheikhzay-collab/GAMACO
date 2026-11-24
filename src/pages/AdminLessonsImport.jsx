@@ -1271,9 +1271,14 @@ Pour chaque exercice, activité ou application résolue dans le champ "solution"
     // Helper: try backend server proxy which uses server GEMINI_API_KEY
     const tryServerProxy = async (modelToUse) => {
       try {
+        const clientToken = localStorage.getItem('token') || '';
         const proxyRes = await fetch('/api/gemini/generate', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(clientToken ? { 'Authorization': `Bearer ${clientToken}` } : {})
+          },
+          credentials: 'include',
           body: JSON.stringify({
             model: modelToUse,
             apiKey: geminiKey || undefined,
@@ -1572,11 +1577,46 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
       temperature: 0.1
     };
 
-    // 1. Prefer secure server proxy (/api/deepseek/generate) so keys stored on server/.env work automatically
+    // 1. If deepseekKey is provided locally, prefer direct call or use server proxy with auth
+    const clientToken = localStorage.getItem('token') || '';
+
+    // If local key is provided, try direct call or server proxy with fallback
+    if (deepseekKey && deepseekKey.trim()) {
+      try {
+        const headers = {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${deepseekKey.trim()}`
+        };
+
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const content = data?.choices?.[0]?.message?.content;
+          if (content && content.trim()) return content;
+        } else {
+          const err = await res.json().catch(() => ({}));
+          const msg = err?.error?.message || err?.message || `HTTP ${res.status}`;
+          console.warn(`[DeepSeek Direct] Call returned ${res.status}: ${msg}. Attempting server proxy...`);
+        }
+      } catch (directErr) {
+        console.warn('[DeepSeek Direct Call Failed, trying server proxy]:', directErr.message);
+      }
+    }
+
+    // 2. Try secure server proxy (/api/deepseek/generate)
     try {
       const proxyRes = await fetch('/api/deepseek/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(clientToken ? { 'Authorization': `Bearer ${clientToken}` } : {})
+        },
+        credentials: 'include',
         body: JSON.stringify({
           ...payload,
           baseUrl: cleanUrl,
@@ -1588,38 +1628,44 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
         const content = proxyJson?.data?.choices?.[0]?.message?.content;
         if (content && content.trim()) return content;
       } else if (proxyRes.status === 401) {
-        throw new Error('انتهت صلاحية الجلسة — يرجى تسجيل الدخول مرة أخرى لاستخدام DeepSeek.');
+        if (!deepseekKey?.trim()) {
+          throw new Error('انتهت صلاحية الجلسة — يرجى تسجيل الدخول مرة أخرى لاستخدام DeepSeek.');
+        }
       } else if (!deepseekKey?.trim()) {
         const err = await proxyRes.json().catch(() => ({}));
         throw new Error(err?.error || `Erreur DeepSeek ${proxyRes.status}`);
       }
     } catch (proxyErr) {
-      if (/انتهت صلاحية الجلسة/.test(proxyErr.message) || !deepseekKey?.trim()) {
+      if (/انتهت صلاحية الجلسة/.test(proxyErr.message) && !deepseekKey?.trim()) {
         throw proxyErr;
       }
-      console.warn('[DeepSeek Proxy] Falling back to direct call:', proxyErr.message);
+      console.warn('[DeepSeek Proxy] Server proxy error:', proxyErr.message);
     }
 
-    // 2. Direct fallback if local key is explicitly provided
-    const headers = {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${deepseekKey}`
-    };
+    // 3. Final Direct Fallback if local key exists and wasn't successful yet
+    if (deepseekKey && deepseekKey.trim()) {
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${deepseekKey.trim()}`
+      };
 
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload)
-    });
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload)
+      });
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      const msg = err?.error?.message || err?.message || JSON.stringify(err);
-      throw new Error(`Erreur DeepSeek ${res.status}: ${msg}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        const msg = err?.error?.message || err?.message || JSON.stringify(err);
+        throw new Error(`Erreur DeepSeek ${res.status}: ${msg}`);
+      }
+
+      const data = await res.json();
+      return data?.choices?.[0]?.message?.content;
     }
 
-    const data = await res.json();
-    return data?.choices?.[0]?.message?.content;
+    throw new Error('Veuillez configurer une clé API DeepSeek valide.');
   };
 
   const fetchOpenAIWithDocument = async (activeFile, base64Data, fileType, pageCount) => {

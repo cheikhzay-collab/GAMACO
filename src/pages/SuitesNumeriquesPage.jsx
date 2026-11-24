@@ -211,7 +211,7 @@ export default function SuitesNumeriquesPage() {
           font-family: 'Times New Roman', Times, serif !important;
         }
 
-        @media (max-width: 768px) {
+        @media (max-width: 1024px) {
           .sheet-container {
             flex-direction: column !important;
           }
