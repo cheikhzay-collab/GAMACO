@@ -556,6 +556,7 @@ export default function LevelsPage() {
             );
           })}
         </div>
+        </>
       )}
 
       {/* ── STEP 2: BRANCHES/SECTIONS SELECTION (within selected level) ── */}
