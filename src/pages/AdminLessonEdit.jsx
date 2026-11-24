@@ -457,7 +457,7 @@ export default function AdminLessonEdit() {
   // Track dirty changes + 2.5s debounced auto-save to MySQL
   useEffect(() => {
     if (!isInitialLoadedRef.current || isSavingRef.current || loading) return;
-    if (docType === 'devoir_prime' && primeVisualMode) return; // DevoirPrimeTemplate handles its own auto-save
+    if ((docType === 'devoir_prime' || docType === 'national') && primeVisualMode) return; // DevoirPrimeTemplate handles its own auto-save
 
     const snap = computeSnapshot(sections);
     const dirty = Boolean(lastSavedSnapshotRef.current && snap !== lastSavedSnapshotRef.current);
@@ -533,9 +533,10 @@ export default function AdminLessonEdit() {
         return acc + (qSum > 0 ? qSum : parseNumericPoints(ex.points));
       }, 0) || 20;
 
+      const targetDocType = docType === 'national' ? 'national' : 'devoir_prime';
       const updatedContent = {
         ...(lesson?.content || {}),
-        doc_type: 'devoir_prime',
+        doc_type: targetDocType,
         level: meta?.level || selectedLevel,
         devoir_prime_meta: meta,
         devoir_prime_exercises: exercises,
@@ -547,7 +548,7 @@ export default function AdminLessonEdit() {
           title: meta?.title || ficheTitle,
           subject,
           level: meta?.level || selectedLevel,
-          docType: 'devoir_prime',
+          docType: targetDocType,
           isActive: isActiveStatus,
           content: updatedContent,
         }),
@@ -923,14 +924,12 @@ export default function AdminLessonEdit() {
     const { lessonData } = buildLessonPayload(sections);
     const liveLesson = { ...(lesson || {}), ...lessonData, id };
     const hasSolutions = sections.some(s => s.solution && String(s.solution).trim());
-    if (docType === 'devoir_prime') {
+    if (docType === 'devoir_prime' || docType === 'national') {
       openDevoirPrimePrintWindow(liveLesson, { showSolutions: true });
     } else if (docType === 'course') {
       openCoursePrintWindow(liveLesson, { showSolutions: hasSolutions });
     } else if (docType === 'ebook') {
       openEbookTemplatePrintWindow(liveLesson, { showSolutions: hasSolutions, columnsCount: Number(columnsCount) || 3 });
-    } else if (docType === 'national') {
-      openNationalExamPrintWindow(liveLesson.content || liveLesson, { showSolutions: hasSolutions });
     } else if (docType === 'summary') {
       openCourseSummaryPrintWindow(liveLesson.content || liveLesson);
     } else {
@@ -1027,7 +1026,7 @@ export default function AdminLessonEdit() {
   }
 
   const docTypeObj = DOC_TYPES.find(d => d.id === docType) || DOC_TYPES[0];
-  const isDevoirPrimeVisual = docType === 'devoir_prime' && primeVisualMode;
+  const isDevoirPrimeVisual = (docType === 'devoir_prime' || docType === 'national') && primeVisualMode;
   const safeActiveIdx = Math.max(0, Math.min(activeIdx, Math.max(0, sections.length - 1)));
   const visibleSections = focusMode
     ? (sections[safeActiveIdx] ? [{ sec: sections[safeActiveIdx], idx: safeActiveIdx }] : [])
@@ -1120,7 +1119,7 @@ export default function AdminLessonEdit() {
         </div>
 
         {/* Center: View Mode Switcher OR Devoir Prime Mode Toggle */}
-        {docType === 'devoir_prime' ? (
+        {(docType === 'devoir_prime' || docType === 'national') ? (
           <div style={{ display: 'inline-flex', padding: '3px', borderRadius: '9px', background: 'rgba(148, 163, 184, 0.12)', border: '1px solid var(--border)', flexShrink: 0 }}>
             <button
               type="button"
@@ -1136,7 +1135,7 @@ export default function AdminLessonEdit() {
                 color: primeVisualMode ? '#fff' : 'var(--text-muted)',
               }}
             >
-              ⭐ محرر DEVOIR PRIME
+              ⭐ {docType === 'national' ? 'قالب DEVOIR PRIME للوطني' : 'محرر DEVOIR PRIME'}
             </button>
             <button
               type="button"

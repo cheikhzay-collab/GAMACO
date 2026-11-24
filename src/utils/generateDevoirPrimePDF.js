@@ -71,8 +71,8 @@ function buildPage1CoverHeaderHtml(meta) {
           </td>
           <td class="dp-cover-center-cell">
             <div class="dp-cover-title">${escapeHtml(meta.title)}</div>
-            <div class="dp-cover-session">– ${escapeHtml(meta.semester)} ${escapeHtml(meta.academicYear)} –</div>
-            <div class="dp-cover-teacher">Réalisé par : ${escapeHtml(meta.teacher)}</div>
+            <div class="dp-cover-session">${meta.isNational ? '<span style="font-weight:900;color:#92400e;display:block;margin-bottom:2px;">الامتحان الوطني الموحد لنيل شهادة البكالوريا</span>' : ''}– ${escapeHtml(meta.semester)} ${escapeHtml(meta.academicYear)} –</div>
+            ${meta.teacher && !meta.teacher.includes('Professeur') ? `<div class="dp-cover-teacher">${escapeHtml(meta.teacher)}</div>` : (!meta.isNational && meta.teacher ? `<div class="dp-cover-teacher">Réalisé par : ${escapeHtml(meta.teacher)}</div>` : '')}
           </td>
           <td class="dp-cover-ministry-cell">
             <div class="dp-emblem">${MOROCCO_EMBLEM_SVG}</div>

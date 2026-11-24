@@ -852,7 +852,12 @@ export default function LessonViewerPage() {
             data.type === 'devoir_prime' ||
             data.content?.doc_type === 'devoir_prime' ||
             data.content?.type === 'devoir_prime' ||
-            data.content?.header?.doc_type === 'devoir_prime'
+            data.content?.header?.doc_type === 'devoir_prime' ||
+            data.docType === 'national' ||
+            data.type === 'national' ||
+            data.content?.doc_type === 'national' ||
+            data.content?.header?.is_national_exam ||
+            data.is_national_exam
           );
           const isEb = !isPrime && Boolean(
             data.docType === 'ebook' ||
@@ -1312,7 +1317,7 @@ export default function LessonViewerPage() {
       if (typeof trackDownload === 'function') {
         trackDownload({ type: 'lesson', id: lesson.id, title: lesson.content?.header?.fiche_title || lesson.title || 'Fiche de Cours' });
       }
-      if (viewDevoirPrimeMode || lesson?.docType === 'devoir_prime' || lesson?.content?.doc_type === 'devoir_prime') {
+      if (viewDevoirPrimeMode || lesson?.docType === 'devoir_prime' || lesson?.content?.doc_type === 'devoir_prime' || lesson?.docType === 'national' || lesson?.content?.doc_type === 'national') {
         openDevoirPrimePrintWindow(lesson, { showSolutions: includeSolutionsInPdf });
         return;
       }
@@ -3033,8 +3038,8 @@ export default function LessonViewerPage() {
             </button>
           )}
 
-          {/* DEVOIR PRIME toggle / converter button (for DEVOIR PRIME and all previous homeworks) */}
-          {(isDevoirPrime || isHomework) && (
+          {/* DEVOIR PRIME toggle / converter button (for DEVOIR PRIME, National Exams and all homeworks) */}
+          {(isDevoirPrime || isHomework || isNat || lesson?.docType === 'national') && (
             <button
               type="button"
               onClick={() => {
@@ -3060,9 +3065,9 @@ export default function LessonViewerPage() {
                 transition: 'all 0.15s ease',
                 cursor: 'pointer'
               }}
-              title="عرض أو تحويل الفرض إلى نظام DEVOIR PRIME (نقط + حل مختصر + طباعة مزدوجة)"
+              title="عرض أو تحويل الفرض / الامتحان إلى نظام DEVOIR PRIME (نقط + أسطر كتابة + حل مختصر + طباعة ملكية)"
             >
-              {viewDevoirPrimeMode ? '📄 Vue Classique' : '⭐ DEVOIR PRIME'}
+              {viewDevoirPrimeMode ? '📄 Vue Classique' : (isNat || lesson?.docType === 'national' ? '⭐ قالب DEVOIR PRIME للوطني' : '⭐ DEVOIR PRIME')}
             </button>
           )}
 

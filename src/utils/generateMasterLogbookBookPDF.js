@@ -2,13 +2,13 @@
 // High-Fidelity Moroccan Official Teacher's Master Logbook Book Generator
 // (كتاب دفتر النصوص الشامل لجميع الأقسام وفق المعايير الوزارية الرسمية للمملكة المغربية)
 
-import { 
-  esc, 
-  renderActivityCellHTML, 
-  chunkActivityContent, 
-  getTranslatedComponent, 
-  getLevelDisplayName, 
-  getAcademicYear 
+import {
+  esc,
+  renderActivityCellHTML,
+  chunkActivityContent,
+  getTranslatedComponent,
+  getLevelDisplayName,
+  getAcademicYear
 } from './generateLogbookPDF.js';
 import { mergeConsecutiveEntries, ORDERED_TIME_SLOTS } from './scheduleHelpers.js';
 import { getOfficialMoroccanHolidays } from '../services/schoolService.js';
@@ -321,10 +321,10 @@ function buildClassLogbookRows(cls, allEntries = [], holidays = [], absences = [
   const startYear = parseInt(String(academicYear).split(/[-/]/)[0], 10) || 2026;
   const yearStart = new Date(`${startYear}-09-01T00:00:00`);
   const yearEnd = new Date(`${startYear + 1}-08-31T23:59:59`);
-  
+
   const isAr = Boolean(
-    cls.language === 'ar' || 
-    cls.isArabic || 
+    cls.language === 'ar' ||
+    cls.isArabic ||
     (cls.name && cls.name.includes('عرب')) ||
     (cls.level && cls.level.includes('arts'))
   );
@@ -354,8 +354,8 @@ function buildClassLogbookRows(cls, allEntries = [], holidays = [], absences = [
     if (h.startDate > effectiveCutoff) return null;
 
     const isSingleDay = h.startDate === h.endDate;
-    const dateDisplay = isSingleDay 
-      ? h.startDate 
+    const dateDisplay = isSingleDay
+      ? h.startDate
       : (isAr ? `من ${h.startDate} إلى ${h.endDate}` : `Du ${h.startDate} au ${h.endDate}`);
 
     return {
@@ -383,8 +383,8 @@ function buildClassLogbookRows(cls, allEntries = [], holidays = [], absences = [
     if (a.startDate > effectiveCutoff) return null;
 
     const isSingleDay = a.startDate === a.endDate;
-    const dateDisplay = isSingleDay 
-      ? a.startDate 
+    const dateDisplay = isSingleDay
+      ? a.startDate
       : (isAr ? `من ${a.startDate} إلى ${a.endDate}` : `Du ${a.startDate} au ${a.endDate}`);
 
     return {
@@ -396,7 +396,7 @@ function buildClassLogbookRows(cls, allEntries = [], holidays = [], absences = [
       time: '—',
       component: isAr ? 'غياب الأستاذ' : 'Absence Enseignant',
       subject: cls.subject || (isAr ? 'الرياضيات' : 'Mathématiques'),
-      customContent: isAr 
+      customContent: isAr
         ? `=== رخصة / غياب: ${a.type || 'رخصة إدارية'} ===\nالسبب: ${a.reason || 'غير محدد'}`
         : `=== Absence / Congé : ${a.type || 'Autorisation'} ===\nMotif : ${a.reason || 'non spécifié'}`,
       isHeaderSéance: true,
@@ -450,8 +450,8 @@ export function generateMasterLogbookBookHTML({
   const showComposant = styleConfig.showComposant !== false;
 
   // Ensure full Moroccan official holidays fallback
-  const effectiveHolidays = (holidays && holidays.length > 0) 
-    ? holidays 
+  const effectiveHolidays = (holidays && holidays.length > 0)
+    ? holidays
     : getOfficialMoroccanHolidays(academicYear);
 
   // Total weekly timetable hours
@@ -897,15 +897,15 @@ export function generateMasterLogbookBookHTML({
             </div>
             <div style="font-size: 10.5px; color: #334155; margin-top: 3px; display: flex; justify-content: center; align-items: baseline; gap: 4px;">
               <span>لجهة:</span>
-              ${profAcademy && profAcademy !== 'الأكاديمية الجهوية للتربية والتكوين' 
-                ? `<strong style="color: #0f172a; border-bottom: 1px dotted #64748b; padding: 0 6px;">${esc(profAcademy)}</strong>` 
-                : '<span style="letter-spacing: 1.5px; color: #64748b;">...............................................</span>'}
+              ${profAcademy && profAcademy !== 'الأكاديمية الجهوية للتربية والتكوين'
+      ? `<strong style="color: #0f172a; border-bottom: 1px dotted #64748b; padding: 0 6px;">${esc(profAcademy)}</strong>`
+      : '<span style="letter-spacing: 1.5px; color: #64748b;">...............................................</span>'}
             </div>
             <div style="font-size: 10.5px; color: #334155; margin-top: 3px; display: flex; justify-content: center; align-items: baseline; gap: 4px;">
               <span>المديرية الإقليمية:</span>
-              ${profDirection && profDirection !== 'المديرية الإقليمية' 
-                ? `<strong style="color: #0f172a; border-bottom: 1px dotted #64748b; padding: 0 6px;">${esc(profDirection)}</strong>` 
-                : '<span style="letter-spacing: 1.5px; color: #64748b;">...................................</span>'}
+              ${profDirection && profDirection !== 'المديرية الإقليمية'
+      ? `<strong style="color: #0f172a; border-bottom: 1px dotted #64748b; padding: 0 6px;">${esc(profDirection)}</strong>`
+      : '<span style="letter-spacing: 1.5px; color: #64748b;">...................................</span>'}
             </div>
           </div>
         </div>
@@ -1225,20 +1225,20 @@ export function generateMasterLogbookBookHTML({
                     ${d.ar}<br><span style="font-size:8px;color:#64748b;font-weight:600;">${d.fr}</span>
                   </td>
                   ${timePeriods.map(p => {
-                    const slotKey = `${d.key}-${p.id}`;
-                    const slotData = schedule[slotKey];
-                    if (!slotData || !slotData.classId) {
-                      return `<td style="color:#cbd5e1;font-weight:300;">—</td>`;
-                    }
-                    const matchingClass = classes.find(c => c.id === slotData.classId || c.name === slotData.classId);
-                    const className = matchingClass ? matchingClass.name : slotData.classId;
-                    return `
+        const slotKey = `${d.key}-${p.id}`;
+        const slotData = schedule[slotKey];
+        if (!slotData || !slotData.classId) {
+          return `<td style="color:#cbd5e1;font-weight:300;">—</td>`;
+        }
+        const matchingClass = classes.find(c => c.id === slotData.classId || c.name === slotData.classId);
+        const className = matchingClass ? matchingClass.name : slotData.classId;
+        return `
                       <td style="background:#e0f2fe;border:1px solid #7dd3fc;color:#0369a1;padding:4px 2px;">
                         <div style="font-weight:900;font-size:10px;">${esc(className)}</div>
                         ${slotData.room ? `<div style="font-size:8px;color:#0284c7;">قاعة: ${esc(slotData.room)}</div>` : ''}
                       </td>
                     `;
-                  }).join('')}
+      }).join('')}
                 </tr>
               `).join('')}
             </tbody>
@@ -1304,10 +1304,10 @@ export function generateMasterLogbookBookHTML({
             </thead>
             <tbody>
               ${effectiveHolidays.map((h, idx) => {
-                const s = new Date(h.startDate);
-                const e = new Date(h.endDate);
-                const diffDays = Math.max(1, Math.round((e - s) / (1000 * 60 * 60 * 24)) + 1);
-                return `
+        const s = new Date(h.startDate);
+        const e = new Date(h.endDate);
+        const diffDays = Math.max(1, Math.round((e - s) / (1000 * 60 * 60 * 24)) + 1);
+        return `
                   <tr>
                     <td style="text-align:center;font-weight:700;color:#64748b;">${idx + 1}</td>
                     <td style="font-weight:800;color:#0f2942;text-align:right;padding-right:8px;">${esc(h.label)}</td>
@@ -1316,7 +1316,7 @@ export function generateMasterLogbookBookHTML({
                     <td style="text-align:center;font-weight:900;color:#047857;">${diffDays} ${diffDays === 1 ? 'يوم' : 'أيام'}</td>
                   </tr>
                 `;
-              }).join('')}
+      }).join('')}
             </tbody>
           </table>
 
@@ -1429,8 +1429,8 @@ export function generateMasterLogbookBookHTML({
 
         <!-- Programs for each class -->
         ${classes.map(cls => {
-          const prog = (cls.program && cls.program.length > 0) ? cls.program : [];
-          return `
+        const prog = (cls.program && cls.program.length > 0) ? cls.program : [];
+        return `
             <div style="margin-bottom:16px;border:1px solid #cbd5e1;border-radius:8px;padding:10px;background:#fafafa;">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
                 <span style="font-weight:900;font-size:11.5px;color:#0f2942;">
@@ -1471,7 +1471,7 @@ export function generateMasterLogbookBookHTML({
               `}
             </div>
           `;
-        }).join('')}
+      }).join('')}
 
       </div>
     </div>
@@ -1481,29 +1481,29 @@ export function generateMasterLogbookBookHTML({
          SECTION 8: سجل الحصص والأنشطة اليومية لكل قسم (LOGBOOK ENTRIES PER CLASS)
          ========================================================================= -->
     ${classes.map(cls => {
-      const isArMode = Boolean(
-        cls.language === 'ar' || 
-        cls.isArabic || 
-        (cls.name && cls.name.includes('عرب')) ||
-        (cls.level && cls.level.includes('arts'))
-      );
-      const dir = isArMode ? 'rtl' : 'ltr';
-      const align = isArMode ? 'right' : 'left';
-      const mainFont = isArMode ? arFont : frFont;
-      
-      const classEntries = buildClassLogbookRows(cls, allLogbookEntries, effectiveHolidays, absences, academicYear);
+        const isArMode = Boolean(
+          cls.language === 'ar' ||
+          cls.isArabic ||
+          (cls.name && cls.name.includes('عرب')) ||
+          (cls.level && cls.level.includes('arts'))
+        );
+        const dir = isArMode ? 'rtl' : 'ltr';
+        const align = isArMode ? 'right' : 'left';
+        const mainFont = isArMode ? arFont : frFont;
 
-      // Render table rows
-      const rowsHtml = classEntries.length > 0 
-        ? classEntries.flatMap(e => {
+        const classEntries = buildClassLogbookRows(cls, allLogbookEntries, effectiveHolidays, absences, academicYear);
+
+        // Render table rows
+        const rowsHtml = classEntries.length > 0
+          ? classEntries.flatMap(e => {
             const isHolidayOrAbsence = e.isHolidayEntry || e.isAbsenceEntry;
             const signatureText = isHolidayOrAbsence ? '—' : (isArMode ? 'موقّع' : 'Signé');
             const signatureStyle = isHolidayOrAbsence ? 'color:#94a3b8;font-style:italic;' : 'color:#10b981;font-weight:bold;font-size:0.75rem;';
             const componentText = getTranslatedComponent(e.component, isArMode);
-            const dateText = e.displayDate 
-              ? (e.displayDate.includes('من') || e.displayDate.includes('Du') 
-                  ? esc(e.displayDate) 
-                  : new Date(e.date).toLocaleDateString('fr-FR'))
+            const dateText = e.displayDate
+              ? (e.displayDate.includes('من') || e.displayDate.includes('Du')
+                ? esc(e.displayDate)
+                : new Date(e.date).toLocaleDateString('fr-FR'))
               : (e.date ? new Date(e.date).toLocaleDateString('fr-FR') : '');
 
             if (isHolidayOrAbsence) {
@@ -1558,7 +1558,7 @@ export function generateMasterLogbookBookHTML({
               `;
             });
           }).join('')
-        : `
+          : `
           <!-- Empty Ruled Rows if class has no entries yet -->
           ${[1, 2, 3, 4, 5, 6, 7, 8].map(() => `
             <tr style="height:38px;">
@@ -1571,7 +1571,7 @@ export function generateMasterLogbookBookHTML({
           `).join('')}
         `;
 
-      return `
+        return `
         <div id="sec-class-${cls.id}" class="book-page">
           <div class="moroccan-double-frame" style="min-height:265mm;padding:20px;display:flex;flex-direction:column;justify-content:space-between;">
             
@@ -1630,17 +1630,17 @@ export function generateMasterLogbookBookHTML({
           </div>
         </div>
       `;
-    }).join('')}
+      }).join('')}
 
 
     <!-- =========================================================================
          SECTION 9: لوائح التلاميذ والتلميذات وشبكات التنقيط لكل قسم
          ========================================================================= -->
     ${classes.map(cls => {
-      const studentsList = Array.isArray(cls.students) ? cls.students : [];
-      const totalRows = Math.max(studentsList.length, 36);
+        const studentsList = Array.isArray(cls.students) ? cls.students : [];
+        const totalRows = Math.max(studentsList.length, 36);
 
-      return `
+        return `
         <div id="sec-roster-${cls.id}" class="book-page">
           <div class="moroccan-double-frame" style="min-height:265mm;padding:20px;display:flex;flex-direction:column;justify-content:space-between;">
             
@@ -1679,9 +1679,9 @@ export function generateMasterLogbookBookHTML({
                 </thead>
                 <tbody>
                   ${Array.from({ length: totalRows }).map((_, idx) => {
-                    const st = studentsList[idx];
-                    const num = idx + 1;
-                    return `
+          const st = studentsList[idx];
+          const num = idx + 1;
+          return `
                       <tr style="height:21px;">
                         <td style="text-align:center;font-weight:700;color:#64748b;">${num}</td>
                         <td style="text-align:center;font-family:'Outfit',sans-serif;font-weight:600;color:#1e3a8a;">
@@ -1699,7 +1699,7 @@ export function generateMasterLogbookBookHTML({
                         <td></td>
                       </tr>
                     `;
-                  }).join('')}
+        }).join('')}
                 </tbody>
               </table>
             </div>
@@ -1714,7 +1714,7 @@ export function generateMasterLogbookBookHTML({
           </div>
         </div>
       `;
-    }).join('')}
+      }).join('')}
 
 
     <!-- =========================================================================
@@ -1753,12 +1753,12 @@ export function generateMasterLogbookBookHTML({
             </thead>
             <tbody>
               ${Array.from({ length: Math.max(absences.length, 8) }).map((_, idx) => {
-                const a = absences[idx];
-                const s = a?.startDate ? new Date(a.startDate) : null;
-                const e = a?.endDate ? new Date(a.endDate) : null;
-                const days = (s && e) ? Math.max(1, Math.round((e - s) / (1000 * 60 * 60 * 24)) + 1) : '';
+        const a = absences[idx];
+        const s = a?.startDate ? new Date(a.startDate) : null;
+        const e = a?.endDate ? new Date(a.endDate) : null;
+        const days = (s && e) ? Math.max(1, Math.round((e - s) / (1000 * 60 * 60 * 24)) + 1) : '';
 
-                return `
+        return `
                   <tr style="height:26px;">
                     <td style="text-align:center;font-weight:700;color:#64748b;">${idx + 1}</td>
                     <td style="text-align:center;font-weight:700;">${a?.type ? esc(a.type) : ''}</td>
@@ -1769,7 +1769,7 @@ export function generateMasterLogbookBookHTML({
                     <td></td>
                   </tr>
                 `;
-              }).join('')}
+      }).join('')}
             </tbody>
           </table>
 

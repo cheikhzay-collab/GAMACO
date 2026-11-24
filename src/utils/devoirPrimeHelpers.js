@@ -87,6 +87,18 @@ export function getDefaultDevoirPrimeMeta(lesson = {}, settings = {}) {
   const level = savedMeta.level || lesson?.level || content?.level || header?.level || '2bac_pc_svt';
   const rawTitle = savedMeta.title || lesson?.title || header?.fiche_title || 'فرض محروس رقم 1';
 
+  // Detect whether this document is a Moroccan National Exam (Examen National)
+  const isNational = Boolean(
+    savedMeta.isNational ||
+    lesson?.docType === 'national' ||
+    lesson?.type === 'national' ||
+    content?.doc_type === 'national' ||
+    header?.doc_type === 'national' ||
+    header?.is_national_exam ||
+    lesson?.is_national_exam ||
+    /national|وطني|baccalaur[ée]at|examen\s*national/i.test(rawTitle)
+  );
+
   // Normalize academic year display (e.g. "2025/2026" -> "2025 - 2026")
   const rawYear = settings?.academicYear || savedMeta.academicYear || header?.academic_year || globalCfg.academicYear;
   const academicYear = String(rawYear || '').replace(/\s*\/\s*/g, ' - ').trim();
@@ -94,28 +106,45 @@ export function getDefaultDevoirPrimeMeta(lesson = {}, settings = {}) {
   const teacherRaw = savedMeta.teacher || header?.teacher || lesson?.teacher || globalCfg.profName || '';
   const teacher = teacherRaw
     ? (/^(pr\.?|prof\.?)/i.test(teacherRaw.trim()) ? teacherRaw.trim() : `Pr. ${teacherRaw.trim()}`)
-    : 'Pr. Professeur';
+    : (isNational ? '' : 'Pr. Professeur');
 
   const brandName = savedMeta.brandName || globalCfg.brandName || 'MATHS PRIME';
   const handle = savedMeta.handle || header?.phone || lesson?.phone || globalCfg.handle || '';
 
+  const defaultTitle = isNational
+    ? (rawTitle && rawTitle !== 'فرض محروس رقم 1' ? rawTitle : 'الامتحان الوطني الموحد للبكالوريا')
+    : rawTitle;
+
+  const defaultSemester = isNational
+    ? (savedMeta.semester || (/rattrapage|استدراك/i.test(rawTitle) ? 'الدورة الاستدراكية' : 'الدورة العادية'))
+    : (savedMeta.semester || 'الدورة الأولى');
+
+  const defaultDuration = isNational
+    ? (savedMeta.duration || (level.includes('sm') ? '4 ساعات' : '3 ساعات'))
+    : (savedMeta.duration || '2س');
+
+  const defaultCoeff = isNational
+    ? (savedMeta.coefficient || (level.includes('sm') ? '9' : '7'))
+    : (savedMeta.coefficient || COEFF_BY_LEVEL[level] || '7');
+
   return {
-    title: rawTitle,
-    semester: savedMeta.semester || 'الدورة الأولى',
+    title: defaultTitle,
+    semester: defaultSemester,
     academicYear,
     teacher,
     brandName,
     handle,
     subject: savedMeta.subject || 'الرياضيات',
     branch: savedMeta.branch || BRANCH_AR_BY_LEVEL[level] || BRANCH_AR_BY_LEVEL['2bac_pc_svt'],
-    duration: savedMeta.duration || '2س',
-    coefficient: savedMeta.coefficient || COEFF_BY_LEVEL[level] || '7',
+    duration: defaultDuration,
+    coefficient: defaultCoeff,
     ministryLine1: savedMeta.ministryLine1 || 'المملكة المغربية',
     ministryLine2: savedMeta.ministryLine2 || 'وزارة التربية الوطنية والتعليم الأولي والرياضة',
-    ministryLine3: savedMeta.ministryLine3 || globalCfg.school || globalCfg.academy || 'المركز الوطني للامتحانات المدرسية وتقييم التعلمات',
+    ministryLine3: savedMeta.ministryLine3 || (isNational ? 'المركز الوطني للامتحانات المدرسية وتقييم التعلمات' : (globalCfg.school || globalCfg.academy || 'المركز الوطني للامتحانات المدرسية وتقييم التعلمات')),
     showQR: savedMeta.showQR !== undefined ? Boolean(savedMeta.showQR) : true,
     showStudentStrip: savedMeta.showStudentStrip !== undefined ? Boolean(savedMeta.showStudentStrip) : true,
     solutionStyle: savedMeta.solutionStyle || 'clean_math', // 'clean_math' | 'handwritten'
+    isNational,
     level,
   };
 }

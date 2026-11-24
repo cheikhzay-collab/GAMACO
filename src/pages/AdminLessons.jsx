@@ -683,7 +683,7 @@ ${sectionsContentText}
     setShowBulkDownloadModal(false);
 
     const printItem = (item) => {
-      if (item?.docType === 'devoir_prime' || item?.content?.doc_type === 'devoir_prime') {
+      if (item?.docType === 'devoir_prime' || item?.content?.doc_type === 'devoir_prime' || item?.docType === 'national' || item?.content?.doc_type === 'national') {
         openDevoirPrimePrintWindow(item, { showSolutions: true });
       } else if (item?.docType === 'ebook' || item?.content?.doc_type === 'ebook') {
         openEbookTemplatePrintWindow(item, { columnsCount: 3, showSolutions: true });

@@ -8,6 +8,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 import { generateSubjectHTML, generateCorrectionHTML, openPrintWindow } from '../utils/generateExamPDF';
 import NationalExamTemplate from '../components/NationalExamTemplate';
 import { openNationalExamPrintWindow } from '../utils/generateNationalExamPDF';
+import { openDevoirPrimePrintWindow } from '../utils/generateDevoirPrimePDF';
 import { 
   smartNumberQuestions, 
   fixLinguisticAndOcrErrors, 
@@ -2371,13 +2372,29 @@ ${pdfText}
                 <button
                   type="button"
                   className="btn"
+                  onClick={() => openDevoirPrimePrintWindow({
+                    title: examName,
+                    docType: 'national',
+                    content: {
+                      doc_type: 'national',
+                      header: { fiche_title: examName, subject: 'Mathématiques', level: '2bac_pc_svt', is_national_exam: isNationalExam, national_exam_meta: nationalExamMeta },
+                      sections: [{ title: 'Exercices', items: questions }]
+                    }
+                  }, { showSolutions: true })}
+                  style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: '#fff', fontWeight: 800, padding: '0.5rem 1rem', fontSize: '0.85rem' }}
+                >
+                  ⭐ Exporter format DEVOIR PRIME (PDF)
+                </button>
+                <button
+                  type="button"
+                  className="btn"
                   onClick={() => openNationalExamPrintWindow({
                     header: { fiche_title: examName, subject: 'Mathématiques', level: '2bac_pc_svt', is_national_exam: isNationalExam, national_exam_meta: nationalExamMeta },
                     questions: questions
                   })}
                   style={{ background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', fontWeight: 700, padding: '0.5rem 1rem', fontSize: '0.85rem' }}
                 >
-                  🖨️ Imprimer / Exporter format officiel (PDF)
+                  🖨️ Imprimer format officiel (PDF)
                 </button>
               </div>
             </div>

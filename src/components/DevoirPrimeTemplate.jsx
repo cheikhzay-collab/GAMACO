@@ -709,15 +709,26 @@ export default function DevoirPrimeTemplate({
 
                 {/* Center: Title + Semester + Teacher */}
                 <td style={{ border: '1.5px solid #000', textAlign: 'center', padding: '8px 10px', verticalAlign: 'middle' }}>
-                  <div style={{ fontFamily: 'Tajawal, sans-serif', fontSize: '22px', fontWeight: 900, lineHeight: 1.2, marginBottom: '4px' }}>
+                  <div style={{ fontFamily: 'Tajawal, sans-serif', fontSize: '21px', fontWeight: 900, lineHeight: 1.2, marginBottom: '3px' }}>
                     {meta.title}
                   </div>
-                  <div style={{ fontFamily: 'Tajawal, sans-serif', fontSize: '15px', fontWeight: 800, marginBottom: '6px' }}>
+                  {meta.isNational && (
+                    <div style={{ fontFamily: 'Tajawal, sans-serif', fontSize: '13.5px', fontWeight: 800, color: '#b45309', marginBottom: '2px' }}>
+                      الامتحان الوطني الموحد لنيل شهادة البكالوريا
+                    </div>
+                  )}
+                  <div style={{ fontFamily: 'Tajawal, sans-serif', fontSize: '14.5px', fontWeight: 800, marginBottom: '4px' }}>
                     – {meta.semester} {meta.academicYear} –
                   </div>
-                  <div style={{ fontSize: '15px', fontWeight: 700, color: '#1e3a8a' }}>
-                    Réalisé par : {meta.teacher}
-                  </div>
+                  {meta.teacher && !meta.teacher.includes('Professeur') ? (
+                    <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#1e3a8a' }}>
+                      {meta.teacher}
+                    </div>
+                  ) : (!meta.isNational && meta.teacher && (
+                    <div style={{ fontSize: '14px', fontWeight: 700, color: '#1e3a8a' }}>
+                      Réalisé par : {meta.teacher}
+                    </div>
+                  ))}
                 </td>
 
                 {/* Right: Ministry Emblem */}
