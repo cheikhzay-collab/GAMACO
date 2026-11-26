@@ -19,8 +19,108 @@ import {
 } from '../utils/devoirPrimeHelpers';
 import { solveDevoirPrimeWithAI } from '../utils/aiExerciseSolver';
 import { openDevoirPrimePrintWindow } from '../utils/generateDevoirPrimePDF';
+import {
+  buildFigureMapFromList,
+  getSectionImageEntries,
+  splitTextByFigureTokens,
+  resolveFigureItem,
+  hasFigureToken,
+  getImageItemUrl,
+} from '../utils/figureShortcodes';
 
 const renderPrimeMath = (txt) => renderWithMath(ensureMathDelimiters(txt || ''));
+
+const renderPrimeFigureNode = (fig, key) => {
+  const url = getImageItemUrl(fig);
+  if (!url) return null;
+  const align = fig.align || 'center';
+  const justify = align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center';
+  const widthPct = Math.min(100, Math.max(20, Number(fig.width_pct) || 75));
+  const rawCap = (fig.caption || fig.alt || '').trim();
+  const isRedundant = !rawCap || /^(figure(\s*g[ée]om[ée]trique)?|figure|image|photo|شكل(\s*هندسي)?)$/i.test(rawCap);
+  return (
+    <div key={key} style={{ display: 'flex', justifyContent: justify, margin: '8px 0', width: '100%' }}>
+      <figure style={{ margin: 0, width: `${widthPct}%`, maxWidth: '100%', textAlign: 'center' }}>
+        <img
+          src={url}
+          alt={rawCap || 'Figure'}
+          style={{
+            maxWidth: '100%',
+            maxHeight: '300px',
+            width: 'auto',
+            height: 'auto',
+            objectFit: 'contain',
+            display: 'block',
+            margin: align === 'center' ? '0 auto' : align === 'right' ? '0 0 0 auto' : '0 auto 0 0',
+            borderRadius: '4px',
+          }}
+        />
+        {!isRedundant && (
+          <figcaption style={{ marginTop: '4px', fontSize: '11.5px', color: '#475569', fontStyle: 'italic' }}>
+            {renderPrimeMath(rawCap)}
+          </figcaption>
+        )}
+      </figure>
+    </div>
+  );
+};
+
+const renderPrimeRichWithFigures = (txt, figMap, renderedUrlsSet = null) => {
+  if (txt === null || txt === undefined) return null;
+  const raw = String(txt);
+  if (!raw.trim()) return null;
+  const hasToken = hasFigureToken(raw) || /\[IMAGE:[^\]]+\]/i.test(raw);
+  if (!hasToken) {
+    return renderPrimeMath(raw);
+  }
+
+  // Handle both [[FIG:...]] and legacy [IMAGE:url]
+  const normalized = raw.replace(/\[IMAGE:([^\]]+)\]/gi, (_, url) => `[[IMGURL:${url.trim()}]]`);
+  const parts = normalized.split(/(\[\[IMGURL:[^\]]+\]\])/g);
+
+  return (
+    <>
+      {parts.map((part, pIdx) => {
+        const legacyMatch = part.match(/^\[\[IMGURL:(.+)\]\]$/);
+        if (legacyMatch) {
+          const url = legacyMatch[1].trim();
+          if (renderedUrlsSet) renderedUrlsSet.add(url);
+          return renderPrimeFigureNode({ url, align: 'center', width_pct: 75 }, `leg-fig-${pIdx}`);
+        }
+        if (!part) return null;
+        if (!hasFigureToken(part) || !figMap || figMap.size === 0) {
+          return part.trim() ? <span key={`txt-${pIdx}`}>{renderPrimeMath(part)}</span> : null;
+        }
+        const segs = splitTextByFigureTokens(part);
+        return segs.map((seg, sIdx) => {
+          if (seg.type === 'figure') {
+            const resolved = resolveFigureItem(figMap, seg);
+            if (!resolved) return null;
+            if (renderedUrlsSet && resolved.url) renderedUrlsSet.add(resolved.url);
+            return renderPrimeFigureNode(resolved, `fig-${pIdx}-${sIdx}-${seg.figId}`);
+          }
+          return seg.value.trim() ? <span key={`seg-${pIdx}-${sIdx}`}>{renderPrimeMath(seg.value)}</span> : null;
+        });
+      })}
+    </>
+  );
+};
+
+const getUnrenderedImages = (imgList = [], primaryUrl = '', renderedSet = new Set()) => {
+  const out = [];
+  const seen = new Set(renderedSet);
+  const add = (entry) => {
+    if (!entry) return;
+    const obj = typeof entry === 'string' ? { url: entry, align: 'center', width_pct: 75 } : entry;
+    const url = getImageItemUrl(obj);
+    if (!url || seen.has(url)) return;
+    seen.add(url);
+    out.push({ ...obj, url });
+  };
+  if (Array.isArray(imgList)) imgList.forEach(add);
+  if (primaryUrl) add(primaryUrl);
+  return out;
+};
 
 const MOROCCO_EMBLEM = (
   <svg width="38" height="38" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -855,7 +955,16 @@ export default function DevoirPrimeTemplate({
             Aucun exercice dans ce document pour le moment.
           </div>
         ) : (
-          exercises.map((ex, eIdx) => (
+          exercises.map((ex, eIdx) => {
+            const rawSec = lesson?.content?.sections?.[eIdx] || lesson?.sections?.[eIdx];
+            const secFigs = rawSec
+              ? getSectionImageEntries(rawSec).map(e => ({ ...e.item, figId: e.figId }))
+              : [];
+            const figMap = buildFigureMapFromList([...(ex.figures || []), ...secFigs]);
+            const renderedExUrls = new Set();
+            const extraPreambleImgs = getUnrenderedImages(ex.preambleImages, ex.preambleImage, renderedExUrls);
+
+            return (
             <div key={ex.id || eIdx} style={{ marginBottom: '20px' }}>
               {/* Exercise Header */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
@@ -886,9 +995,12 @@ export default function DevoirPrimeTemplate({
                 )}
               </div>
 
-              {ex.preamble && (
+              {(ex.preamble || extraPreambleImgs.length > 0) && (
                 <div style={{ fontSize: '13.5px', marginBottom: '8px', lineHeight: 1.5 }}>
-                  {renderPrimeMath(ex.preamble)}
+                  {ex.preamble && renderPrimeRichWithFigures(ex.preamble, figMap, renderedExUrls)}
+                  {getUnrenderedImages(ex.preambleImages, ex.preambleImage, renderedExUrls).map((img, iIdx) =>
+                    renderPrimeFigureNode(img, `pre-img-${eIdx}-${iIdx}`)
+                  )}
                 </div>
               )}
 
@@ -901,6 +1013,7 @@ export default function DevoirPrimeTemplate({
                 const linesCount = Math.max(3, Math.min(16, Number(q.linesCount) || 5));
                 const minBoxHeight = linesCount * 29 + 14;
                 const hasSolution = (q.steps && q.steps.length > 0) || Boolean(q.finalBox) || (q.layout === 'two_columns' && ((q.leftSteps && q.leftSteps.length > 0) || (q.rightSteps && q.rightSteps.length > 0)));
+                const renderedQUrls = new Set();
 
                 // Parent Stem Banner (e.g. "2. Calculer les limites suivantes :" before a), b), c) — NO points, NO QR, NO dotted box!)
                 if (q.isStem) {
@@ -914,9 +1027,12 @@ export default function DevoirPrimeTemplate({
                       flexDirection: 'column',
                       gap: '6px',
                     }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                        <div style={{ fontSize: '14px', fontWeight: 700, color: '#000', lineHeight: 1.45 }}>
-                          {renderPrimeMath(`${q.number ? `**${String(q.number).trim()}** ` : ''}${String(q.text || '').replace(/^\s+/, '')}`)}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px', flexWrap: 'wrap' }}>
+                        <div style={{ fontSize: '14px', fontWeight: 700, color: '#000', lineHeight: 1.45, flex: 1 }}>
+                          {renderPrimeRichWithFigures(`${q.number ? `**${String(q.number).trim()}** ` : ''}${String(q.text || '').replace(/^\s+/, '')}`, figMap, renderedQUrls)}
+                          {getUnrenderedImages(q.images, q.image, renderedQUrls).map((img, iIdx) =>
+                            renderPrimeFigureNode(img, `stem-img-${eIdx}-${qIdx}-${iIdx}`)
+                          )}
                         </div>
                         {editable && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontFamily: 'Tajawal, sans-serif', fontSize: '11.5px' }}>
@@ -1013,8 +1129,11 @@ export default function DevoirPrimeTemplate({
                       {/* Center Question Statement */}
                       <div style={{ flex: 1, padding: '8px 12px', display: 'flex', flexDirection: 'column', justifyContent: 'center', fontSize: '13.5px' }}>
                         <div style={{ lineHeight: 1.5 }}>
-                          {renderPrimeMath(`${q.number ? `**${String(q.number).trim()}** ` : ''}${String(q.text || '').replace(/^\s+/, '')}`)}
+                          {renderPrimeRichWithFigures(`${q.number ? `**${String(q.number).trim()}** ` : ''}${String(q.text || '').replace(/^\s+/, '')}`, figMap, renderedQUrls)}
                         </div>
+                        {getUnrenderedImages(q.images, q.image, renderedQUrls).map((img, iIdx) =>
+                          renderPrimeFigureNode(img, `q-img-${eIdx}-${qIdx}-${iIdx}`)
+                        )}
                       </div>
 
                       {/* Right QR Cell */}
@@ -1073,24 +1192,24 @@ export default function DevoirPrimeTemplate({
                             <>
                               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', marginBottom: '6px' }}>
                                 <div style={{ padding: '2px 8px', borderRight: '1.4px solid #0f172a' }}>
-                                  {q.leftTitle && <div style={{ fontWeight: 700, textDecoration: 'underline' }}>{renderPrimeMath(q.leftTitle)}</div>}
+                                  {q.leftTitle && <div style={{ fontWeight: 700, textDecoration: 'underline' }}>{renderPrimeRichWithFigures(q.leftTitle, figMap)}</div>}
                                   {(q.leftSteps || []).map((st, sIdx) => (
-                                    <div key={sIdx}>{renderPrimeMath(st)}</div>
+                                    <div key={sIdx}>{renderPrimeRichWithFigures(st, figMap)}</div>
                                   ))}
                                   {q.leftConclusion && (
                                     <div style={{ marginTop: '4px', padding: '3px 6px', background: 'rgba(254, 240, 138, 0.85)', borderRadius: '3px', fontWeight: 700, lineHeight: 1.35 }}>
-                                      {renderPrimeMath(q.leftConclusion)}
+                                      {renderPrimeRichWithFigures(q.leftConclusion, figMap)}
                                     </div>
                                   )}
                                 </div>
                                 <div style={{ padding: '2px 8px' }}>
-                                  {q.rightTitle && <div style={{ fontWeight: 700, textDecoration: 'underline' }}>{renderPrimeMath(q.rightTitle)}</div>}
+                                  {q.rightTitle && <div style={{ fontWeight: 700, textDecoration: 'underline' }}>{renderPrimeRichWithFigures(q.rightTitle, figMap)}</div>}
                                   {(q.rightSteps || []).map((st, sIdx) => (
-                                    <div key={sIdx}>{renderPrimeMath(st)}</div>
+                                    <div key={sIdx}>{renderPrimeRichWithFigures(st, figMap)}</div>
                                   ))}
                                   {q.rightConclusion && (
                                     <div style={{ marginTop: '4px', padding: '3px 6px', background: 'rgba(254, 240, 138, 0.85)', borderRadius: '3px', fontWeight: 700, lineHeight: 1.35 }}>
-                                      {renderPrimeMath(q.rightConclusion)}
+                                      {renderPrimeRichWithFigures(q.rightConclusion, figMap)}
                                     </div>
                                   )}
                                 </div>
@@ -1106,7 +1225,7 @@ export default function DevoirPrimeTemplate({
                                     fontWeight: 700,
                                     lineHeight: 1.4,
                                   }}>
-                                    {renderPrimeMath(q.finalBox)}
+                                    {renderPrimeRichWithFigures(q.finalBox, figMap)}
                                   </span>
                                 </div>
                               )}
@@ -1114,7 +1233,7 @@ export default function DevoirPrimeTemplate({
                           ) : (
                             <>
                               {(q.steps || []).map((st, sIdx) => (
-                                <div key={sIdx}>{renderPrimeMath(st)}</div>
+                                <div key={sIdx}>{renderPrimeRichWithFigures(st, figMap)}</div>
                               ))}
                               {q.finalBox && (
                                 <div style={{ display: 'flex', justifyContent: 'center', marginTop: '4px' }}>
@@ -1127,7 +1246,7 @@ export default function DevoirPrimeTemplate({
                                     fontWeight: 700,
                                     lineHeight: 1.4,
                                   }}>
-                                    {renderPrimeMath(q.finalBox)}
+                                    {renderPrimeRichWithFigures(q.finalBox, figMap)}
                                   </span>
                                 </div>
                               )}
@@ -1396,7 +1515,8 @@ export default function DevoirPrimeTemplate({
                 );
               })}
             </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>

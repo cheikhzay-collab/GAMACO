@@ -14,6 +14,14 @@ import {
   buildQuestionQrPayload,
   ensureMathDelimiters,
 } from './devoirPrimeHelpers.js';
+import {
+  buildFigureMapFromList,
+  getSectionImageEntries,
+  splitTextByFigureTokens,
+  resolveFigureItem,
+  hasFigureToken,
+  getImageItemUrl,
+} from './figureShortcodes.js';
 
 const escapeHtml = (str) =>
   String(str || '')
@@ -38,6 +46,68 @@ const formatRichMathHtml = (raw) => {
       return escapeHtml(part).replace(/\n/g, '<br/>');
     })
     .join('');
+};
+
+const renderPdfFigureHtml = (fig, cls = 'dp-q-img') => {
+  const url = getImageItemUrl(fig);
+  if (!url) return '';
+  const align = fig.align === 'left' || fig.align === 'right' ? fig.align : 'center';
+  const widthPct = Math.min(100, Math.max(20, Number(fig.width_pct) || 75));
+  const marginRule = align === 'center' ? '6px auto' : align === 'right' ? '6px 0 6px auto' : '6px auto 6px 0';
+  const rawCap = (fig.caption || fig.alt || '').trim();
+  const isRedundant = !rawCap || /^(figure(\s*g[ée]om[ée]trique)?|figure|image|photo|شكل(\s*هندسي)?)$/i.test(rawCap);
+  return `<div class="${cls}" style="text-align:${align};"><img src="${escapeHtml(url)}" alt="${escapeHtml(rawCap || 'Figure')}" style="width:${widthPct}%;max-width:100%;margin:${marginRule};" />${!isRedundant ? `<div style="font-size:11px;color:#475569;font-style:italic;margin-top:2px;">${formatRichMathHtml(rawCap)}</div>` : ''}</div>`;
+};
+
+const formatRichHtmlWithFigures = (raw, figMap = null, renderedUrlsSet = null, cls = 'dp-q-img') => {
+  if (!raw) return '';
+  const str = String(raw);
+  const hasToken = hasFigureToken(str) || /\[IMAGE:[^\]]+\]/i.test(str);
+  if (!hasToken) return formatRichMathHtml(str);
+
+  const normalized = str.replace(/\[IMAGE:([^\]]+)\]/gi, (_, u) => `[[IMGURL:${u.trim()}]]`);
+  return normalized
+    .split(/(\[\[IMGURL:[^\]]+\]\])/g)
+    .map((part) => {
+      const legacy = part.match(/^\[\[IMGURL:(.+)\]\]$/);
+      if (legacy) {
+        const u = legacy[1].trim();
+        if (renderedUrlsSet) renderedUrlsSet.add(u);
+        return renderPdfFigureHtml({ url: u }, cls);
+      }
+      if (!part) return '';
+      if (!hasFigureToken(part) || !figMap || figMap.size === 0) {
+        return formatRichMathHtml(part);
+      }
+      return splitTextByFigureTokens(part)
+        .map((seg) => {
+          if (seg.type === 'figure') {
+            const resolved = resolveFigureItem(figMap, seg);
+            if (!resolved) return '';
+            if (renderedUrlsSet && resolved.url) renderedUrlsSet.add(resolved.url);
+            return renderPdfFigureHtml(resolved, cls);
+          }
+          return formatRichMathHtml(seg.value);
+        })
+        .join('');
+    })
+    .join('');
+};
+
+const renderExtraPdfImagesHtml = (imgList = [], primaryUrl = '', renderedSet = new Set(), cls = 'dp-q-img') => {
+  const seen = new Set(renderedSet);
+  const out = [];
+  const pushImg = (entry) => {
+    if (!entry) return;
+    const obj = typeof entry === 'string' ? { url: entry, align: 'center', width_pct: 75 } : entry;
+    const u = getImageItemUrl(obj);
+    if (!u || seen.has(u)) return;
+    seen.add(u);
+    out.push(renderPdfFigureHtml({ ...obj, url: u }, cls));
+  };
+  if (Array.isArray(imgList)) imgList.forEach(pushImg);
+  if (primaryUrl) pushImg(primaryUrl);
+  return out.join('');
 };
 
 const MOROCCO_EMBLEM_SVG = `
@@ -159,7 +229,7 @@ function buildDottedLinesHtml(linesCount) {
 /**
  * Renders the concise solution overlay inside a question's answer zone.
  */
-function buildSolutionOverlayHtml(q, solutionStyle) {
+function buildSolutionOverlayHtml(q, solutionStyle, figMap = null) {
   const hasSingle = (Array.isArray(q.steps) && q.steps.length > 0) || Boolean(q.finalBox);
   const hasTwoCols = q.layout === 'two_columns' && (
     (Array.isArray(q.leftSteps) && q.leftSteps.length > 0) ||
@@ -171,32 +241,32 @@ function buildSolutionOverlayHtml(q, solutionStyle) {
   const styleCls = solutionStyle === 'handwritten' ? 'dp-sol-handwritten' : 'dp-sol-clean';
 
   if (hasTwoCols) {
-    const leftLines = (q.leftSteps || []).map(st => `<div class="dp-sol-line">${formatRichMathHtml(st)}</div>`).join('');
-    const rightLines = (q.rightSteps || []).map(st => `<div class="dp-sol-line">${formatRichMathHtml(st)}</div>`).join('');
+    const leftLines = (q.leftSteps || []).map(st => `<div class="dp-sol-line">${formatRichHtmlWithFigures(st, figMap)}</div>`).join('');
+    const rightLines = (q.rightSteps || []).map(st => `<div class="dp-sol-line">${formatRichHtmlWithFigures(st, figMap)}</div>`).join('');
 
     return `
     <div class="dp-solution-overlay ${styleCls}">
       <div class="dp-sol-two-cols">
         <div class="dp-sol-col dp-sol-col-left">
-          ${q.leftTitle ? `<div class="dp-sol-col-title">${formatRichMathHtml(q.leftTitle)}</div>` : ''}
+          ${q.leftTitle ? `<div class="dp-sol-col-title">${formatRichHtmlWithFigures(q.leftTitle, figMap)}</div>` : ''}
           ${leftLines}
-          ${q.leftConclusion ? `<div class="dp-sol-col-conclusion">${formatRichMathHtml(q.leftConclusion)}</div>` : ''}
+          ${q.leftConclusion ? `<div class="dp-sol-col-conclusion">${formatRichHtmlWithFigures(q.leftConclusion, figMap)}</div>` : ''}
         </div>
         <div class="dp-sol-col dp-sol-col-right">
-          ${q.rightTitle ? `<div class="dp-sol-col-title">${formatRichMathHtml(q.rightTitle)}</div>` : ''}
+          ${q.rightTitle ? `<div class="dp-sol-col-title">${formatRichHtmlWithFigures(q.rightTitle, figMap)}</div>` : ''}
           ${rightLines}
-          ${q.rightConclusion ? `<div class="dp-sol-col-conclusion">${formatRichMathHtml(q.rightConclusion)}</div>` : ''}
+          ${q.rightConclusion ? `<div class="dp-sol-col-conclusion">${formatRichHtmlWithFigures(q.rightConclusion, figMap)}</div>` : ''}
         </div>
       </div>
-      ${q.finalBox ? `<div class="dp-final-box-row"><span class="dp-final-box">${formatRichMathHtml(q.finalBox)}</span></div>` : ''}
+      ${q.finalBox ? `<div class="dp-final-box-row"><span class="dp-final-box">${formatRichHtmlWithFigures(q.finalBox, figMap)}</span></div>` : ''}
     </div>`;
   }
 
-  const linesHtml = (q.steps || []).map(st => `<div class="dp-sol-line">${formatRichMathHtml(st)}</div>`).join('');
+  const linesHtml = (q.steps || []).map(st => `<div class="dp-sol-line">${formatRichHtmlWithFigures(st, figMap)}</div>`).join('');
   return `
   <div class="dp-solution-overlay ${styleCls}">
     ${linesHtml}
-    ${q.finalBox ? `<div class="dp-final-box-row"><span class="dp-final-box">${formatRichMathHtml(q.finalBox)}</span></div>` : ''}
+    ${q.finalBox ? `<div class="dp-final-box-row"><span class="dp-final-box">${formatRichHtmlWithFigures(q.finalBox, figMap)}</span></div>` : ''}
   </div>`;
 }
 
@@ -232,40 +302,53 @@ export async function generateDevoirPrimeHTML(lesson, options = {}) {
 
   // Build flow items (exercise headers + question cards) to be auto-paginated across A4 pages
   const flowBlocksHtml = [];
+  const rawSections = lesson?.content?.sections || lesson?.sections || [];
   exercises.forEach((ex, eIdx) => {
+    const rawSec = Array.isArray(rawSections) ? rawSections[eIdx] : null;
+    const secFigs = rawSec ? getSectionImageEntries(rawSec).map(e => ({ ...e.item, figId: e.figId })) : [];
+    const figMap = buildFigureMapFromList([...(ex.figures || []), ...secFigs]);
+    const exRenderedUrls = new Set();
+    const preambleHtml = ex.preamble ? formatRichHtmlWithFigures(ex.preamble, figMap, exRenderedUrls, 'dp-ex-img') : '';
+    const extraPreambleImgHtml = renderExtraPdfImagesHtml(ex.preambleImages, ex.preambleImage, exRenderedUrls, 'dp-ex-img');
+
     const ptsLabel = ex.points ? ` (${ex.points} points)` : '';
     flowBlocksHtml.push(`
       <div class="dp-flow-item dp-ex-heading-block" data-keep-with-next="true">
         <div class="dp-ex-title">${escapeHtml(ex.title)}${escapeHtml(ptsLabel)} :</div>
-        ${ex.preamble ? `<div class="dp-ex-preamble">${formatRichMathHtml(ex.preamble)}</div>` : ''}
-        ${ex.preambleImage ? `<div class="dp-ex-img"><img src="${ex.preambleImage}" alt="Figure" /></div>` : ''}
+        ${preambleHtml ? `<div class="dp-ex-preamble">${preambleHtml}</div>` : ''}
+        ${extraPreambleImgHtml}
       </div>
     `);
 
     (ex.questions || []).forEach((q, qIdx) => {
+      const qRenderedUrls = new Set();
       if (q.isStem) {
+        const stemTextHtml = formatRichHtmlWithFigures((q.text || '').replace(/^\s+/, ''), figMap, qRenderedUrls, 'dp-q-img');
+        const extraStemImgHtml = renderExtraPdfImagesHtml(q.images, q.image, qRenderedUrls, 'dp-q-img');
         flowBlocksHtml.push(`
           <div class="dp-flow-item dp-stem-block" data-keep-with-next="true">
-            <span class="dp-q-num">${escapeHtml(q.number || '')}</span>
-            <span class="dp-q-text">${formatRichMathHtml((q.text || '').replace(/^\s+/, ''))}</span>
+            <div><span class="dp-q-num">${escapeHtml(q.number || '')}</span> <span class="dp-q-text">${stemTextHtml}</span></div>
+            ${extraStemImgHtml}
           </div>
         `);
         return;
       }
 
       const qrDataUrl = qrMap[`${eIdx}_${qIdx}`] || '';
-      const solHtml = buildSolutionOverlayHtml(q, meta.solutionStyle);
+      const solHtml = buildSolutionOverlayHtml(q, meta.solutionStyle, figMap);
       const initialLines = Math.max(1, Math.min(24, Number(q.linesCount) || 5));
       const dottedHtml = buildDottedLinesHtml(initialLines);
       const minHeightPx = initialLines * 29 + 14;
+      const qTextHtml = formatRichHtmlWithFigures((q.text || '').replace(/^\s+/, ''), figMap, qRenderedUrls, 'dp-q-img');
+      const extraQImgHtml = renderExtraPdfImagesHtml(q.images, q.image, qRenderedUrls, 'dp-q-img');
 
       flowBlocksHtml.push(`
         <div class="dp-flow-item dp-q-card">
           <div class="dp-q-header">
             <div class="dp-q-pts">${escapeHtml(q.points || '1 pt')}</div>
             <div class="dp-q-statement">
-              <div class="dp-q-statement-body"><span class="dp-q-num">${escapeHtml(q.number || `${qIdx + 1}.`)}</span> <span class="dp-q-text">${formatRichMathHtml((q.text || '').replace(/^\s+/, ''))}</span></div>
-              ${q.image ? `<div class="dp-q-img"><img src="${q.image}" alt="Figure" /></div>` : ''}
+              <div class="dp-q-statement-body"><span class="dp-q-num">${escapeHtml(q.number || `${qIdx + 1}.`)}</span> <span class="dp-q-text">${qTextHtml}</span></div>
+              ${extraQImgHtml}
             </div>
             ${meta.showQR ? `
               <div class="dp-q-qr">
@@ -275,10 +358,10 @@ export async function generateDevoirPrimeHTML(lesson, options = {}) {
           <div class="dp-answer-zone" data-lines="${initialLines}" style="min-height: ${minHeightPx}px;">
             ${dottedHtml}
             ${solHtml}
-            <div class="dp-line-controls no-print" dir="rtl" title="تعديل عدد أسطر الكتابة لهذا السؤال (لا يظهر عند الطباعة)">
-              <button type="button" class="dp-lc-btn" onclick="adjustQuestionLines(this, -1)" title="إنقاص سطر">−</button>
-              <span class="dp-lc-count"><span class="dp-lc-num">${initialLines}</span> أسطر</span>
-              <button type="button" class="dp-lc-btn dp-lc-plus" onclick="adjustQuestionLines(this, 1)" title="إضافة سطر للكتابة">+</button>
+            <div class="dp-line-controls no-print" title="Modifier le nombre de lignes d'écriture pour cette question (masqué à l'impression)">
+              <button type="button" class="dp-lc-btn" onclick="adjustQuestionLines(this, -1)" title="Retirer une ligne">−</button>
+              <span class="dp-lc-count"><span class="dp-lc-num">${initialLines}</span> lignes</span>
+              <button type="button" class="dp-lc-btn dp-lc-plus" onclick="adjustQuestionLines(this, 1)" title="Ajouter une ligne">+</button>
             </div>
           </div>
         </div>
@@ -642,9 +725,12 @@ export async function generateDevoirPrimeHTML(lesson, options = {}) {
     }
     .dp-ex-img img, .dp-q-img img {
       max-width: 100%;
-      max-height: 180px;
+      max-height: 290px;
+      height: auto;
+      object-fit: contain;
       display: block;
       margin: 6px auto;
+      border-radius: 3px;
     }
 
     /* ── QUESTION CARD ── */

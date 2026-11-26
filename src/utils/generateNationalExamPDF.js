@@ -1,6 +1,13 @@
 import QRCode from 'qrcode';
 import { parseNationalExamExercise, extractNationalExamMeta } from './nationalExamHelpers.js';
 import { getGlobalPrimeSettings } from './devoirPrimeHelpers.js';
+import {
+  buildFigureMapFromList,
+  splitTextByFigureTokens,
+  resolveFigureItem,
+  hasFigureToken,
+  getImageItemUrl,
+} from './figureShortcodes.js';
 
 const escapeHtml = (str) => String(str || '')
   .replace(/&/g, '&amp;')
@@ -25,6 +32,31 @@ const formatRichMathHtml = (raw) => {
 
   html = html.replace(/__KMATH_(\d+)__/g, (_, i) => escapeHtml(mathTokens[Number(i)] || ''));
   return html;
+};
+
+const renderNePdfFigure = (fig) => {
+  const url = getImageItemUrl(fig);
+  if (!url) return '';
+  const align = fig.align === 'left' || fig.align === 'right' ? fig.align : 'center';
+  const widthPct = Math.min(100, Math.max(20, Number(fig.width_pct) || 75));
+  const marginRule = align === 'center' ? '8px auto' : align === 'right' ? '8px 0 8px auto' : '8px auto 8px 0';
+  const rawCap = (fig.caption || fig.alt || '').trim();
+  const isRedundant = !rawCap || /^(figure(\s*g[ée]om[ée]trique)?|figure|image|photo|شكل(\s*هندسي)?)$/i.test(rawCap);
+  return `<div style="text-align:${align};margin:8px 0;"><img src="${escapeHtml(url)}" alt="${escapeHtml(rawCap || 'Figure')}" style="width:${widthPct}%;max-width:100%;max-height:290px;object-fit:contain;display:block;margin:${marginRule};border-radius:4px;" />${!isRedundant ? `<div style="font-size:9pt;color:#475569;font-style:italic;margin-top:3px;">${formatRichMathHtml(rawCap)}</div>` : ''}</div>`;
+};
+
+const formatRichHtmlWithFigures = (raw, figMap) => {
+  if (!raw || typeof raw !== 'string') return '';
+  if (!hasFigureToken(raw) || !figMap || figMap.size === 0) return formatRichMathHtml(raw);
+  return splitTextByFigureTokens(raw)
+    .map((seg) => {
+      if (seg.type === 'figure') {
+        const resolved = resolveFigureItem(figMap, seg);
+        return resolved ? renderNePdfFigure(resolved) : '';
+      }
+      return formatRichMathHtml(seg.value);
+    })
+    .join('');
 };
 
 const isArabicStr = (s) => /[\u0600-\u06FF]/.test(String(s || ''));
@@ -499,6 +531,7 @@ export const generateNationalExamHTML = async (examData, settings = {}) => {
         ${exercises.map((ex, eIdx) => {
           const titleHasPoints = /point|pt|نقط/i.test(ex.title);
           const blocks = ex.blocks || [];
+          const figMap = buildFigureMapFromList(ex.figures || []);
 
           return `
             <section class="ne-ex-block">
@@ -512,8 +545,12 @@ export const generateNationalExamHTML = async (examData, settings = {}) => {
                   return renderGridTable(blk);
                 }
 
+                if (blk.kind === 'image') {
+                  return renderNePdfFigure(blk);
+                }
+
                 if (blk.kind === 'text') {
-                  return `<div class="ne-intro-p" dir="${isArabicStr(blk.text) ? 'rtl' : 'ltr'}">${formatRichMathHtml(blk.text)}</div>`;
+                  return `<div class="ne-intro-p" dir="${isArabicStr(blk.text) ? 'rtl' : 'ltr'}">${formatRichHtmlWithFigures(blk.text, figMap)}</div>`;
                 }
 
                 // Graded question block
@@ -524,7 +561,7 @@ export const generateNationalExamHTML = async (examData, settings = {}) => {
                   <div class="ne-q-box">
                     <div class="ne-q-points">${ptsDisplay}</div>
                     <div class="ne-q-content" dir="${isArabicStr(blk.text) ? 'rtl' : 'ltr'}">
-                      <div>${blk.number ? `<strong style="margin-right: 6px;">${escapeHtml(blk.number)}</strong>` : ''}${formatRichMathHtml(blk.text)}</div>
+                      <div>${blk.number ? `<strong style="margin-right: 6px;">${escapeHtml(blk.number)}</strong>` : ''}${formatRichHtmlWithFigures(blk.text, figMap)}</div>
                     </div>
                     ${showQR ? `
                       <div class="ne-q-qr">
@@ -534,7 +571,7 @@ export const generateNationalExamHTML = async (examData, settings = {}) => {
                   </div>
                   ${showSolutions && blk.solution ? `
                     <div class="ne-sol-box" dir="${isArabicStr(blk.solution) ? 'rtl' : 'ltr'}">
-                      <strong>Corrigé :</strong> ${formatRichMathHtml(blk.solution)}
+                      <strong>Corrigé :</strong> ${formatRichHtmlWithFigures(blk.solution, figMap)}
                     </div>
                   ` : ''}
                 `;
@@ -543,7 +580,7 @@ export const generateNationalExamHTML = async (examData, settings = {}) => {
               ${showSolutions && ex.solution ? `
                 <div class="ne-sol-box" dir="${isArabicStr(ex.solution) ? 'rtl' : 'ltr'}">
                   <strong style="display:block; margin-bottom:3px;">📖 Éléments de réponse / Corrigé détaillé :</strong>
-                  ${formatRichMathHtml(ex.solution)}
+                  ${formatRichHtmlWithFigures(ex.solution, figMap)}
                 </div>
               ` : ''}
             </section>

@@ -4,6 +4,54 @@ import { useAuth } from '../context/AuthContext';
 import { getGlobalPrimeSettings } from '../utils/devoirPrimeHelpers';
 import { renderWithMath } from '../utils/mathRenderer';
 import { parseNationalExamExercise, extractNationalExamMeta } from '../utils/nationalExamHelpers';
+import {
+  buildFigureMapFromList,
+  splitTextByFigureTokens,
+  resolveFigureItem,
+  hasFigureToken,
+  getImageItemUrl,
+} from '../utils/figureShortcodes';
+
+const renderNeFigure = (fig, key) => {
+  const url = getImageItemUrl(fig);
+  if (!url) return null;
+  const align = fig.align === 'left' || fig.align === 'right' ? fig.align : 'center';
+  const justify = align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center';
+  const widthPct = Math.min(100, Math.max(20, Number(fig.width_pct) || 75));
+  const rawCap = (fig.caption || fig.alt || '').trim();
+  const isRedundant = !rawCap || /^(figure(\s*g[ée]om[ée]trique)?|figure|image|photo|شكل(\s*هندسي)?)$/i.test(rawCap);
+  return (
+    <div key={key} style={{ display: 'flex', justifyContent: justify, margin: '10px 0', width: '100%' }}>
+      <figure style={{ margin: 0, width: `${widthPct}%`, maxWidth: '100%', textAlign: 'center' }}>
+        <img
+          src={url}
+          alt={rawCap || 'Figure'}
+          style={{ maxWidth: '100%', maxHeight: '300px', objectFit: 'contain', display: 'block', margin: '0 auto', borderRadius: '4px' }}
+        />
+        {!isRedundant && (
+          <figcaption style={{ marginTop: '4px', fontSize: '9pt', color: '#475569', fontStyle: 'italic' }}>
+            {renderWithMath(rawCap)}
+          </figcaption>
+        )}
+      </figure>
+    </div>
+  );
+};
+
+const renderNeRichText = (txt, figMap) => {
+  if (txt === null || txt === undefined) return null;
+  const str = String(txt);
+  if (!hasFigureToken(str) || !figMap || figMap.size === 0) {
+    return renderWithMath(str);
+  }
+  return splitTextByFigureTokens(str).map((seg, i) => {
+    if (seg.type === 'figure') {
+      const resolved = resolveFigureItem(figMap, seg);
+      return resolved ? renderNeFigure(resolved, `ne-fig-${i}-${seg.figId}`) : null;
+    }
+    return seg.value.trim() ? <span key={`ne-txt-${i}`}>{renderWithMath(seg.value)}</span> : null;
+  });
+};
 
 // High-precision Moroccan Emblem Coat of Arms SVG Icon
 const MoroccanEmblemSVG = () => (
@@ -323,6 +371,7 @@ export default function NationalExamTemplate({ examData, solutionMode = false })
             {exercises.map((ex, eIdx) => {
               const titleHasPoints = /point|pt|نقط/i.test(ex.title);
               const blocks = ex.blocks || [];
+              const figMap = buildFigureMapFromList(ex.figures || []);
 
               return (
                 <div key={eIdx} style={{ marginBottom: '18px' }}>
@@ -342,6 +391,10 @@ export default function NationalExamTemplate({ examData, solutionMode = false })
                       return renderGridTable(blk, bIdx);
                     }
 
+                    if (blk.kind === 'image') {
+                      return renderNeFigure(blk, `blk-img-${eIdx}-${bIdx}`);
+                    }
+
                     if (blk.kind === 'text') {
                       return (
                         <div
@@ -349,7 +402,7 @@ export default function NationalExamTemplate({ examData, solutionMode = false })
                           style={{ fontSize: '10.8pt', lineHeight: 1.62, margin: '5px 0 8px 0', color: '#111827', textAlign: 'justify' }}
                           dir={isArabicStr(blk.text) ? 'rtl' : 'ltr'}
                         >
-                          {renderWithMath(blk.text)}
+                          {renderNeRichText(blk.text, figMap)}
                         </div>
                       );
                     }
@@ -364,7 +417,7 @@ export default function NationalExamTemplate({ examData, solutionMode = false })
                           <div className="ne-q-content" dir={isArabicStr(blk.text) ? 'rtl' : 'ltr'}>
                             <div>
                               {blk.number && <strong style={{ marginRight: '6px' }}>{blk.number}</strong>}
-                              {renderWithMath(blk.text)}
+                              {renderNeRichText(blk.text, figMap)}
                             </div>
                           </div>
                           <div className="ne-q-qr">
@@ -374,7 +427,7 @@ export default function NationalExamTemplate({ examData, solutionMode = false })
                         {solutionMode && blk.solution && (
                           <div className="ne-sol-box" dir={isArabicStr(blk.solution) ? 'rtl' : 'ltr'}>
                             <strong>Corrigé : </strong>
-                            {renderWithMath(blk.solution)}
+                            {renderNeRichText(blk.solution, figMap)}
                           </div>
                         )}
                       </React.Fragment>
@@ -384,7 +437,7 @@ export default function NationalExamTemplate({ examData, solutionMode = false })
                   {solutionMode && ex.solution && (
                     <div className="ne-sol-box" dir={isArabicStr(ex.solution) ? 'rtl' : 'ltr'}>
                       <strong style={{ display: 'block', marginBottom: '3px' }}>📖 Éléments de réponse / Corrigé détaillé :</strong>
-                      {renderWithMath(ex.solution)}
+                      {renderNeRichText(ex.solution, figMap)}
                     </div>
                   )}
                 </div>

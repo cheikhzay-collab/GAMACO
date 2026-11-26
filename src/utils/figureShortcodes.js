@@ -25,6 +25,11 @@ const parseOptionalParams = (paramStr = '') => {
   return { widthOverride, alignOverride };
 };
 
+export const getImageItemUrl = (item) => {
+  if (!item || typeof item !== 'object') return '';
+  return String(item.url || item.src || item.dataUrl || item.imageUrl || item.image || '').trim();
+};
+
 /**
  * Returns normalized image entries for a section with stable figId & shortcode token.
  */
@@ -35,14 +40,14 @@ export const getSectionImageEntries = (section) => {
 
   items.forEach((item, itemIdx) => {
     if (item?.type !== 'image') return;
-    const url = (item.url || item.src || '').trim();
+    const url = getImageItemUrl(item);
     if (!url) return;
     fallbackCounter += 1;
     const figId = item.figId !== undefined && item.figId !== null && String(item.figId).trim() !== ''
       ? String(item.figId).trim()
       : String(fallbackCounter);
     entries.push({
-      item,
+      item: item.url ? item : { ...item, url },
       itemIdx,
       figId,
       token: `[[FIG:${figId}]]`,
@@ -50,6 +55,36 @@ export const getSectionImageEntries = (section) => {
   });
 
   return entries;
+};
+
+/**
+ * Builds a lookup Map (lowercase figId -> { item, figId }) from a normalized figures array.
+ */
+export const buildFigureMapFromList = (figures = []) => {
+  const map = new Map();
+  if (!Array.isArray(figures)) return map;
+  figures.forEach((fig, idx) => {
+    const url = getImageItemUrl(fig);
+    if (!url) return;
+    const figId = fig.figId !== undefined && fig.figId !== null && String(fig.figId).trim() !== ''
+      ? String(fig.figId).trim()
+      : String(idx + 1);
+    const entry = {
+      figId,
+      item: {
+        url,
+        caption: fig.caption || fig.alt || '',
+        alt: fig.alt || fig.caption || '',
+        width_pct: fig.width_pct || 75,
+        align: fig.align || 'center',
+        position: fig.position || '',
+      },
+    };
+    map.set(figId.toLowerCase(), entry);
+    const posKey = String(idx + 1);
+    if (!map.has(posKey)) map.set(posKey, entry);
+  });
+  return map;
 };
 
 /**

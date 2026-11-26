@@ -3,6 +3,12 @@
  * Domain detection, normalization, metadata extraction and sorting for Moroccan National Exams.
  */
 
+import {
+  getSectionImageEntries,
+  getImageItemUrl,
+  getReferencedFigIds,
+} from './figureShortcodes.js';
+
 export const NATIONAL_EXAM_DOMAINS = [
   { id: 'all',          labelAr: 'جميع المجالات',             labelFr: 'Tous les domaines',      icon: '📚', color: '#005086' },
   { id: 'analysis',     labelAr: 'دراسة الدوال وحساب التكامل', labelFr: 'Analyse & Intégrales',    icon: '📈', color: '#2563eb' },
@@ -387,15 +393,26 @@ export function parseNationalExamExercise(sec, idx = 0) {
 
   const nonTableItems = rawItems.filter(it => !(it && (it.type === 'grid_items' || Array.isArray(it.grid_items))));
   const tableItems = rawItems.filter(it => it && (it.type === 'grid_items' || Array.isArray(it.grid_items)));
+  const sectionFigures = getSectionImageEntries(sec).map(e => ({
+    figId: e.figId,
+    url: getImageItemUrl(e.item),
+    caption: e.item.caption || e.item.alt || '',
+    width_pct: Number(e.item.width_pct) || 75,
+    align: e.item.align || 'center',
+    position: e.item.position || '',
+  })).filter(f => f.url);
 
   const blocks = [];
 
   if (nonTableItems.length > 0) {
+    const textItemsOnly = nonTableItems.filter(it => typeof it === 'string' || (it && it.type !== 'image'));
     // Check if rawContent is a distinct preamble/partial block NOT duplicated in nonTableItems
     if (rawContent && !isMeaninglessFragment(rawContent)) {
-      const firstItemText = typeof nonTableItems[0] === 'string'
-        ? nonTableItems[0]
-        : (nonTableItems[0]?.text || nonTableItems[0]?.question || nonTableItems[0]?.content || '');
+      const firstItemText = textItemsOnly.length > 0
+        ? (typeof textItemsOnly[0] === 'string'
+            ? textItemsOnly[0]
+            : (textItemsOnly[0]?.text || textItemsOnly[0]?.question || textItemsOnly[0]?.content || ''))
+        : '';
       const normContent = stripOuterMarkdownBold(rawContent).replace(/\s+/g, ' ').toLowerCase();
       const normFirst = stripOuterMarkdownBold(cleanNationalExamLatex(firstItemText)).replace(/\s+/g, ' ').toLowerCase();
       const snippet = normFirst.slice(0, Math.min(32, normFirst.length));
@@ -406,12 +423,38 @@ export function parseNationalExamExercise(sec, idx = 0) {
       }
     }
 
-    // Insert tables before items if rawContent ended with a table reference (e.g. J1G3 sec 5)
+    // Insert tables & images in their exact item order
     let tablesInjected = false;
-    rawItems.forEach((it) => {
+    const NE_CUE_EARLY_RE = /(?:graphique\s*(?:ci[- ]dessous|suivant)|courbe[s]?.*(?:ci[- ]dessous|rep[èe]re)|figure\s*(?:ci[- ]dessous|suivante)|repr[ée]sente.*(?:courbe|graphique)|dans\s+un\s+(?:m[êe]me\s+)?rep[èe]re|الشكل|المبيان)/i;
+    rawItems.forEach((it, itemIdx) => {
       if (it && (it.type === 'grid_items' || Array.isArray(it.grid_items))) {
         blocks.push({ kind: 'table', cols: it.cols || 4, grid_items: it.grid_items || [] });
         tablesInjected = true;
+        return;
+      }
+
+      if (it && it.type === 'image') {
+        const url = getImageItemUrl(it);
+        if (url) {
+          const imgBlock = {
+            kind: 'image',
+            url,
+            caption: it.caption || it.alt || '',
+            width_pct: Number(it.width_pct) || 75,
+            align: it.align || 'center',
+            position: it.position || '',
+          };
+          const hasTextAfter = rawItems.slice(itemIdx + 1).some(nxt => typeof nxt === 'string' || (nxt && nxt.type !== 'image' && nxt.type !== 'table' && nxt.type !== 'grid_items'));
+          const prevBlk = blocks[blocks.length - 1];
+          if (!hasTextAfter && (!prevBlk || !NE_CUE_EARLY_RE.test(prevBlk.text || ''))) {
+            const cueIdx = blocks.findIndex(b => (b.kind === 'text' || b.kind === 'question') && NE_CUE_EARLY_RE.test(b.text || ''));
+            if (cueIdx !== -1) {
+              blocks.splice(cueIdx + 1, 0, imgBlock);
+              return;
+            }
+          }
+          blocks.push(imgBlock);
+        }
         return;
       }
 
@@ -441,6 +484,36 @@ export function parseNationalExamExercise(sec, idx = 0) {
     tableItems.forEach(t => blocks.push({ kind: 'table', cols: t.cols || 4, grid_items: t.grid_items || [] }));
   }
 
+  // Ensure any unreferenced/unemitted section figures appear in their matching visual-cue spot
+  const refFigIds = getReferencedFigIds(sec);
+  const emittedUrls = new Set(blocks.filter(b => b.kind === 'image' && b.url).map(b => b.url));
+  const NE_CUE_RE = /(?:graphique\s*(?:ci[- ]dessous|suivant)|courbe[s]?.*(?:ci[- ]dessous|rep[èe]re)|figure\s*(?:ci[- ]dessous|suivante)|repr[ée]sente.*(?:courbe|graphique)|dans\s+un\s+(?:m[êe]me\s+)?rep[èe]re|الشكل|المبيان)/i;
+
+  sectionFigures.forEach((fig) => {
+    if (!fig.url || emittedUrls.has(fig.url)) return;
+    if (fig.figId && refFigIds.has(fig.figId.toLowerCase())) return;
+    const imgBlock = {
+      kind: 'image',
+      url: fig.url,
+      caption: fig.caption,
+      width_pct: fig.width_pct,
+      align: fig.align,
+      position: fig.position,
+    };
+    if (fig.position === 'before') {
+      blocks.unshift(imgBlock);
+      emittedUrls.add(fig.url);
+      return;
+    }
+    const cueIdx = blocks.findIndex(b => (b.kind === 'text' || b.kind === 'question') && NE_CUE_RE.test(b.text || ''));
+    if (cueIdx !== -1) {
+      blocks.splice(cueIdx + 1, 0, imgBlock);
+    } else {
+      blocks.push(imgBlock);
+    }
+    emittedUrls.add(fig.url);
+  });
+
   // Backward-compatible summary fields
   const items = blocks.filter(b => b.kind === 'question');
   const firstTextIdx = blocks.findIndex(b => b.kind === 'text');
@@ -452,6 +525,7 @@ export function parseNationalExamExercise(sec, idx = 0) {
     preamble,
     items,
     blocks,
+    figures: sectionFigures,
     solution: cleanNationalExamLatex(sec.solution || ''),
   };
 }

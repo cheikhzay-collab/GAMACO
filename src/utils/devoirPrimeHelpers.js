@@ -2,6 +2,115 @@
 // Helpers for DEVOIR PRIME: metadata defaults from settings, exercise-to-question parsing,
 // dotted line estimation, and QR payload generation.
 
+import {
+  getSectionImageEntries,
+  getImageItemUrl,
+  FIGURE_TOKEN_GLOBAL_RE,
+} from './figureShortcodes.js';
+
+const VISUAL_CUE_RE = /(?:graphique\s*(?:ci[- ]dessous|suivant)|courbe[s]?.*(?:ci[- ]dessous|rep[èe]re)|figure\s*(?:ci[- ]dessous|suivante)|sch[ée]ma\s*(?:ci[- ]dessous|suivant)|tableau\s*ci[- ]dessous|repr[ée]sente.*(?:courbe|graphique)|dans\s+un\s+(?:m[êe]me\s+)?rep[èe]re|الشكل\s*(?:جانبه|أسفله)|المبيان)/i;
+
+function collectReferencedFigIdsInStrings(strings = []) {
+  const ids = new Set();
+  const re = new RegExp(FIGURE_TOKEN_GLOBAL_RE.source, 'gi');
+  strings.forEach((s) => {
+    if (!s) return;
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(String(s))) !== null) {
+      ids.add(m[1].trim().toLowerCase());
+    }
+  });
+  return ids;
+}
+
+function toFigureObj(it, fallbackId = '') {
+  const url = getImageItemUrl(it);
+  if (!url) return null;
+  return {
+    figId: it.figId !== undefined && it.figId !== null && String(it.figId).trim() !== '' ? String(it.figId).trim() : fallbackId,
+    url,
+    caption: it.caption || it.alt || '',
+    width_pct: Number(it.width_pct) || 75,
+    align: it.align || 'center',
+    position: it.position || '',
+  };
+}
+
+function normalizeImageList(primaryImg, imgList) {
+  const seen = new Set();
+  const out = [];
+  const pushImg = (entry) => {
+    if (!entry) return;
+    const obj = typeof entry === 'string' ? { url: entry, caption: '', width_pct: 75, align: 'center' } : toFigureObj(entry);
+    if (!obj || !obj.url || seen.has(obj.url)) return;
+    seen.add(obj.url);
+    out.push(obj);
+  };
+  if (Array.isArray(imgList)) imgList.forEach(pushImg);
+  if (primaryImg) pushImg(primaryImg);
+  return out;
+}
+
+function distributeUnplacedFigures(sectionFigures, preamble, preambleImages, questions) {
+  if (!Array.isArray(sectionFigures) || sectionFigures.length === 0) {
+    return { preambleImages, questions };
+  }
+
+  const allTexts = [
+    preamble || '',
+    ...(questions || []).flatMap(q => [
+      q.text || '',
+      ...(q.steps || []),
+      ...(q.leftSteps || []),
+      ...(q.rightSteps || []),
+      q.finalBox || '',
+    ]),
+  ];
+  const refIds = collectReferencedFigIdsInStrings(allTexts);
+
+  const alreadyPlacedUrls = new Set();
+  (preambleImages || []).forEach(img => { if (img?.url) alreadyPlacedUrls.add(img.url); });
+  (questions || []).forEach(q => {
+    if (q?.image) alreadyPlacedUrls.add(q.image);
+    (q?.images || []).forEach(img => { if (img?.url) alreadyPlacedUrls.add(img.url); });
+  });
+
+  const nextPreambleImgs = [...(preambleImages || [])];
+  const nextQuestions = (questions || []).map(q => ({
+    ...q,
+    images: [...(q.images || [])],
+  }));
+
+  sectionFigures.forEach((fig) => {
+    if (!fig?.url) return;
+    if (fig.figId && refIds.has(String(fig.figId).toLowerCase())) return;
+    if (alreadyPlacedUrls.has(fig.url)) return;
+
+    if (fig.position === 'before') {
+      nextPreambleImgs.push(fig);
+      alreadyPlacedUrls.add(fig.url);
+      return;
+    }
+
+    // Try matching a question/stem whose wording explicitly refers to a figure/graph below
+    const matchIdx = nextQuestions.findIndex(q => VISUAL_CUE_RE.test(q.text || '') && !q.image && (!q.images || q.images.length === 0));
+    if (matchIdx !== -1) {
+      nextQuestions[matchIdx].image = fig.url;
+      nextQuestions[matchIdx].imageCaption = fig.caption || '';
+      nextQuestions[matchIdx].images.push(fig);
+      alreadyPlacedUrls.add(fig.url);
+      return;
+    }
+
+    // Secondary fallback: attach to exercise preamble so it is always visible
+    nextPreambleImgs.push(fig);
+    alreadyPlacedUrls.add(fig.url);
+  });
+
+  return { preambleImages: nextPreambleImgs, questions: nextQuestions };
+}
+
 const BRANCH_AR_BY_LEVEL = {
   '2bac_pc_svt': 'مسلك علوم الحياة والأرض ومسلك العلوم الفيزيائية (خيار فرنسية)',
   '2bac_sm': 'مسلك العلوم الرياضية (أ) و (ب) (خيار فرنسية)',
@@ -247,62 +356,66 @@ function parseSectionIntoPrimeExercise(sec, exIdx) {
     ? sec.items
     : (Array.isArray(sec.questions) && sec.questions.length > 0 ? sec.questions : []);
 
+  const sectionFigures = getSectionImageEntries(sec)
+    .map(e => toFigureObj(e.item, e.figId))
+    .filter(Boolean);
+
   const rawContent = cleanPrimeText(sec.content || sec.description || '');
 
   // Build candidate lines from either rawItems or rawContent
   let candidateBlocks = [];
-  if (rawItems.length > 0) {
-    // Check if rawContent has preamble text not already repeated in items
-    if (rawContent && rawItems.length > 0) {
-      const firstItemText = cleanPrimeText(typeof rawItems[0] === 'string' ? rawItems[0] : (rawItems[0]?.text || ''));
-      if (firstItemText && !rawContent.startsWith(firstItemText.slice(0, 20))) {
-        // Content may contain both preamble and questions; prefer items if items has multiple entries
-        if (rawItems.length === 1 && rawContent.split('\n').length > 2) {
-          candidateBlocks = rawContent.split('\n').map(l => ({ text: l.trim(), type: 'auto' })).filter(b => b.text);
-        } else {
-          candidateBlocks = rawItems.map(it => ({
-            text: cleanPrimeText(typeof it === 'string' ? it : (it?.text || it?.question || it?.content || '')),
-            points: it?.points || it?.pts || '',
-            type: it?.type || 'auto',
-            solution: it?.solution || it?.answer || '',
-            image: it?.type === 'image' ? it.url : null,
-            caption: it?.caption || '',
-          })).filter(b => b.text || b.image);
-        }
-      } else {
-        candidateBlocks = rawItems.map(it => ({
-          text: cleanPrimeText(typeof it === 'string' ? it : (it?.text || it?.question || it?.content || '')),
-          points: it?.points || it?.pts || '',
-          type: it?.type || 'auto',
-          solution: it?.solution || it?.answer || '',
-          image: it?.type === 'image' ? it.url : null,
-          caption: it?.caption || '',
-        })).filter(b => b.text || b.image);
-      }
+  const textItemsCount = rawItems.filter(it => typeof it === 'string' || (it && it.type !== 'image' && it.type !== 'table')).length;
+
+  const mapItemToBlock = (it) => {
+    const imgUrl = it?.type === 'image' ? getImageItemUrl(it) : '';
+    return {
+      text: cleanPrimeText(typeof it === 'string' ? it : (it?.text || it?.question || it?.content || '')),
+      points: it?.points || it?.pts || '',
+      type: it?.type || 'auto',
+      solution: it?.solution || it?.answer || '',
+      image: imgUrl || null,
+      imageObj: imgUrl ? toFigureObj(it) : null,
+      caption: it?.caption || it?.alt || '',
+    };
+  };
+
+  if (rawItems.length > 0 && textItemsCount > 0) {
+    // Check if rawContent has full multi-line text while rawItems only has 1 summary entry (e.g. + 1 image)
+    const firstTextItem = rawItems.find(it => typeof it === 'string' || (it && it.type !== 'image' && it.type !== 'table'));
+    const firstItemText = cleanPrimeText(typeof firstTextItem === 'string' ? firstTextItem : (firstTextItem?.text || ''));
+    if (textItemsCount === 1 && rawContent && rawContent.split('\n').length > 2 && (!firstItemText || !rawContent.startsWith(firstItemText.slice(0, 20)))) {
+      candidateBlocks = rawContent.split('\n').map(l => ({ text: l.trim(), type: 'auto' })).filter(b => b.text);
     } else {
-      candidateBlocks = rawItems.map(it => ({
-        text: cleanPrimeText(typeof it === 'string' ? it : (it?.text || it?.question || it?.content || '')),
-        points: it?.points || it?.pts || '',
-        type: it?.type || 'auto',
-        solution: it?.solution || it?.answer || '',
-        image: it?.type === 'image' ? it.url : null,
-        caption: it?.caption || '',
-      })).filter(b => b.text || b.image);
+      candidateBlocks = rawItems.map(mapItemToBlock).filter(b => b.text || b.image);
     }
   } else if (rawContent) {
     candidateBlocks = rawContent.split('\n').map(l => ({ text: l.trim(), type: 'auto' })).filter(b => b.text);
+  } else if (rawItems.length > 0) {
+    candidateBlocks = rawItems.map(mapItemToBlock).filter(b => b.text || b.image);
   }
 
   // Group candidate blocks into preamble (before first numbered question) and questions
   let currentQ = null;
+  let preambleImages = [];
 
   for (let i = 0; i < candidateBlocks.length; i++) {
     const blk = candidateBlocks[i];
     if (blk.image) {
-      if (currentQ) {
-        currentQ.image = blk.image;
-        currentQ.imageCaption = blk.caption;
+      const figObj = blk.imageObj || { url: blk.image, caption: blk.caption || '', width_pct: 75, align: 'center' };
+      const hasMoreTextAfter = candidateBlocks.slice(i + 1).some(b => !b.image && b.text);
+      const cueTarget = (!hasMoreTextAfter && (!currentQ || !VISUAL_CUE_RE.test(currentQ.text || '')))
+        ? questions.find(q => VISUAL_CUE_RE.test(q.text || '') && !q.image)
+        : null;
+      if (cueTarget) {
+        cueTarget.image = blk.image;
+        cueTarget.imageCaption = blk.caption || '';
+        cueTarget.images.push(figObj);
+      } else if (currentQ) {
+        if (!currentQ.image) currentQ.image = blk.image;
+        if (!currentQ.imageCaption) currentQ.imageCaption = blk.caption || '';
+        currentQ.images.push(figObj);
       } else {
+        preambleImages.push(figObj);
         preambleLines.push(`[IMAGE:${blk.image}]`);
       }
       continue;
@@ -355,9 +468,10 @@ function parseSectionIntoPrimeExercise(sec, exIdx) {
         rightConclusion: '',
         qrUrl: '',
         image: null,
+        images: [],
       };
     } else if (currentQ) {
-      // Continuation line of the current question (e.g. a centered display formula $$...$$)
+      // Continuation line of the current question (e.g. a centered display formula $$...$$ or [[FIG:1]])
       currentQ.text = `${currentQ.text}\n${text}`;
     } else {
       // Text before the first numbered question -> exercise preamble
@@ -370,13 +484,19 @@ function parseSectionIntoPrimeExercise(sec, exIdx) {
   }
 
   // Smart Parent-Stem Detection:
-  // If a numbered question (e.g. "2. Calculer les limites suivantes :") is immediately followed
-  // by lettered sub-questions ("a)", "b)", "a.", "b."), treat it as a parent stem (no fake points, no answer box).
+  // If a numbered question (e.g. "2. Le graphique ci-dessous...") is immediately followed
+  // by sub-questions ("a)", "b)", "2.a.", "2.b."), treat it as a parent stem (no fake points, no answer box).
   const isNumberedParent = (num = '') => /^\d+\s*[.)]$/.test(String(num).trim());
-  const isLetterSubQ = (num = '') => /^[a-z]\s*[.)]$/i.test(String(num).trim());
+  const isSubQuestionAfterParent = (parentNum = '', nextNum = '') => {
+    const pDigit = String(parentNum).replace(/[^\d]/g, '');
+    const nTrim = String(nextNum).trim();
+    if (/^[a-z]\s*[.)]$/i.test(nTrim)) return true;
+    if (pDigit && new RegExp(`^${pDigit}\\s*[.)]\\s*[a-z]\\s*[.)]?$`, 'i').test(nTrim)) return true;
+    return false;
+  };
   const looksLikeStemIntro = (txt = '') => {
-    const t = String(txt).trim();
-    return /[:：]\s*$/.test(t) || /(?:suivantes?|suivants?|cas suivants?|on consid[èe]re|soit\s|soient\s|في كل حالة|يلي|التالية|الآتية)/i.test(t);
+    const t = String(txt).replace(FIGURE_TOKEN_GLOBAL_RE, '').trim();
+    return /[:：]\s*$/.test(t) || /(?:suivantes?|suivants?|cas suivants?|on consid[èe]re|soit\s|soient\s|repr[ée]sente|ci[- ]dessous|في كل حالة|يلي|التالية|الآتية)/i.test(t);
   };
 
   for (let i = 0; i < questions.length - 1; i++) {
@@ -384,7 +504,7 @@ function parseSectionIntoPrimeExercise(sec, exIdx) {
     const nextQ = questions[i + 1];
     if (
       isNumberedParent(q.number) &&
-      isLetterSubQ(nextQ.number) &&
+      isSubQuestionAfterParent(q.number, nextQ.number) &&
       (!q._hasExplicitPoints || looksLikeStemIntro(q.text))
     ) {
       q.isStem = true;
@@ -396,7 +516,7 @@ function parseSectionIntoPrimeExercise(sec, exIdx) {
 
   // Fallback: if no numbered questions were found, treat the whole exercise as 1 question
   if (questions.length === 0 && (preambleLines.length > 0 || rawContent)) {
-    const fallbackText = preambleLines.join('\n') || rawContent;
+    const fallbackText = preambleLines.filter(l => !l.startsWith('[IMAGE:')).join('\n') || rawContent;
     const pts = exPointsNum ? formatPointBadge(exPointsNum) : '2 pt';
     questions.push({
       id: `dp-ex${exIdx + 1}-q1`,
@@ -415,10 +535,17 @@ function parseSectionIntoPrimeExercise(sec, exIdx) {
       rightSteps: [],
       rightConclusion: '',
       qrUrl: '',
-      image: null,
+      image: preambleImages[0]?.url || null,
+      images: [...preambleImages],
     });
+    preambleImages = [];
     preambleLines = [];
   }
+
+  const preambleText = preambleLines.filter(l => !l.startsWith('[IMAGE:')).join('\n');
+  const distributed = distributeUnplacedFigures(sectionFigures, preambleText, preambleImages, questions);
+  preambleImages = distributed.preambleImages;
+  questions = distributed.questions;
 
   // Recompute total points for exercise if missing (skip stems)
   const sumQPoints = questions.filter(q => !q.isStem).reduce((acc, q) => acc + parseNumericPoints(q.points), 0);
@@ -428,51 +555,82 @@ function parseSectionIntoPrimeExercise(sec, exIdx) {
     id: sec.id || `dp-ex-${exIdx + 1}`,
     title: cleanTitle || `Exercice ${exIdx + 1}`,
     points: finalExPoints ? (Number.isInteger(finalExPoints) ? String(finalExPoints) : String(Number(finalExPoints.toFixed(2)))) : '',
-    preamble: preambleLines.filter(l => !l.startsWith('[IMAGE:')).join('\n'),
-    preambleImage: (preambleLines.find(l => l.startsWith('[IMAGE:')) || '').replace(/^\[IMAGE:|\]$/g, '') || null,
+    preamble: preambleText,
+    preambleImage: preambleImages[0]?.url || (preambleLines.find(l => l.startsWith('[IMAGE:')) || '').replace(/^\[IMAGE:|\]$/g, '') || null,
+    preambleImages,
+    figures: sectionFigures,
     questions,
   };
 }
 
 /**
  * Converts ANY lesson/homework object into a normalized DEVOIR PRIME exercises array.
- * If already saved with `devoir_prime_exercises`, returns them intact.
+ * If already saved with `devoir_prime_exercises`, returns them intact while hydrating any attached section figures.
  */
 export function normalizeToDevoirPrimeExercises(lesson = {}) {
   const content = lesson?.content || {};
+  const rawSections = content?.sections || lesson?.sections || [];
   const saved = content?.devoir_prime_exercises || lesson?.devoir_prime_exercises;
   if (Array.isArray(saved) && saved.length > 0) {
-    return saved.map((ex, eIdx) => ({
-      id: ex.id || `dp-ex-${eIdx + 1}`,
-      title: ex.title || `Exercice ${eIdx + 1}`,
-      points: ex.points !== undefined && ex.points !== null ? String(ex.points) : '',
-      preamble: ex.preamble || '',
-      preambleImage: ex.preambleImage || null,
-      questions: Array.isArray(ex.questions)
-        ? ex.questions.map((q, qIdx) => ({
-            id: q.id || `dp-ex${eIdx + 1}-q${qIdx + 1}`,
-            number: q.number || `${qIdx + 1}.`,
-            text: q.text || '',
-            isStem: Boolean(q.isStem),
-            points: q.isStem ? '' : (q.points || '1 pt'),
-            linesCount: q.isStem ? 0 : (Number(q.linesCount) || estimateDottedLines(q.points, q.text)),
-            layout: q.layout === 'two_columns' ? 'two_columns' : 'single',
-            steps: Array.isArray(q.steps) ? q.steps : (q.solution ? String(q.solution).split('\n').filter(Boolean) : []),
-            finalBox: q.finalBox || '',
-            leftTitle: q.leftTitle || '',
-            leftSteps: Array.isArray(q.leftSteps) ? q.leftSteps : [],
-            leftConclusion: q.leftConclusion || '',
-            rightTitle: q.rightTitle || '',
-            rightSteps: Array.isArray(q.rightSteps) ? q.rightSteps : [],
-            rightConclusion: q.rightConclusion || '',
-            qrUrl: q.qrUrl || '',
-            image: q.image || null,
-          }))
-        : [],
-    }));
+    return saved.map((ex, eIdx) => {
+      const matchingSec = Array.isArray(rawSections) ? rawSections[eIdx] : null;
+      const secFigures = matchingSec
+        ? getSectionImageEntries(matchingSec).map(e => toFigureObj(e.item, e.figId)).filter(Boolean)
+        : [];
+      const mergedFigures = [...secFigures];
+      const seenFigUrls = new Set(mergedFigures.map(f => f.url));
+      if (Array.isArray(ex.figures)) {
+        ex.figures.forEach(f => {
+          const obj = toFigureObj(f);
+          if (obj && !seenFigUrls.has(obj.url)) {
+            seenFigUrls.add(obj.url);
+            mergedFigures.push(obj);
+          }
+        });
+      }
+
+      const initPreambleImages = normalizeImageList(ex.preambleImage, ex.preambleImages);
+      const initQuestions = Array.isArray(ex.questions)
+        ? ex.questions.map((q, qIdx) => {
+            const qImgs = normalizeImageList(q.image, q.images);
+            return {
+              id: q.id || `dp-ex${eIdx + 1}-q${qIdx + 1}`,
+              number: q.number || `${qIdx + 1}.`,
+              text: q.text || '',
+              isStem: Boolean(q.isStem),
+              points: q.isStem ? '' : (q.points || '1 pt'),
+              linesCount: q.isStem ? 0 : (Number(q.linesCount) || estimateDottedLines(q.points, q.text)),
+              layout: q.layout === 'two_columns' ? 'two_columns' : 'single',
+              steps: Array.isArray(q.steps) ? q.steps : (q.solution ? String(q.solution).split('\n').filter(Boolean) : []),
+              finalBox: q.finalBox || '',
+              leftTitle: q.leftTitle || '',
+              leftSteps: Array.isArray(q.leftSteps) ? q.leftSteps : [],
+              leftConclusion: q.leftConclusion || '',
+              rightTitle: q.rightTitle || '',
+              rightSteps: Array.isArray(q.rightSteps) ? q.rightSteps : [],
+              rightConclusion: q.rightConclusion || '',
+              qrUrl: q.qrUrl || '',
+              image: qImgs[0]?.url || q.image || null,
+              images: qImgs,
+            };
+          })
+        : [];
+
+      const distributed = distributeUnplacedFigures(mergedFigures, ex.preamble || '', initPreambleImages, initQuestions);
+
+      return {
+        id: ex.id || `dp-ex-${eIdx + 1}`,
+        title: ex.title || `Exercice ${eIdx + 1}`,
+        points: ex.points !== undefined && ex.points !== null ? String(ex.points) : '',
+        preamble: ex.preamble || '',
+        preambleImage: distributed.preambleImages[0]?.url || ex.preambleImage || null,
+        preambleImages: distributed.preambleImages,
+        figures: mergedFigures,
+        questions: distributed.questions,
+      };
+    });
   }
 
-  const rawSections = content?.sections || lesson?.sections || [];
   if (!Array.isArray(rawSections) || rawSections.length === 0) return [];
 
   return rawSections.map((sec, idx) => parseSectionIntoPrimeExercise(sec, idx));
