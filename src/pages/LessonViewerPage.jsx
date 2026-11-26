@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation, Navigate } from 'react-router-dom';
-import {
+import { 
   ArrowLeft, Download, Check, X, Eye, EyeOff, Edit,
   BookOpen, Calendar, User, Phone, CheckCircle, AlertCircle,
   Calculator, BookOpenCheck, Loader, FileText, ChevronLeft, ChevronRight,
@@ -53,7 +53,7 @@ const parseBold = (text) => {
 
 function SignTableViewer({ altText }) {
   const alt = (altText || '').toLowerCase();
-
+  
   // Case A: Sign of ax + b
   if (alt.includes('ax+b') || alt.includes('ax + b') || (alt.includes('signe') && (alt.includes('1er degré') || alt.includes('1-er degré') || alt.includes('1er degre')))) {
     return (
@@ -132,7 +132,7 @@ function SignTableViewer({ altText }) {
           📊 Tableaux de signe du trinôme f(x) = ax² + bx + c (a ≠ 0)
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
-
+          
           {/* Delta > 0 */}
           <div style={{ overflowX: 'auto' }}>
             <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--violet)', marginBottom: '0.4rem' }}>
@@ -242,7 +242,7 @@ function SignTableViewer({ altText }) {
 
 const parseExerciseTitle = (title, fallbackIdx, isArabicMode = false, sectionNumber = '') => {
   if (!title) return { number: sectionNumber || String(fallbackIdx + 1), label: '' };
-
+  
   let clean = title.trim();
 
   // Handle Arabic titles: "تمرين 1" or "تمرين: 1" or "تمرين\n1"
@@ -287,7 +287,7 @@ const parseExerciseTitle = (title, fallbackIdx, isArabicMode = false, sectionNum
   if (prefixMatch) {
     clean = clean.substring(prefixMatch[0].length).trim();
   }
-
+  
   // Match number with optional parentheses or standalone (e.g. "(1)", "1", "2.a")
   const parenMatch = clean.match(/^\(?([0-9]+|[a-zA-Z])\)?\s*[:.\-–—\s]*(.*)$/);
   if (parenMatch) {
@@ -298,7 +298,7 @@ const parseExerciseTitle = (title, fallbackIdx, isArabicMode = false, sectionNum
       label: label
     };
   }
-
+  
   // If clean does not have leading number, return clean as label with sectionNumber fallback
   return {
     number: sectionNumber || String(fallbackIdx + 1),
@@ -350,7 +350,7 @@ const renderHomeworkBody = (text, isArabicMode, arabicFont, renderWithMath, secI
   if (text === null || text === undefined) return null;
 
   let rawText = String(text);
-
+  
   // Split by math blocks to safely replace literal \n outside math without corrupting LaTeX commands like \neq
   const parts = rawText.split(/(\$\$[\s\S]*?\$\$|\$[\s\S]*?\$)/g);
   const processedParts = parts.map((part, idx) => {
@@ -603,7 +603,7 @@ const renderHomeworkBody = (text, isArabicMode, arabicFont, renderWithMath, secI
 /* ── Calculate total points for Devoir Surveillé homework ── */
 const calculateTotalPoints = (text, isArabicMode, fallbackHeader = '') => {
   let rawText = text ? String(text) : '';
-
+  
   // Split by math blocks to safely replace literal \n outside math without corrupting LaTeX commands like \neq
   const parts = rawText.split(/(\$\$[\s\S]*?\$\$|\$[\s\S]*?\$)/g);
   const processedParts = parts.map((part, idx) => {
@@ -694,16 +694,16 @@ export default function LessonViewerPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isExporting, setIsExporting] = useState(false);
-
+  
   // Ref to the printable content area
   const sheetRef = useRef(null);
-
+  
   // Interactive UI Style Toggle: 'interactive' (Modern UI) or 'classic' (Worksheet Paper UI)
   const [uiStyle, setUiStyle] = useState('interactive');
-
+  
   // Active Tab for Interactive Mode
   const [activeTab, setActiveTab] = useState('theory'); // 'theory' or 'exercises'
-
+  
   // Solutions visibility states (section ID -> boolean)
   const [visibleSolutions, setVisibleSolutions] = useState({}); // sectionId -> boolean
   const [studentAnswers, setStudentAnswers] = useState({}); // key -> student input
@@ -714,7 +714,7 @@ export default function LessonViewerPage() {
         const saved = localStorage.getItem('pdf_series_solutions');
         if (saved !== null) return saved === 'true';
       }
-    } catch { }
+    } catch {}
     return true;
   });
 
@@ -793,7 +793,7 @@ export default function LessonViewerPage() {
           sectionId: secId,
           docType: lesson?.docType || lesson?.doc_type || 'course',
           solutionText: generated.trim(),
-        }).catch(() => { });
+        }).catch(() => {});
       }
     } catch (err) {
       console.error('[LessonViewer] AI Solution error:', err);
@@ -808,7 +808,7 @@ export default function LessonViewerPage() {
     try {
       const saved = localStorage.getItem('lesson_viewer_columns');
       if (saved) return parseInt(saved, 10);
-    } catch { }
+    } catch {}
     return 2;
   });
 
@@ -820,7 +820,7 @@ export default function LessonViewerPage() {
     try {
       localStorage.setItem('lesson_viewer_columns', cols);
       localStorage.setItem('pdf_series_columns', cols);
-    } catch { }
+    } catch {}
   };
 
   useEffect(() => {
@@ -1137,14 +1137,14 @@ export default function LessonViewerPage() {
     const updatedSections = allSecs.map(s => {
       if (targetScope === 'exercises' && s.type !== 'exercise') return s;
       if (targetScope === 'course' && s.type === 'exercise') return s;
-      return {
-        ...s,
-        bgColor,
+      return { 
+        ...s, 
+        bgColor, 
         bg_color: bgColor,
-        fontSize,
+        fontSize, 
         font_size: fontSize,
-        lineHeight,
-        line_height: lineHeight
+        lineHeight, 
+        line_height: lineHeight 
       };
     });
 
@@ -1168,13 +1168,13 @@ export default function LessonViewerPage() {
             sections: updatedSections
           }
         });
-        alert(isArabic
-          ? `✓ تم تطبيق التنسيق وحفظه في الملف على ${scopeNames[targetScope]} بنجاح!`
+        alert(isArabic 
+          ? `✓ تم تطبيق التنسيق وحفظه في الملف على ${scopeNames[targetScope]} بنجاح!` 
           : `✓ Style appliqué et enregistré sur ${scopeNames[targetScope]} avec succès !`);
       } catch (err) {
         console.error('Auto-save error:', err);
-        alert(isArabic
-          ? `تم تطبيق التنسيق على ${scopeNames[targetScope]}!`
+        alert(isArabic 
+          ? `تم تطبيق التنسيق على ${scopeNames[targetScope]}!` 
           : `Style appliqué à ${scopeNames[targetScope]} !`);
       }
     }
@@ -1199,7 +1199,7 @@ export default function LessonViewerPage() {
         if (sec.id !== secId) return sec;
 
         let rawText = String(sec.content);
-
+        
         // Split by math blocks to safely replace literal \n outside math without corrupting LaTeX commands like \neq
         const parts = rawText.split(/(\$\$[\s\S]*?\$\$|\$[\s\S]*?\$)/g);
         const processedParts = parts.map((part, idx) => {
@@ -1217,7 +1217,7 @@ export default function LessonViewerPage() {
           .replace(/\r/g, '\n');
 
         const lines = rawText.split('\n');
-
+        
         const mergedToOriginalMap = [];
         const mergedLines = [];
         for (let i = 0; i < lines.length; i++) {
@@ -1271,9 +1271,9 @@ export default function LessonViewerPage() {
         }
 
         lines[targetOriginalLineIdx] = originalLine;
-
+        
         if (mapEntry.start !== mapEntry.end) {
-          lines[mapEntry.end] = '';
+          lines[mapEntry.end] = ''; 
         }
 
         return {
@@ -1429,27 +1429,27 @@ export default function LessonViewerPage() {
   const header = (rawHeader && typeof rawHeader === 'object' && !Array.isArray(rawHeader))
     ? rawHeader
     : {
-      fiche_title: lesson?.title || '',
-      subject: lesson?.subject || 'Mathématiques',
-      prep_title: '',
-      schools: lesson?.schools || [],
-      teacher: lesson?.teacher || '',
-      phone: lesson?.phone || ''
-    };
+        fiche_title: lesson?.title || '',
+        subject: lesson?.subject || 'Mathématiques',
+        prep_title: '',
+        schools: lesson?.schools || [],
+        teacher: lesson?.teacher || '',
+        phone: lesson?.phone || ''
+      };
 
   const sections = (Array.isArray(content?.sections) && content.sections.length > 0)
     ? content.sections
     : ((Array.isArray(lesson?.sections) && lesson.sections.length > 0)
-      ? lesson.sections
-      : ((Array.isArray(content?.exercises) && content.exercises.length > 0)
-        ? content.exercises
-        : ((Array.isArray(lesson?.exercises) && lesson.exercises.length > 0)
-          ? lesson.exercises
-          : ((Array.isArray(content?.devoir_prime_exercises) && content.devoir_prime_exercises.length > 0)
-            ? content.devoir_prime_exercises
-            : ((Array.isArray(lesson?.content?.devoir_prime_exercises) && lesson.content.devoir_prime_exercises.length > 0)
-              ? lesson.content.devoir_prime_exercises
-              : (Array.isArray(parsedContent) ? parsedContent : []))))));
+        ? lesson.sections
+        : ((Array.isArray(content?.exercises) && content.exercises.length > 0)
+            ? content.exercises
+            : ((Array.isArray(lesson?.exercises) && lesson.exercises.length > 0)
+                ? lesson.exercises
+                : ((Array.isArray(content?.devoir_prime_exercises) && content.devoir_prime_exercises.length > 0)
+                    ? content.devoir_prime_exercises
+                    : ((Array.isArray(lesson?.content?.devoir_prime_exercises) && lesson.content.devoir_prime_exercises.length > 0)
+                        ? lesson.content.devoir_prime_exercises
+                        : (Array.isArray(parsedContent) ? parsedContent : []))))));
   const theorySections = sections?.filter(s => s?.type !== 'exercise' && s?.type !== 'application') || [];
   const exerciseSections = sections?.filter(s => s?.type === 'exercise' || s?.type === 'application') || [];
 
@@ -1468,7 +1468,7 @@ export default function LessonViewerPage() {
   const isArabic = checkArabicText();
   const lessonDir = isArabic ? 'rtl' : 'ltr';
   const arabicFont = isArabic ? "'UKIJ Merdane', 'UKIJMerdane', 'UKIJMerdaneRegular', 'Cairo', 'Amiri', 'Noto Naskh Arabic', Arial, sans-serif" : 'inherit';
-
+  
   // DEVOIR PRIME detection
   const isDevoirPrime = Boolean(
     lesson?.docType === 'devoir_prime' ||
@@ -2918,10 +2918,10 @@ export default function LessonViewerPage() {
         flexWrap: 'wrap',
         gap: '1rem'
       }}>
-        <button
+        <button 
           onClick={goBack}
           className="btn-outline"
-          style={{
+          style={{ 
             padding: '0.45rem 0.9rem', fontSize: '0.8rem', fontWeight: 700, borderRadius: '99px',
             display: 'inline-flex', alignItems: 'center', gap: '0.4rem', border: '1px solid var(--border)'
           }}
@@ -3035,7 +3035,7 @@ export default function LessonViewerPage() {
               )}
             </button>
           ) : (
-            <button
+            <button 
               onClick={() => setViewSummaryMode(!viewSummaryMode)}
               className="btn-outline"
               style={{
@@ -3122,7 +3122,7 @@ export default function LessonViewerPage() {
           )}
 
           {/* Option d'impression des solutions (Avec / Sans Solutions) */}
-          <button
+          <button 
             type="button"
             onClick={handleToggleSolutions}
             className="btn-outline"
@@ -3150,7 +3150,7 @@ export default function LessonViewerPage() {
           </button>
 
           {/* PDF Download button */}
-          <button
+          <button 
             onClick={handleExportPDF}
             disabled={isExporting}
             className="btn"
@@ -3174,7 +3174,7 @@ export default function LessonViewerPage() {
 
           {/* Edit button */}
           {user?.role === 'admin' && (
-            <button
+            <button 
               onClick={() => navigate(`/admin/lessons/${id}/edit`, { state: { from: window.location.pathname } })}
               className="btn-outline"
               style={{
@@ -3247,526 +3247,298 @@ export default function LessonViewerPage() {
         </div>
       ) : (
 
-        /* ── MAIN WORKsheet CONTAINER — ref used by html2canvas PDF export ── */
-        <div ref={sheetRef} className={`sheet-container ${includeSolutionsInPdf ? '' : 'hide-solutions-print'}`}>
+      /* ── MAIN WORKsheet CONTAINER — ref used by html2canvas PDF export ── */
+      <div ref={sheetRef} className={`sheet-container ${includeSolutionsInPdf ? '' : 'hide-solutions-print'}`}>
+        
+        {/* Print-only header row (3 columns) — hidden on screen, shows on print */}
+        <header className="print-only-header" style={{
+          display: 'none',
+          gridTemplateColumns: '1fr 1.5fr 1fr',
+          borderBottom: '2px solid #005086',
+          marginBottom: '1.5rem',
+          paddingBottom: '0.75rem',
+        }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', fontSize: '0.75rem', color: '#1a202c', fontWeight: 700 }}>
+            <span>{header?.prep_title || ''}</span>
+            <span style={{ color: '#005086' }}>{header?.schools?.join(' - ') || ''}</span>
+          </div>
+          <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '0.15rem', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.7rem', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{header?.subject || lesson?.subject || ''}</span>
+            <span style={{ fontWeight: 900, fontSize: '1rem', color: '#b91c1c', textDecoration: 'underline' }}>{renderWithMath(header?.fiche_title || lesson?.title || '')}</span>
+          </div>
+          <div style={{ textAlign: 'right', fontSize: '0.75rem', color: '#1a202c', fontWeight: 700, display: 'flex', flexDirection: 'column', gap: '0.1rem', alignItems: 'flex-end' }}>
+            <span>{header?.teacher || profName || ''}</span>
+            {(header?.phone || profPhone) && <span style={{ color: '#4b5563' }}>{header?.phone || profPhone}</span>}
+          </div>
+        </header>
 
-          {/* Print-only header row (3 columns) — hidden on screen, shows on print */}
-          <header className="print-only-header" style={{
-            display: 'none',
-            gridTemplateColumns: '1fr 1.5fr 1fr',
-            borderBottom: '2px solid #005086',
-            marginBottom: '1.5rem',
-            paddingBottom: '0.75rem',
-          }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', fontSize: '0.75rem', color: '#1a202c', fontWeight: 700 }}>
-              <span>{header?.prep_title || ''}</span>
-              <span style={{ color: '#005086' }}>{header?.schools?.join(' - ') || ''}</span>
-            </div>
-            <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '0.15rem', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.7rem', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{header?.subject || lesson?.subject || ''}</span>
-              <span style={{ fontWeight: 900, fontSize: '1rem', color: '#b91c1c', textDecoration: 'underline' }}>{renderWithMath(header?.fiche_title || lesson?.title || '')}</span>
-            </div>
-            <div style={{ textAlign: 'right', fontSize: '0.75rem', color: '#1a202c', fontWeight: 700, display: 'flex', flexDirection: 'column', gap: '0.1rem', alignItems: 'flex-end' }}>
-              <span>{header?.teacher || profName || ''}</span>
-              {(header?.phone || profPhone) && <span style={{ color: '#4b5563' }}>{header?.phone || profPhone}</span>}
-            </div>
-          </header>
+        {/* Screen & Print Pedagogical Header Table — ONLY FOR LESSONS / COURSES */}
+        {!(lesson?.docType === 'exercises' || lesson?.docType === 'homework' || lesson?.type === 'exercises' || lesson?.type === 'homework' || lesson?.content?.doc_type === 'homework') && (() => {
+          const hasPedagogy = Boolean(
+            (header.capacites_attendues || '').trim() ||
+            (header.contenus || '').trim() ||
+            (header.le_contenu || '').trim()
+          );
 
-          {/* Screen & Print Pedagogical Header Table — ONLY FOR LESSONS / COURSES */}
-          {!(lesson?.docType === 'exercises' || lesson?.docType === 'homework' || lesson?.type === 'exercises' || lesson?.type === 'homework' || lesson?.content?.doc_type === 'homework') && (() => {
-            const hasPedagogy = Boolean(
-              (header.capacites_attendues || '').trim() ||
-              (header.contenus || '').trim() ||
-              (header.le_contenu || '').trim()
-            );
-
-            if (!hasPedagogy && !showDetailedPedagogy) {
-              return (
-                <div className="fiche-pedagogique-compact-header" style={{
-                  width: '100%',
-                  border: '1.5px solid #005086',
-                  borderRadius: '6px',
-                  overflow: 'hidden',
-                  marginBottom: '1rem',
-                  background: '#ffffff',
-                  boxShadow: '0 2px 8px rgba(0,80,134,0.06)'
+          if (!hasPedagogy && !showDetailedPedagogy) {
+            return (
+              <div className="fiche-pedagogique-compact-header" style={{
+                width: '100%',
+                border: '1.5px solid #005086',
+                borderRadius: '6px',
+                overflow: 'hidden',
+                marginBottom: '1rem',
+                background: '#ffffff',
+                boxShadow: '0 2px 8px rgba(0,80,134,0.06)'
+              }}>
+                <div className="compact-title-cell" style={{
+                  background: '#005086',
+                  color: '#ffffff',
+                  textAlign: 'center',
+                  fontWeight: 900,
+                  fontSize: '1.25rem',
+                  padding: '0.65rem 1rem',
+                  letterSpacing: '0.04em'
                 }}>
-                  <div className="compact-title-cell" style={{
-                    background: '#005086',
-                    color: '#ffffff',
-                    textAlign: 'center',
-                    fontWeight: 900,
-                    fontSize: '1.25rem',
-                    padding: '0.65rem 1rem',
-                    letterSpacing: '0.04em'
-                  }}>
+                  <input
+                    type="text"
+                    value={header.fiche_title || header.subject || "CALCULS D' INTEGRALS"}
+                    onChange={(e) => handleHeaderChange('fiche_title', e.target.value)}
+                    placeholder="Titre de la fiche..."
+                    style={{
+                      width: '100%',
+                      fontSize: '1.2rem',
+                      background: 'transparent',
+                      color: '#ffffff',
+                      border: 'none',
+                      textAlign: 'center',
+                      fontWeight: 900,
+                      outline: 'none',
+                      fontFamily: 'inherit'
+                    }}
+                  />
+                </div>
+                <div className="compact-meta-bar" style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  padding: '0.45rem 1rem',
+                  background: '#f8fafc',
+                  gap: '0.5rem 1.25rem',
+                  fontSize: '0.8rem',
+                  color: '#1e293b',
+                  borderTop: '1px solid rgba(0,80,134,0.15)'
+                }}>
+                  <div className="compact-meta-item">
+                    <strong style={{ color: '#005086' }}>{isArabic ? 'الأكاديمية' : 'Académie'} :</strong>
                     <input
                       type="text"
-                      value={header.fiche_title || header.subject || "CALCULS D' INTEGRALS"}
-                      onChange={(e) => handleHeaderChange('fiche_title', e.target.value)}
-                      placeholder="Titre de la fiche..."
-                      style={{
-                        width: '100%',
-                        fontSize: '1.2rem',
-                        background: 'transparent',
-                        color: '#ffffff',
-                        border: 'none',
-                        textAlign: 'center',
-                        fontWeight: 900,
-                        outline: 'none',
-                        fontFamily: 'inherit'
-                      }}
+                      value={header.academie || 'FES-MEKNES'}
+                      onChange={(e) => handleHeaderChange('academie', e.target.value)}
+                      style={{ border: 'none', background: 'transparent', fontWeight: 700, fontSize: '0.8rem', outline: 'none', color: '#1e293b', width: '90px' }}
                     />
                   </div>
-                  <div className="compact-meta-bar" style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    flexWrap: 'wrap',
-                    padding: '0.45rem 1rem',
-                    background: '#f8fafc',
-                    gap: '0.5rem 1.25rem',
-                    fontSize: '0.8rem',
-                    color: '#1e293b',
-                    borderTop: '1px solid rgba(0,80,134,0.15)'
-                  }}>
-                    <div className="compact-meta-item">
-                      <strong style={{ color: '#005086' }}>{isArabic ? 'الأكاديمية' : 'Académie'} :</strong>
-                      <input
-                        type="text"
-                        value={header.academie || 'FES-MEKNES'}
-                        onChange={(e) => handleHeaderChange('academie', e.target.value)}
-                        style={{ border: 'none', background: 'transparent', fontWeight: 700, fontSize: '0.8rem', outline: 'none', color: '#1e293b', width: '90px' }}
-                      />
-                    </div>
-                    <div className="compact-meta-item">
-                      <strong style={{ color: '#005086' }}>{isArabic ? 'المديرية' : 'Direction'} :</strong>
-                      <input
-                        type="text"
-                        value={header.direction || 'MY'}
-                        onChange={(e) => handleHeaderChange('direction', e.target.value)}
-                        style={{ border: 'none', background: 'transparent', fontWeight: 700, fontSize: '0.8rem', outline: 'none', color: '#1e293b', width: '50px' }}
-                      />
-                    </div>
-                    <div className="compact-meta-item">
-                      <strong style={{ color: '#005086' }}>{isArabic ? 'المؤسسة' : 'Établissement'} :</strong>
-                      <input
-                        type="text"
-                        value={header.etablissement || '18 NOVEMBRE'}
-                        onChange={(e) => handleHeaderChange('etablissement', e.target.value)}
-                        style={{ border: 'none', background: 'transparent', fontWeight: 700, fontSize: '0.8rem', outline: 'none', color: '#1e293b', width: '110px' }}
-                      />
-                    </div>
-                    <div className="compact-meta-item">
-                      <strong style={{ color: '#005086' }}>{isArabic ? 'الأهمية' : 'Importance'} :</strong>
-                      <input
-                        type="text"
-                        value={header.degre_importance || '40%'}
-                        onChange={(e) => handleHeaderChange('degre_importance', e.target.value)}
-                        style={{ background: '#fef08a', border: 'none', borderRadius: '3px', padding: '1px 5px', fontWeight: 800, color: '#854d0e', fontSize: '0.78rem', width: '45px', textAlign: 'center' }}
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowDetailedPedagogy(true)}
-                      className="no-print"
-                      style={{
-                        background: 'rgba(0,80,134,0.08)',
-                        border: '1px solid rgba(0,80,134,0.25)',
-                        borderRadius: '99px',
-                        padding: '0.2rem 0.6rem',
-                        fontSize: '0.72rem',
-                        fontWeight: 700,
-                        color: '#005086',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      + {isArabic ? 'إضافة القدرات والمحتويات' : 'Détailler les capacités & contenus'}
-                    </button>
+                  <div className="compact-meta-item">
+                    <strong style={{ color: '#005086' }}>{isArabic ? 'المديرية' : 'Direction'} :</strong>
+                    <input
+                      type="text"
+                      value={header.direction || 'MY'}
+                      onChange={(e) => handleHeaderChange('direction', e.target.value)}
+                      style={{ border: 'none', background: 'transparent', fontWeight: 700, fontSize: '0.8rem', outline: 'none', color: '#1e293b', width: '50px' }}
+                    />
                   </div>
-                </div>
-              );
-            }
-
-            return (
-              <div>
-                {!hasPedagogy && showDetailedPedagogy && (
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.35rem' }} className="no-print">
-                    <button
-                      type="button"
-                      onClick={() => setShowDetailedPedagogy(false)}
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: '#64748b',
-                        fontSize: '0.72rem',
-                        cursor: 'pointer',
-                        textDecoration: 'underline'
-                      }}
-                    >
-                      {isArabic ? 'تصغير الرأس التربوي' : 'Réduire au bandeau compact'}
-                    </button>
+                  <div className="compact-meta-item">
+                    <strong style={{ color: '#005086' }}>{isArabic ? 'المؤسسة' : 'Établissement'} :</strong>
+                    <input
+                      type="text"
+                      value={header.etablissement || '18 NOVEMBRE'}
+                      onChange={(e) => handleHeaderChange('etablissement', e.target.value)}
+                      style={{ border: 'none', background: 'transparent', fontWeight: 700, fontSize: '0.8rem', outline: 'none', color: '#1e293b', width: '110px' }}
+                    />
                   </div>
-                )}
-                <table className="fiche-pedagogique-header" style={{
-                  width: '100%',
-                  borderCollapse: 'separate',
-                  borderSpacing: 0,
-                  border: '1.5px solid #005086',
-                  borderRadius: '6px',
-                  overflow: 'hidden',
-                  marginBottom: '1.25rem',
-                  background: '#ffffff',
-                  boxShadow: '0 2px 8px rgba(0,80,134,0.06)'
-                }}>
-                  <tbody>
-                    <tr>
-                      {/* Left Main Content Block (73% width) */}
-                      <td style={{ width: '73%', padding: 0, borderRight: '1.5px solid #005086', borderBottom: 'none' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                          <tbody>
-                            {/* Top Main Title Row */}
-                            <tr>
-                              <td colSpan={2} className="title-cell" style={{
-                                background: '#005086',
-                                color: '#ffffff',
-                                textAlign: 'center',
-                                fontWeight: 900,
-                                fontSize: '1.25rem',
-                                padding: '0.65rem 1rem',
-                                letterSpacing: '0.04em',
-                                borderBottom: '1.5px solid #005086'
-                              }}>
-                                <input
-                                  type="text"
-                                  value={header.fiche_title || header.subject || "CALCULS D' INTEGRALS"}
-                                  onChange={(e) => handleHeaderChange('fiche_title', e.target.value)}
-                                  placeholder="Titre de la fiche..."
-                                  style={{
-                                    width: '100%',
-                                    fontSize: '1.2rem',
-                                    background: 'transparent',
-                                    color: '#ffffff',
-                                    border: 'none',
-                                    textAlign: 'center',
-                                    fontWeight: 900,
-                                    outline: 'none',
-                                    fontFamily: 'inherit'
-                                  }}
-                                />
-                              </td>
-                            </tr>
-
-                            {/* Middle Row: Capacités Attendues & Contenus */}
-                            <tr>
-                              {/* Red Line 1: LES CAPACITÉS ATTENDUES */}
-                              <td style={{ width: '50%', padding: 0, verticalAlign: 'top', borderRight: '1.5px solid #005086', borderBottom: '1.5px solid #005086' }}>
-                                <div className="header-section-title" style={{ background: '#f8fafc', color: '#005086', fontWeight: 800, textAlign: 'center', padding: '0.35rem 0.5rem', fontSize: '0.78rem', borderBottom: '1.5px solid #005086', textTransform: 'uppercase' }}>
-                                  {isArabic ? 'القدرات المنتظرة' : 'LES CAPACITÉS ATTENDUES'}
-                                </div>
-                                <div style={{ padding: '0.4rem 0.5rem', minHeight: '45px' }}>
-                                  <textarea
-                                    value={header.capacites_attendues || ''}
-                                    onChange={(e) => handleHeaderChange('capacites_attendues', e.target.value)}
-                                    placeholder={isArabic ? 'انقر هنا لإضافة القدرات المنتظرة...' : 'Cliquer ici pour ajouter les capacités attendues...'}
-                                    rows={2}
-                                    style={{
-                                      width: '100%',
-                                      fontSize: '0.82rem',
-                                      border: '1px dashed rgba(0,80,134,0.25)',
-                                      background: 'rgba(0,80,134,0.02)',
-                                      padding: '0.35rem',
-                                      borderRadius: '4px',
-                                      resize: 'vertical',
-                                      outline: 'none',
-                                      color: '#0f172a',
-                                      fontFamily: 'inherit'
-                                    }}
-                                  />
-                                </div>
-                              </td>
-
-                              {/* Red Line 2: CONTENUS */}
-                              <td style={{ width: '50%', padding: 0, verticalAlign: 'top', borderBottom: '1.5px solid #005086' }}>
-                                <div className="header-section-title" style={{ background: '#f8fafc', color: '#005086', fontWeight: 800, textAlign: 'center', padding: '0.35rem 0.5rem', fontSize: '0.78rem', borderBottom: '1.5px solid #005086', textTransform: 'uppercase' }}>
-                                  {isArabic ? 'المحتويات' : 'CONTENUS'}
-                                </div>
-                                <div style={{ padding: '0.4rem 0.5rem', minHeight: '45px' }}>
-                                  <textarea
-                                    value={header.contenus || ''}
-                                    onChange={(e) => handleHeaderChange('contenus', e.target.value)}
-                                    placeholder={isArabic ? 'انقر هنا لإضافة المحتويات...' : 'Cliquer ici pour ajouter les contenus...'}
-                                    rows={2}
-                                    style={{
-                                      width: '100%',
-                                      fontSize: '0.82rem',
-                                      border: '1px dashed rgba(0,80,134,0.25)',
-                                      background: 'rgba(0,80,134,0.02)',
-                                      padding: '0.35rem',
-                                      borderRadius: '4px',
-                                      resize: 'vertical',
-                                      outline: 'none',
-                                      color: '#0f172a',
-                                      fontFamily: 'inherit'
-                                    }}
-                                  />
-                                </div>
-                              </td>
-                            </tr>
-
-                            {/* Bottom Row: Red Line 3: LE CONTENU */}
-                            <tr>
-                              <td colSpan={2} style={{ padding: 0, verticalAlign: 'top' }}>
-                                <div className="header-section-title" style={{ background: '#f8fafc', color: '#005086', fontWeight: 800, textAlign: 'center', padding: '0.35rem 0.5rem', fontSize: '0.78rem', borderBottom: '1.5px solid #005086', textTransform: 'uppercase' }}>
-                                  {isArabic ? 'المحتوى' : 'LE CONTENU'}
-                                </div>
-                                <div style={{ padding: '0.4rem 0.6rem', minHeight: '40px' }}>
-                                  <textarea
-                                    value={header.le_contenu || ''}
-                                    onChange={(e) => handleHeaderChange('le_contenu', e.target.value)}
-                                    placeholder={isArabic ? 'انقر هنا لإضافة المحتوى العام...' : 'Cliquer ici pour ajouter le contenu général...'}
-                                    rows={2}
-                                    style={{
-                                      width: '100%',
-                                      fontSize: '0.82rem',
-                                      border: '1px dashed rgba(0,80,134,0.25)',
-                                      background: 'rgba(0,80,134,0.02)',
-                                      padding: '0.35rem',
-                                      borderRadius: '4px',
-                                      resize: 'vertical',
-                                      outline: 'none',
-                                      color: '#0f172a',
-                                      fontFamily: 'inherit'
-                                    }}
-                                  />
-                                </div>
-                              </td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </td>
-
-                      {/* Right Metadata Side (27% width) */}
-                      <td style={{ width: '27%', padding: 0, verticalAlign: 'top', borderBottom: 'none' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                          <tbody>
-                            <tr>
-                              <td style={{ padding: '0.45rem 0.65rem', borderBottom: '1.5px solid #005086', fontSize: '0.8rem' }}>
-                                <strong style={{ color: '#005086' }}>{isArabic ? 'الأكاديمية' : 'Académie'} :</strong><br />
-                                <input
-                                  type="text"
-                                  value={header.academie || 'FES-MEKNES'}
-                                  onChange={(e) => handleHeaderChange('academie', e.target.value)}
-                                  style={{ width: '100%', fontSize: '0.78rem', border: '1px solid rgba(0,80,134,0.2)', background: 'transparent', fontWeight: 600, color: '#1e293b', outline: 'none', marginTop: '2px', borderRadius: '3px', padding: '0.1rem 0.25rem' }}
-                                />
-                              </td>
-                            </tr>
-                            <tr>
-                              <td style={{ padding: '0.45rem 0.65rem', borderBottom: '1.5px solid #005086', fontSize: '0.8rem' }}>
-                                <strong style={{ color: '#005086' }}>{isArabic ? 'المديرية الإقليمية' : 'Direction Provinciale'} :</strong><br />
-                                <input
-                                  type="text"
-                                  value={header.direction || 'MY'}
-                                  onChange={(e) => handleHeaderChange('direction', e.target.value)}
-                                  style={{ width: '100%', fontSize: '0.78rem', border: '1px solid rgba(0,80,134,0.2)', background: 'transparent', fontWeight: 600, color: '#1e293b', outline: 'none', marginTop: '2px', borderRadius: '3px', padding: '0.1rem 0.25rem' }}
-                                />
-                              </td>
-                            </tr>
-                            <tr>
-                              <td style={{ padding: '0.45rem 0.65rem', borderBottom: '1.5px solid #005086', fontSize: '0.8rem' }}>
-                                <strong style={{ color: '#005086' }}>{isArabic ? 'المؤسسة' : 'Etablissement'} :</strong><br />
-                                <input
-                                  type="text"
-                                  value={header.etablissement || '18 NOVEMBRE'}
-                                  onChange={(e) => handleHeaderChange('etablissement', e.target.value)}
-                                  style={{ width: '100%', fontSize: '0.78rem', border: '1px solid rgba(0,80,134,0.2)', background: 'transparent', fontWeight: 600, color: '#1e293b', outline: 'none', marginTop: '2px', borderRadius: '3px', padding: '0.1rem 0.25rem' }}
-                                />
-                              </td>
-                            </tr>
-                            <tr>
-                              <td style={{ padding: '0.45rem 0.65rem', borderBottom: '1.5px solid #005086', fontSize: '0.8rem' }}>
-                                <strong style={{ color: '#005086' }}>{isArabic ? 'الأهمية' : "Degré d'importance"} :</strong><br />
-                                <input
-                                  type="text"
-                                  value={header.degre_importance || '40%'}
-                                  onChange={(e) => handleHeaderChange('degre_importance', e.target.value)}
-                                  style={{ width: '100%', fontSize: '0.78rem', border: 'none', background: '#fef08a', color: '#854d0e', fontWeight: 800, padding: '1px 5px', borderRadius: '3px', outline: 'none', marginTop: '2px' }}
-                                />
-                              </td>
-                            </tr>
-                            <tr>
-                              <td style={{ padding: '0.45rem 0.65rem', fontSize: '0.8rem', borderBottom: 'none' }}>
-                                <strong style={{ color: '#005086' }}>{isArabic ? 'ملاحظات' : 'Remarques'} :</strong><br />
-                                <input
-                                  type="text"
-                                  value={header.remarques || ''}
-                                  onChange={(e) => handleHeaderChange('remarques', e.target.value)}
-                                  placeholder="Remarques..."
-                                  style={{ width: '100%', fontSize: '0.78rem', border: '1px solid rgba(0,80,134,0.2)', background: 'transparent', color: '#1e293b', outline: 'none', marginTop: '2px', borderRadius: '3px', padding: '0.1rem 0.25rem' }}
-                                />
-                              </td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            );
-          })()}
-
-          {/* WORKBOOK MAIN BODY */}
-          <div className="sheet-body" dir={lessonDir} style={isArabic ? { fontFamily: arabicFont } : {}}>
-            {/* Direct Edit Mode Banner */}
-            {isDirectEdit && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.65rem',
-                background: 'rgba(79,70,229,0.08)',
-                border: '1.5px dashed rgba(79,70,229,0.35)',
-                borderRadius: '10px',
-                padding: '0.65rem 1.1rem',
-                marginBottom: '1rem',
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                color: 'var(--violet)',
-                flexWrap: 'wrap',
-              }}>
-                <Edit size={15} />
-                <span>
-                  {isArabic
-                    ? 'أنت الآن في وضع التعديل المباشر — يمكنك تعديل النصوص والعناوين. انقر على حقل لبدء التعديل.'
-                    : 'Mode Modification Directe — Cliquez sur un champ pour le modifier. Les formules LaTeX entre $ sont supportées.'}
-                </span>
-              </div>
-            )}
-            {/* Arabic badge for translated lessons */}
-            {isArabic && (
-              <div style={{
-                display: 'inline-flex', alignSelf: 'center', alignItems: 'center', gap: '0.5rem',
-                background: 'rgba(66,133,244,0.08)', border: '1px solid rgba(66,133,244,0.2)',
-                borderRadius: '99px', padding: '0.3rem 1rem', marginBottom: '-0.5rem',
-                fontSize: '0.75rem', fontWeight: 700, color: '#4285F4',
-                direction: 'rtl', fontFamily: arabicFont,
-              }}>
-                🌐 Version Arabe — Traduction IA
-              </div>
-            )}
-            {/* Centered blue banner title (hidden for homework/Devoir Surveillé as it is already in the ANISSE Cartouche Header) */}
-            {!(lesson?.docType === 'homework' || lesson?.content?.doc_type === 'homework' || lesson?.type === 'homework') && (
-              <div className="sheet-header-banner" style={{
-                margin: '0 auto 2rem', display: 'inline-flex',
-                fontFamily: isArabic ? arabicFont : 'inherit',
-                direction: lessonDir,
-              }}>
-                {renderWithMath(header.fiche_title || header.subject || "Fiche de Cours")}
-              </div>
-            )}
-
-            {/* Collapsible / Viewable Points Table for Homework */}
-            {(isHomework || (activePointsTable && activePointsTable.length > 0)) && activePointsTable.length > 0 && (
-              <div className="homework-points-table-card no-print" style={{
-                margin: '0 auto 1.5rem',
-                width: '100%',
-                borderRadius: '14px',
-                border: '1.5px solid rgba(0, 80, 134, 0.25)',
-                background: 'linear-gradient(135deg, rgba(0, 80, 134, 0.03) 0%, rgba(14, 165, 233, 0.03) 100%)',
-                padding: '1rem 1.25rem',
-                boxShadow: '0 2px 12px rgba(0, 80, 134, 0.05)'
-              }}>
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  cursor: 'pointer',
-                  userSelect: 'none'
-                }} onClick={() => setShowGradesTable(!showGradesTable)}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                    <span style={{ fontSize: '1.25rem' }}>📊</span>
-                    <div>
-                      <strong style={{ fontSize: '0.95rem', color: '#005086' }}>
-                        جدول النقط وسلّم التنقيط (Grille & Barème des Points)
-                      </strong>
-                      <span style={{
-                        marginRight: '0.6rem',
-                        marginLeft: '0.6rem',
-                        fontSize: '0.75rem',
-                        fontWeight: 800,
-                        padding: '0.15rem 0.55rem',
-                        borderRadius: '12px',
-                        background: 'rgba(0, 80, 134, 0.1)',
-                        color: '#005086'
-                      }}>
-                        المجموع : {activePointsTable.reduce((s, r) => s + (parseFloat(r.points) || 0), 0).toFixed(2)} / {header?.total_points || 20} pts
-                      </span>
-                    </div>
+                  <div className="compact-meta-item">
+                    <strong style={{ color: '#005086' }}>{isArabic ? 'الأهمية' : 'Importance'} :</strong>
+                    <input
+                      type="text"
+                      value={header.degre_importance || '40%'}
+                      onChange={(e) => handleHeaderChange('degre_importance', e.target.value)}
+                      style={{ background: '#fef08a', border: 'none', borderRadius: '3px', padding: '1px 5px', fontWeight: 800, color: '#854d0e', fontSize: '0.78rem', width: '45px', textAlign: 'center' }}
+                    />
                   </div>
                   <button
                     type="button"
+                    onClick={() => setShowDetailedPedagogy(true)}
+                    className="no-print"
                     style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#005086',
-                      fontSize: '0.8rem',
+                      background: 'rgba(0,80,134,0.08)',
+                      border: '1px solid rgba(0,80,134,0.25)',
+                      borderRadius: '99px',
+                      padding: '0.2rem 0.6rem',
+                      fontSize: '0.72rem',
                       fontWeight: 700,
+                      color: '#005086',
                       cursor: 'pointer'
                     }}
                   >
-                    {showGradesTable ? 'إخفاء الجدول ▲' : 'عرض سلم النقط ▼'}
+                    + {isArabic ? 'إضافة القدرات والمحتويات' : 'Détailler les capacités & contenus'}
                   </button>
                 </div>
+              </div>
+            );
+          }
 
-                {showGradesTable && (
-                  <div style={{ marginTop: '0.85rem', overflowX: 'auto' }}>
-                    <table style={{
-                      width: '100%',
-                      borderCollapse: 'collapse',
-                      fontSize: '0.82rem',
-                      background: '#ffffff',
-                      borderRadius: '8px',
-                      overflow: 'hidden',
-                      border: '1px solid rgba(0, 80, 134, 0.15)'
-                    }}>
-                      <thead>
-                        <tr style={{ background: 'rgba(0, 80, 134, 0.08)', color: '#005086' }}>
-                          <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 800 }}>التمرين</th>
-                          <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 800 }}>الموضوع</th>
-                          <th style={{ padding: '0.5rem 0.75rem', textAlign: 'center', fontWeight: 800 }}>النقط</th>
-                          <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 800 }}>تفاصيل الأسئلة</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {activePointsTable.map((row, rIdx) => (
-                          <tr key={rIdx} style={{ borderBottom: '1px solid rgba(0, 80, 134, 0.08)' }}>
-                            <td style={{ padding: '0.45rem 0.75rem', fontWeight: 800, color: '#005086' }}>
-                              {row.exercise || `Exercice ${rIdx + 1}`}
+          return (
+            <div>
+              {!hasPedagogy && showDetailedPedagogy && (
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.35rem' }} className="no-print">
+                  <button
+                    type="button"
+                    onClick={() => setShowDetailedPedagogy(false)}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#64748b',
+                      fontSize: '0.72rem',
+                      cursor: 'pointer',
+                      textDecoration: 'underline'
+                    }}
+                  >
+                    {isArabic ? 'تصغير الرأس التربوي' : 'Réduire au bandeau compact'}
+                  </button>
+                </div>
+              )}
+              <table className="fiche-pedagogique-header" style={{
+                width: '100%',
+                borderCollapse: 'separate',
+                borderSpacing: 0,
+                border: '1.5px solid #005086',
+                borderRadius: '6px',
+                overflow: 'hidden',
+                marginBottom: '1.25rem',
+                background: '#ffffff',
+                boxShadow: '0 2px 8px rgba(0,80,134,0.06)'
+              }}>
+                <tbody>
+                  <tr>
+                    {/* Left Main Content Block (73% width) */}
+                    <td style={{ width: '73%', padding: 0, borderRight: '1.5px solid #005086', borderBottom: 'none' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <tbody>
+                          {/* Top Main Title Row */}
+                          <tr>
+                            <td colSpan={2} className="title-cell" style={{
+                              background: '#005086',
+                              color: '#ffffff',
+                              textAlign: 'center',
+                              fontWeight: 900,
+                              fontSize: '1.25rem',
+                              padding: '0.65rem 1rem',
+                              letterSpacing: '0.04em',
+                              borderBottom: '1.5px solid #005086'
+                            }}>
+                              <input
+                                type="text"
+                                value={header.fiche_title || header.subject || "CALCULS D' INTEGRALS"}
+                                onChange={(e) => handleHeaderChange('fiche_title', e.target.value)}
+                                placeholder="Titre de la fiche..."
+                                style={{
+                                  width: '100%',
+                                  fontSize: '1.2rem',
+                                  background: 'transparent',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  textAlign: 'center',
+                                  fontWeight: 900,
+                                  outline: 'none',
+                                  fontFamily: 'inherit'
+                                }}
+                              />
                             </td>
-                            <td style={{ padding: '0.45rem 0.75rem' }}>
-                              {row.title || '—'}
+                          </tr>
+
+                          {/* Middle Row: Capacités Attendues & Contenus */}
+                          <tr>
+                            {/* Red Line 1: LES CAPACITÉS ATTENDUES */}
+                            <td style={{ width: '50%', padding: 0, verticalAlign: 'top', borderRight: '1.5px solid #005086', borderBottom: '1.5px solid #005086' }}>
+                              <div className="header-section-title" style={{ background: '#f8fafc', color: '#005086', fontWeight: 800, textAlign: 'center', padding: '0.35rem 0.5rem', fontSize: '0.78rem', borderBottom: '1.5px solid #005086', textTransform: 'uppercase' }}>
+                                {isArabic ? 'القدرات المنتظرة' : 'LES CAPACITÉS ATTENDUES'}
+                              </div>
+                              <div style={{ padding: '0.4rem 0.5rem', minHeight: '45px' }}>
+                                <textarea
+                                  value={header.capacites_attendues || ''}
+                                  onChange={(e) => handleHeaderChange('capacites_attendues', e.target.value)}
+                                  placeholder={isArabic ? 'انقر هنا لإضافة القدرات المنتظرة...' : 'Cliquer ici pour ajouter les capacités attendues...'}
+                                  rows={2}
+                                  style={{
+                                    width: '100%',
+                                    fontSize: '0.82rem',
+                                    border: '1px dashed rgba(0,80,134,0.25)',
+                                    background: 'rgba(0,80,134,0.02)',
+                                    padding: '0.35rem',
+                                    borderRadius: '4px',
+                                    resize: 'vertical',
+                                    outline: 'none',
+                                    color: '#0f172a',
+                                    fontFamily: 'inherit'
+                                  }}
+                                />
+                              </div>
                             </td>
-                            <td style={{ padding: '0.45rem 0.75rem', textAlign: 'center', fontWeight: 800, color: '#0284c7' }}>
-                              {row.points !== undefined ? `${row.points} pts` : '—'}
+
+                            {/* Red Line 2: CONTENUS */}
+                            <td style={{ width: '50%', padding: 0, verticalAlign: 'top', borderBottom: '1.5px solid #005086' }}>
+                              <div className="header-section-title" style={{ background: '#f8fafc', color: '#005086', fontWeight: 800, textAlign: 'center', padding: '0.35rem 0.5rem', fontSize: '0.78rem', borderBottom: '1.5px solid #005086', textTransform: 'uppercase' }}>
+                                {isArabic ? 'المحتويات' : 'CONTENUS'}
+                              </div>
+                              <div style={{ padding: '0.4rem 0.5rem', minHeight: '45px' }}>
+                                <textarea
+                                  value={header.contenus || ''}
+                                  onChange={(e) => handleHeaderChange('contenus', e.target.value)}
+                                  placeholder={isArabic ? 'انقر هنا لإضافة المحتويات...' : 'Cliquer ici pour ajouter les contenus...'}
+                                  rows={2}
+                                  style={{
+                                    width: '100%',
+                                    fontSize: '0.82rem',
+                                    border: '1px dashed rgba(0,80,134,0.25)',
+                                    background: 'rgba(0,80,134,0.02)',
+                                    padding: '0.35rem',
+                                    borderRadius: '4px',
+                                    resize: 'vertical',
+                                    outline: 'none',
+                                    color: '#0f172a',
+                                    fontFamily: 'inherit'
+                                  }}
+                                />
+                              </div>
                             </td>
-                            <td style={{ padding: '0.45rem 0.75rem' }}>
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
-                                {(row.subpoints && row.subpoints.length > 0) ? (
-                                  row.subpoints.map((sb, sbIdx) => (
-                                    <span key={sbIdx} style={{
-                                      fontSize: '0.72rem',
-                                      padding: '0.1rem 0.4rem',
-                                      borderRadius: '4px',
-                                      background: 'rgba(0, 80, 134, 0.06)',
-                                      color: '#005086',
-                                      border: '1px solid rgba(0, 80, 134, 0.15)'
-                                    }}>
-                                      <strong>{sb.question}:</strong> {sb.points} pt
-                                    </span>
-                                  ))
-                                ) : (
-                                  <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>—</span>
-                                )}
+                          </tr>
+
+                          {/* Bottom Row: Red Line 3: LE CONTENU */}
+                          <tr>
+                            <td colSpan={2} style={{ padding: 0, verticalAlign: 'top' }}>
+                              <div className="header-section-title" style={{ background: '#f8fafc', color: '#005086', fontWeight: 800, textAlign: 'center', padding: '0.35rem 0.5rem', fontSize: '0.78rem', borderBottom: '1.5px solid #005086', textTransform: 'uppercase' }}>
+                                {isArabic ? 'المحتوى' : 'LE CONTENU'}
+                              </div>
+                              <div style={{ padding: '0.4rem 0.6rem', minHeight: '40px' }}>
+                                <textarea
+                                  value={header.le_contenu || ''}
+                                  onChange={(e) => handleHeaderChange('le_contenu', e.target.value)}
+                                  placeholder={isArabic ? 'انقر هنا لإضافة المحتوى العام...' : 'Cliquer ici pour ajouter le contenu général...'}
+                                  rows={2}
+                                  style={{
+                                    width: '100%',
+                                    fontSize: '0.82rem',
+                                    border: '1px dashed rgba(0,80,134,0.25)',
+                                    background: 'rgba(0,80,134,0.02)',
+                                    padding: '0.35rem',
+                                    borderRadius: '4px',
+                                    resize: 'vertical',
+                                    outline: 'none',
+                                    color: '#0f172a',
+                                    fontFamily: 'inherit'
+                                  }}
+                                />
                               </div>
                             </td>
                           </tr>
@@ -3945,7 +3717,6 @@ export default function LessonViewerPage() {
                   {showGradesTable ? 'Masquer la grille ▲' : 'Afficher le barème ▼'}
                 </button>
               </div>
-            )}
 
               {showGradesTable && (
                 <div style={{ marginTop: '0.85rem', overflowX: 'auto' }}>
@@ -4011,1175 +3782,1175 @@ export default function LessonViewerPage() {
             !isHomework
               ? (seriesColumns === 3 ? 'exercises-three-columns-layout' : (seriesColumns === 2 ? 'exercises-two-columns-layout' : 'exercises-one-column-layout'))
               : 'homework-sections-container exercises-one-column'
-              }`}>
-              {(!sections || sections.length === 0) ? (
-                <div style={{
-                  padding: '3rem 1.5rem',
-                  textAlign: 'center',
-                  background: 'var(--bg-glass)',
-                  borderRadius: '16px',
-                  border: '1.5px dashed var(--border)',
-                  margin: '1.5rem 0'
-                }}>
-                  <div style={{ fontSize: '2.2rem', marginBottom: '0.5rem' }}>📄</div>
-                  <h3 style={{ fontWeight: 800, color: 'var(--text-main)', marginBottom: '0.5rem', fontSize: '1.1rem' }}>
-                    {isArabic ? 'لا توجد تمارين أو فقرات مسجلة في هذه الوثيقة' : 'Aucun exercice ou section trouvé dans ce document'}
-                  </h3>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', marginBottom: '1.25rem' }}>
-                    {isArabic ? 'يمكنك إضافة محتوى جديد أو تعديل الوثيقة بالضغط على الزر أسفله.' : 'Vous pouvez ajouter des exercices en cliquant sur le bouton ci-dessous.'}
-                  </p>
-                  <button
-                    type="button"
-                    className="btn"
-                    onClick={() => setIsDirectEdit(true)}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
-                  >
-                    <Edit size={16} /> {isArabic ? 'تعديل الوثيقة وإضافة تمارين' : 'Éditer et ajouter du contenu'}
-                  </button>
-                </div>
-              ) : sections.map((sec, idx) => {
-                const secType = sec?.type || '';
-                const secTitleLower = (sec?.title || '').toLowerCase();
-                const isExplicitExercise = secType === 'exercise' || secType === 'application' || secTitleLower.startsWith('exercice') || secTitleLower.startsWith('application') || secTitleLower.startsWith('تمرين') || secTitleLower.startsWith('تطبيق');
-                const isTheory = !isExplicitExercise && (secType === 'definition' || secType === 'property' || secType === 'theorem' || secType === 'corollary' || secType === 'example' || secType === 'remark' || secType === 'activity' || secType === 'content');
-                const { number: exeNumber, label: exeLabel, prefix: exePrefix } = !isTheory
-                  ? parseExerciseTitle(sec.title, idx, isArabic, sec.section_number)
-                  : { number: '', label: '', prefix: '' };
+          }`}>
+            {(!sections || sections.length === 0) ? (
+              <div style={{
+                padding: '3rem 1.5rem',
+                textAlign: 'center',
+                background: 'var(--bg-glass)',
+                borderRadius: '16px',
+                border: '1.5px dashed var(--border)',
+                margin: '1.5rem 0'
+              }}>
+                <div style={{ fontSize: '2.2rem', marginBottom: '0.5rem' }}>📄</div>
+                <h3 style={{ fontWeight: 800, color: 'var(--text-main)', marginBottom: '0.5rem', fontSize: '1.1rem' }}>
+                  {isArabic ? 'لا توجد تمارين أو فقرات مسجلة في هذه الوثيقة' : 'Aucun exercice ou section trouvé dans ce document'}
+                </h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', marginBottom: '1.25rem' }}>
+                  {isArabic ? 'يمكنك إضافة محتوى جديد أو تعديل الوثيقة بالضغط على الزر أسفله.' : 'Vous pouvez ajouter des exercices en cliquant sur le bouton ci-dessous.'}
+                </p>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => setIsDirectEdit(true)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
+                >
+                  <Edit size={16} /> {isArabic ? 'تعديل الوثيقة وإضافة تمارين' : 'Éditer et ajouter du contenu'}
+                </button>
+              </div>
+            ) : sections.map((sec, idx) => {
+              const secType = sec?.type || '';
+              const secTitleLower = (sec?.title || '').toLowerCase();
+              const isExplicitExercise = secType === 'exercise' || secType === 'application' || secTitleLower.startsWith('exercice') || secTitleLower.startsWith('application') || secTitleLower.startsWith('تمرين') || secTitleLower.startsWith('تطبيق');
+              const isTheory = !isExplicitExercise && (secType === 'definition' || secType === 'property' || secType === 'theorem' || secType === 'corollary' || secType === 'example' || secType === 'remark' || secType === 'activity' || secType === 'content');
+              const { number: exeNumber, label: exeLabel, prefix: exePrefix } = !isTheory 
+                ? parseExerciseTitle(sec.title, idx, isArabic, sec.section_number)
+                : { number: '', label: '', prefix: '' };
+              
+              // Decide whether to show section header row
+              const prevSec = idx > 0 ? sections[idx - 1] : null;
+              const showSectionHeader = sec.section_header && (!prevSec || prevSec.section_header !== sec.section_header);
+              
+              return (
+                <div key={sec.id || idx} className="exercise-section-wrapper" style={{ display: 'block', width: '100%', marginBottom: '1.25rem' }}>
+                  {(showSectionHeader || (isDirectEdit && sec.section_header !== undefined)) && sec.section_header !== undefined && (
+                    <div
+                      className="section-header-row"
+                      style={{
+                        marginTop: idx > 0 ? '1.5rem' : '0',
+                        marginBottom: '0.75rem',
+                        flexDirection: isArabic ? 'row-reverse' : 'row',
+                      }}
+                    >
+                      {isDirectEdit ? (
+                        <input
+                          type="text"
+                          value={sec.section_number || ''}
+                          onChange={(e) => handleSectionNumberChange(sec.id, e.target.value)}
+                          style={{
+                            width: '2.2rem',
+                            height: '2.2rem',
+                            borderRadius: '50%',
+                            background: '#005086',
+                            color: '#ffffff',
+                            border: '2px solid rgba(255,255,255,0.3)',
+                            textAlign: 'center',
+                            fontWeight: 900,
+                            fontSize: '0.85rem',
+                            flexShrink: 0
+                          }}
+                        />
+                      ) : (
+                        <div className="section-badge-circle">{sec.section_number || '1'}</div>
+                      )}
+                      {isDirectEdit ? (
+                        <input
+                          type="text"
+                          value={sec.section_header || ''}
+                          onChange={(e) => handleSectionHeaderChange(sec.id, e.target.value)}
+                          style={{
+                            flex: 1,
+                            fontFamily: isArabic ? arabicFont : 'inherit',
+                            direction: lessonDir,
+                            fontSize: '0.9rem',
+                            fontWeight: 700,
+                            color: '#005086',
+                            border: '1px solid rgba(0,80,134,0.25)',
+                            borderRadius: '8px',
+                            padding: '0.3rem 0.65rem',
+                            background: 'rgba(0,80,134,0.04)'
+                          }}
+                        />
+                      ) : (
+                        <div
+                          className="section-title-pill"
+                          style={{ fontFamily: isArabic ? arabicFont : 'inherit', direction: lessonDir }}
+                        >
+                          {renderWithMath(sec.section_header)}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {isTheory ? (() => {
+                    const type = sec.type || 'content';
+                    const titleLower = (sec.title || '').toLowerCase();
+                    
+                    const isDefinition = type === 'definition' || titleLower.includes('définition') || titleLower.includes('definition') || titleLower.includes('تعريف');
+                    const isProperty = type === 'property' || titleLower.includes('propriété') || titleLower.includes('propriete') || titleLower.includes('خاصية');
+                    const isTheorem = type === 'theorem' || titleLower.includes('théorème') || titleLower.includes('theoreme') || titleLower.includes('مبرهنة');
+                    const isCorollary = type === 'corollary' || titleLower.includes('corollaire') || titleLower.includes('نتيجة');
+                    const isExample = type === 'example' || titleLower.includes('exemple') || titleLower.includes('مثال');
+                    const isRemark = type === 'remark' || titleLower.includes('remarque') || titleLower.includes('ملاحظة');
+                    const isActivity = type === 'activity' || titleLower.includes('activité') || titleLower.includes('activite') || titleLower.includes('تطبيق');
 
-                // Decide whether to show section header row
-                const prevSec = idx > 0 ? sections[idx - 1] : null;
-                const showSectionHeader = sec.section_header && (!prevSec || prevSec.section_header !== sec.section_header);
+                    let cardStyle = {
+                      ...(isArabic ? { fontFamily: arabicFont } : {}),
+                    };
 
-                return (
-                  <div key={sec.id || idx} className="exercise-section-wrapper" style={{ display: 'block', width: '100%', marginBottom: '1.25rem' }}>
-                    {(showSectionHeader || (isDirectEdit && sec.section_header !== undefined)) && sec.section_header !== undefined && (
+                    let headerStyle = {
+                      flexDirection: isArabic ? 'row-reverse' : 'row',
+                      textAlign: isArabic ? 'right' : 'left',
+                      fontFamily: isArabic ? arabicFont : 'inherit',
+                    };
+
+                    if (isDefinition) {
+                      cardStyle = {
+                        ...cardStyle,
+                        border: '1.5px solid var(--violet)',
+                        background: 'var(--violet-soft)',
+                        borderRadius: '12px',
+                        padding: '1.5rem',
+                      };
+                      headerStyle = {
+                        ...headerStyle,
+                        color: 'var(--violet)',
+                        borderBottom: '1px dashed rgba(79, 70, 229, 0.25)',
+                      };
+                    } else if (isProperty) {
+                      cardStyle = {
+                        ...cardStyle,
+                        border: '1.5px solid var(--emerald)',
+                        background: 'var(--emerald-soft)',
+                        borderRadius: '12px',
+                        padding: '1.5rem',
+                      };
+                      headerStyle = {
+                        ...headerStyle,
+                        color: 'var(--emerald)',
+                        borderBottom: '1px dashed rgba(5, 150, 105, 0.25)',
+                      };
+                    } else if (isTheorem) {
+                      cardStyle = {
+                        ...cardStyle,
+                        border: '1.5px solid var(--danger)',
+                        background: 'var(--danger-soft)',
+                        borderRadius: '12px',
+                        padding: '1.5rem',
+                      };
+                      headerStyle = {
+                        ...headerStyle,
+                        color: 'var(--danger)',
+                        borderBottom: '1px dashed rgba(220, 38, 38, 0.25)',
+                      };
+                    } else if (isCorollary) {
+                      cardStyle = {
+                        ...cardStyle,
+                        border: '1.5px solid var(--warning)',
+                        background: 'var(--warning-soft)',
+                        borderRadius: '12px',
+                        padding: '1.5rem',
+                      };
+                      headerStyle = {
+                        ...headerStyle,
+                        color: 'var(--warning)',
+                        borderBottom: '1px dashed rgba(217, 119, 6, 0.25)',
+                      };
+                    } else if (isExample) {
+                      cardStyle = {
+                        ...cardStyle,
+                        border: 'none',
+                        background: 'rgba(148, 163, 184, 0.04)',
+                        padding: '1rem 1.25rem',
+                        borderRadius: '8px',
+                        boxShadow: 'none',
+                        ...(isArabic ? {
+                          borderRight: '4px solid var(--text-subtle)',
+                        } : {
+                          borderLeft: '4px solid var(--text-subtle)',
+                        })
+                      };
+                      headerStyle = {
+                        ...headerStyle,
+                        color: 'var(--text-main)',
+                        fontWeight: '800',
+                        borderBottom: 'none',
+                        marginBottom: '0.25rem',
+                        paddingBottom: 0,
+                      };
+                    } else if (isRemark) {
+                      cardStyle = {
+                        ...cardStyle,
+                        border: '1px solid rgba(217, 119, 6, 0.15)',
+                        background: 'var(--warning-soft)',
+                        padding: '1rem 1.25rem',
+                        borderRadius: '8px',
+                        boxShadow: 'none',
+                        ...(isArabic ? {
+                          borderRight: '4px solid var(--warning)',
+                        } : {
+                          borderLeft: '4px solid var(--warning)',
+                        })
+                      };
+                      headerStyle = {
+                        ...headerStyle,
+                        color: 'var(--warning)',
+                        fontWeight: '800',
+                        borderBottom: 'none',
+                        marginBottom: '0.25rem',
+                        paddingBottom: 0,
+                      };
+                    } else if (isActivity) {
+                      cardStyle = {
+                        ...cardStyle,
+                        border: '1px solid rgba(79, 70, 229, 0.15)',
+                        background: 'var(--violet-soft)',
+                        padding: '1rem 1.25rem',
+                        borderRadius: '8px',
+                        boxShadow: 'none',
+                        ...(isArabic ? {
+                          borderRight: '4px solid var(--violet)',
+                        } : {
+                          borderLeft: '4px solid var(--violet)',
+                        })
+                      };
+                      headerStyle = {
+                        ...headerStyle,
+                        color: 'var(--violet)',
+                        fontWeight: '800',
+                        borderBottom: 'none',
+                        marginBottom: '0.25rem',
+                        paddingBottom: 0,
+                      };
+                    } else {
+                      cardStyle = {
+                        ...cardStyle,
+                        border: 'none',
+                        background: 'transparent',
+                        padding: '0.25rem 0 0.25rem 1rem',
+                        boxShadow: 'none',
+                        borderRadius: 0,
+                        ...(isArabic ? {
+                          borderRight: '3px solid rgba(0,80,134,0.15)',
+                        } : {
+                          borderLeft: '3px solid rgba(0,80,134,0.15)',
+                        })
+                      };
+                      headerStyle = {
+                        ...headerStyle,
+                        borderBottom: '1px dashed rgba(0, 80, 134, 0.15)',
+                      };
+                    }
+
+                    const customTheoryBg = sec.bgColor || sec.bg_color || '';
+                    const customTheoryFontSize = sec.fontSize || sec.font_size || '';
+                    const customTheoryLineHeight = sec.lineHeight || sec.line_height || '';
+                    if (customTheoryBg && customTheoryBg !== 'transparent' && customTheoryBg !== '#ffffff') {
+                      cardStyle.background = `${customTheoryBg} !important`;
+                      cardStyle.border = '1px solid rgba(0,80,134,0.2)';
+                    }
+                    if (customTheoryFontSize) {
+                      cardStyle.fontSize = `${customTheoryFontSize} !important`;
+                    }
+                    if (customTheoryLineHeight) {
+                      cardStyle.lineHeight = `${customTheoryLineHeight} !important`;
+                    }
+
+                    return (
+                    <div
+                      className="subsection-card"
+                      style={cardStyle}
+                    >
                       <div
-                        className="section-header-row"
-                        style={{
-                          marginTop: idx > 0 ? '1.5rem' : '0',
-                          marginBottom: '0.75rem',
-                          flexDirection: isArabic ? 'row-reverse' : 'row',
-                        }}
+                        className="subsection-header-inline"
+                        style={headerStyle}
                       >
                         {isDirectEdit ? (
                           <input
                             type="text"
-                            value={sec.section_number || ''}
-                            onChange={(e) => handleSectionNumberChange(sec.id, e.target.value)}
+                            value={sec.title || ''}
+                            onChange={(e) => handleTitleChange(sec.id, e.target.value)}
                             style={{
-                              width: '2.2rem',
-                              height: '2.2rem',
-                              borderRadius: '50%',
-                              background: '#005086',
-                              color: '#ffffff',
-                              border: '2px solid rgba(255,255,255,0.3)',
-                              textAlign: 'center',
-                              fontWeight: 900,
-                              fontSize: '0.85rem',
-                              flexShrink: 0
-                            }}
-                          />
-                        ) : (
-                          <div className="section-badge-circle">{sec.section_number || '1'}</div>
-                        )}
-                        {isDirectEdit ? (
-                          <input
-                            type="text"
-                            value={sec.section_header || ''}
-                            onChange={(e) => handleSectionHeaderChange(sec.id, e.target.value)}
-                            style={{
-                              flex: 1,
-                              fontFamily: isArabic ? arabicFont : 'inherit',
+                              background: 'transparent',
+                              border: 'none',
+                              borderBottom: '1.5px dashed rgba(79,70,229,0.4)',
+                              outline: 'none',
+                              fontSize: 'inherit',
+                              fontWeight: 'inherit',
+                              color: 'inherit',
+                              width: '100%',
+                              fontFamily: 'inherit',
+                              padding: '0.1rem 0',
                               direction: lessonDir,
-                              fontSize: '0.9rem',
-                              fontWeight: 700,
-                              color: '#005086',
-                              border: '1px solid rgba(0,80,134,0.25)',
-                              borderRadius: '8px',
-                              padding: '0.3rem 0.65rem',
-                              background: 'rgba(0,80,134,0.04)'
                             }}
                           />
                         ) : (
-                          <div
-                            className="section-title-pill"
-                            style={{ fontFamily: isArabic ? arabicFont : 'inherit', direction: lessonDir }}
-                          >
-                            {renderWithMath(sec.section_header)}
-                          </div>
+                          <span>{renderWithMath(sec.title)}</span>
+                        )}
+                        {sec.accent_text && (
+                          <span className="accent-green-text" style={{ display: 'block', marginTop: '0.35rem', fontStyle: 'italic' }}>
+                            {renderWithMath(sec.accent_text.replace(/\\n/g, '\n'))}
+                          </span>
                         )}
                       </div>
-                    )}
 
-                    {isTheory ? (() => {
-                      const type = sec.type || 'content';
-                      const titleLower = (sec.title || '').toLowerCase();
-
-                      const isDefinition = type === 'definition' || titleLower.includes('définition') || titleLower.includes('definition') || titleLower.includes('تعريف');
-                      const isProperty = type === 'property' || titleLower.includes('propriété') || titleLower.includes('propriete') || titleLower.includes('خاصية');
-                      const isTheorem = type === 'theorem' || titleLower.includes('théorème') || titleLower.includes('theoreme') || titleLower.includes('مبرهنة');
-                      const isCorollary = type === 'corollary' || titleLower.includes('corollaire') || titleLower.includes('نتيجة');
-                      const isExample = type === 'example' || titleLower.includes('exemple') || titleLower.includes('مثال');
-                      const isRemark = type === 'remark' || titleLower.includes('remarque') || titleLower.includes('ملاحظة');
-                      const isActivity = type === 'activity' || titleLower.includes('activité') || titleLower.includes('activite') || titleLower.includes('تطبيق');
-
-                      let cardStyle = {
-                        ...(isArabic ? { fontFamily: arabicFont } : {}),
-                      };
-
-                      let headerStyle = {
-                        flexDirection: isArabic ? 'row-reverse' : 'row',
-                        textAlign: isArabic ? 'right' : 'left',
-                        fontFamily: isArabic ? arabicFont : 'inherit',
-                      };
-
-                      if (isDefinition) {
-                        cardStyle = {
-                          ...cardStyle,
-                          border: '1.5px solid var(--violet)',
-                          background: 'var(--violet-soft)',
-                          borderRadius: '12px',
-                          padding: '1.5rem',
-                        };
-                        headerStyle = {
-                          ...headerStyle,
-                          color: 'var(--violet)',
-                          borderBottom: '1px dashed rgba(79, 70, 229, 0.25)',
-                        };
-                      } else if (isProperty) {
-                        cardStyle = {
-                          ...cardStyle,
-                          border: '1.5px solid var(--emerald)',
-                          background: 'var(--emerald-soft)',
-                          borderRadius: '12px',
-                          padding: '1.5rem',
-                        };
-                        headerStyle = {
-                          ...headerStyle,
-                          color: 'var(--emerald)',
-                          borderBottom: '1px dashed rgba(5, 150, 105, 0.25)',
-                        };
-                      } else if (isTheorem) {
-                        cardStyle = {
-                          ...cardStyle,
-                          border: '1.5px solid var(--danger)',
-                          background: 'var(--danger-soft)',
-                          borderRadius: '12px',
-                          padding: '1.5rem',
-                        };
-                        headerStyle = {
-                          ...headerStyle,
-                          color: 'var(--danger)',
-                          borderBottom: '1px dashed rgba(220, 38, 38, 0.25)',
-                        };
-                      } else if (isCorollary) {
-                        cardStyle = {
-                          ...cardStyle,
-                          border: '1.5px solid var(--warning)',
-                          background: 'var(--warning-soft)',
-                          borderRadius: '12px',
-                          padding: '1.5rem',
-                        };
-                        headerStyle = {
-                          ...headerStyle,
-                          color: 'var(--warning)',
-                          borderBottom: '1px dashed rgba(217, 119, 6, 0.25)',
-                        };
-                      } else if (isExample) {
-                        cardStyle = {
-                          ...cardStyle,
-                          border: 'none',
-                          background: 'rgba(148, 163, 184, 0.04)',
-                          padding: '1rem 1.25rem',
-                          borderRadius: '8px',
-                          boxShadow: 'none',
-                          ...(isArabic ? {
-                            borderRight: '4px solid var(--text-subtle)',
-                          } : {
-                            borderLeft: '4px solid var(--text-subtle)',
-                          })
-                        };
-                        headerStyle = {
-                          ...headerStyle,
-                          color: 'var(--text-main)',
-                          fontWeight: '800',
-                          borderBottom: 'none',
-                          marginBottom: '0.25rem',
-                          paddingBottom: 0,
-                        };
-                      } else if (isRemark) {
-                        cardStyle = {
-                          ...cardStyle,
-                          border: '1px solid rgba(217, 119, 6, 0.15)',
-                          background: 'var(--warning-soft)',
-                          padding: '1rem 1.25rem',
-                          borderRadius: '8px',
-                          boxShadow: 'none',
-                          ...(isArabic ? {
-                            borderRight: '4px solid var(--warning)',
-                          } : {
-                            borderLeft: '4px solid var(--warning)',
-                          })
-                        };
-                        headerStyle = {
-                          ...headerStyle,
-                          color: 'var(--warning)',
-                          fontWeight: '800',
-                          borderBottom: 'none',
-                          marginBottom: '0.25rem',
-                          paddingBottom: 0,
-                        };
-                      } else if (isActivity) {
-                        cardStyle = {
-                          ...cardStyle,
-                          border: '1px solid rgba(79, 70, 229, 0.15)',
-                          background: 'var(--violet-soft)',
-                          padding: '1rem 1.25rem',
-                          borderRadius: '8px',
-                          boxShadow: 'none',
-                          ...(isArabic ? {
-                            borderRight: '4px solid var(--violet)',
-                          } : {
-                            borderLeft: '4px solid var(--violet)',
-                          })
-                        };
-                        headerStyle = {
-                          ...headerStyle,
-                          color: 'var(--violet)',
-                          fontWeight: '800',
-                          borderBottom: 'none',
-                          marginBottom: '0.25rem',
-                          paddingBottom: 0,
-                        };
-                      } else {
-                        cardStyle = {
-                          ...cardStyle,
-                          border: 'none',
-                          background: 'transparent',
-                          padding: '0.25rem 0 0.25rem 1rem',
-                          boxShadow: 'none',
-                          borderRadius: 0,
-                          ...(isArabic ? {
-                            borderRight: '3px solid rgba(0,80,134,0.15)',
-                          } : {
-                            borderLeft: '3px solid rgba(0,80,134,0.15)',
-                          })
-                        };
-                        headerStyle = {
-                          ...headerStyle,
-                          borderBottom: '1px dashed rgba(0, 80, 134, 0.15)',
-                        };
-                      }
-
-                      const customTheoryBg = sec.bgColor || sec.bg_color || '';
-                      const customTheoryFontSize = sec.fontSize || sec.font_size || '';
-                      const customTheoryLineHeight = sec.lineHeight || sec.line_height || '';
-                      if (customTheoryBg && customTheoryBg !== 'transparent' && customTheoryBg !== '#ffffff') {
-                        cardStyle.background = `${customTheoryBg} !important`;
-                        cardStyle.border = '1px solid rgba(0,80,134,0.2)';
-                      }
-                      if (customTheoryFontSize) {
-                        cardStyle.fontSize = `${customTheoryFontSize} !important`;
-                      }
-                      if (customTheoryLineHeight) {
-                        cardStyle.lineHeight = `${customTheoryLineHeight} !important`;
-                      }
-
-                      return (
-                        <div
-                          className="subsection-card"
-                          style={cardStyle}
-                        >
-                          <div
-                            className="subsection-header-inline"
-                            style={headerStyle}
-                          >
-                            {isDirectEdit ? (
-                              <input
-                                type="text"
-                                value={sec.title || ''}
-                                onChange={(e) => handleTitleChange(sec.id, e.target.value)}
-                                style={{
-                                  background: 'transparent',
-                                  border: 'none',
-                                  borderBottom: '1.5px dashed rgba(79,70,229,0.4)',
-                                  outline: 'none',
-                                  fontSize: 'inherit',
-                                  fontWeight: 'inherit',
-                                  color: 'inherit',
-                                  width: '100%',
-                                  fontFamily: 'inherit',
-                                  padding: '0.1rem 0',
-                                  direction: lessonDir,
-                                }}
-                              />
-                            ) : (
-                              <span>{renderWithMath(sec.title)}</span>
-                            )}
-                            {sec.accent_text && (
-                              <span className="accent-green-text" style={{ display: 'block', marginTop: '0.35rem', fontStyle: 'italic' }}>
-                                {renderWithMath(sec.accent_text.replace(/\\n/g, '\n'))}
-                              </span>
-                            )}
-                          </div>
-
-                          {sec.items?.map((item, itemIdx) => {
-                            if (item.type === 'grid_items' || Array.isArray(item.grid_items)) {
-                              const gList = item.grid_items || item.items || [];
-                              const minWidthVal = isMobile ? '100%' : '240px';
-                              return (
-                                <div
-                                  key={itemIdx}
-                                  style={{
-                                    display: 'grid',
-                                    gridTemplateColumns: `repeat(auto-fit, minmax(${minWidthVal}, 1fr))`,
-                                    gap: '0.75rem 1.25rem',
-                                    margin: '0.85rem 0',
-                                    direction: lessonDir
-                                  }}
-                                >
-                                  {gList.map((gItem, gIdx) => {
-                                    const gText = typeof gItem === 'string' ? gItem : (gItem?.text || '');
-                                    return (
-                                      <div
-                                        key={gIdx}
-                                        style={{
-                                          display: 'flex',
-                                          alignItems: 'flex-start',
-                                          gap: '0.5rem',
-                                          background: 'rgba(255,255,255,0.02)',
-                                          padding: '0.6rem 0.85rem',
-                                          borderRadius: '10px',
-                                          border: '1px solid var(--border)',
-                                          boxShadow: '0 2px 8px rgba(0,0,0,0.02)'
-                                        }}
-                                      >
-                                        <span style={{ color: 'var(--violet)', fontWeight: 900, fontSize: '0.9rem' }}>•</span>
-                                        <div style={{ flex: 1, fontFamily: isArabic ? arabicFont : 'inherit' }}>
-                                          {renderWithMath(gText)}
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              );
-                            }
-
-                            if (item.type === 'highlight_box') {
-                              return (
-                                <div
-                                  key={itemIdx}
-                                  className="classic-highlight-box"
-                                  style={isArabic ? { direction: 'rtl', textAlign: 'right', fontFamily: arabicFont } : {}}
-                                >
-                                  {renderWithMath(item.text)}
-                                </div>
-                              );
-                            }
-
-                            if (item.type === 'table') {
-                              return (
-                                <div key={itemIdx} style={{ margin: '1.25rem 0', width: '100%' }}>
-                                  <SmartTableRenderer
-                                    table={item.table_data || item.table || item.data || item.text || item}
-                                    title={item.title}
-                                  />
-                                </div>
-                              );
-                            }
-
-                            if (item.type === 'image') {
-                              const refFigs = getReferencedFigIds(sec);
-                              const entryForIdx = getSectionImageEntries(sec).find(e => e.itemIdx === itemIdx);
-                              if (entryForIdx && refFigs.has(entryForIdx.figId.toLowerCase())) {
-                                return null;
-                              }
-                              const align = item.align || 'center';
-                              const widthPct = item.width_pct || 80;
-                              const justifyMap = { left: 'flex-start', center: 'center', right: 'flex-end' };
-                              const rawUrl = (item.url || '').trim();
-                              const altText = item.alt || item.description || '';
-                              const altLower = altText.toLowerCase();
-                              const urlLower = rawUrl.toLowerCase();
-
-                              const isInvalidUrl = !rawUrl || rawUrl.length < 5 || rawUrl.includes('placeholder') || rawUrl.includes('example.com') || rawUrl === 'none' || rawUrl === 'url' || rawUrl === 'image';
-                              const isSignTable = altLower.includes('tableau de signe') || altLower.includes('sign_table') || urlLower.includes('sign_table');
-
-                              if (isSignTable) {
+                      {sec.items?.map((item, itemIdx) => {
+                        if (item.type === 'grid_items' || Array.isArray(item.grid_items)) {
+                          const gList = item.grid_items || item.items || [];
+                          const minWidthVal = isMobile ? '100%' : '240px';
+                          return (
+                            <div
+                              key={itemIdx}
+                              style={{
+                                display: 'grid',
+                                gridTemplateColumns: `repeat(auto-fit, minmax(${minWidthVal}, 1fr))`,
+                                gap: '0.75rem 1.25rem',
+                                margin: '0.85rem 0',
+                                direction: lessonDir
+                              }}
+                            >
+                              {gList.map((gItem, gIdx) => {
+                                const gText = typeof gItem === 'string' ? gItem : (gItem?.text || '');
                                 return (
-                                  <div key={itemIdx} style={{ display: 'flex', justifyContent: justifyMap[align], width: '100%', margin: '0.75rem 0' }}>
-                                    <SignTableViewer altText={altText || rawUrl} />
-                                  </div>
-                                );
-                              }
-
-                              return (
-                                <div
-                                  key={itemIdx}
-                                  style={{
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignItems: justifyMap[align],
-                                    margin: '1.25rem 0',
-                                    width: '100%'
-                                  }}
-                                >
-                                  <div
-                                    style={{
-                                      background: 'var(--bg-card)',
+                                  <div 
+                                    key={gIdx} 
+                                    style={{ 
+                                      display: 'flex', 
+                                      alignItems: 'flex-start', 
+                                      gap: '0.5rem', 
+                                      background: 'rgba(255,255,255,0.02)', 
+                                      padding: '0.6rem 0.85rem', 
+                                      borderRadius: '10px', 
                                       border: '1px solid var(--border)',
-                                      borderRadius: '16px',
-                                      padding: '0.85rem',
-                                      boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
-                                      display: 'inline-flex',
-                                      flexDirection: 'column',
-                                      alignItems: 'center',
-                                      maxWidth: `${widthPct}%`,
-                                      minWidth: '260px'
+                                      boxShadow: '0 2px 8px rgba(0,0,0,0.02)'
                                     }}
                                   >
-                                    {isInvalidUrl ? (
-                                      <div style={{ padding: '1.5rem 1rem', textAlign: 'center', color: 'var(--text-subtle)', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', width: '100%' }}>
-                                        <div style={{ fontSize: '2rem', marginBottom: '0.4rem' }}>📈</div>
-                                        <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>{altText ? renderWithMath(altText) : (isArabic ? 'شكل هندسي / منحنى دالة' : 'Figure / Courbe représentative')}</div>
-                                      </div>
-                                    ) : (
-                                      <img
-                                        src={rawUrl}
-                                        alt={altText || 'Figure'}
-                                        style={{
-                                          width: '100%',
-                                          maxHeight: '400px',
-                                          borderRadius: '10px',
-                                          display: 'block',
-                                          objectFit: 'contain',
-                                        }}
-                                      />
-                                    )}
-
-                                    {altText && (
-                                      <div style={{ marginTop: '0.6rem', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-muted)', textAlign: 'center' }}>
-                                        {renderWithMath(altText)}
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            }
-                            if (item.type === 'notation_grid') {
-                              return (
-                                <div key={itemIdx} className="notation-grid">
-                                  {item.notation_columns?.map((col, colIdx) => (
-                                    <div
-                                      key={colIdx}
-                                      className="notation-column"
-                                      style={isArabic ? {
-                                        borderLeft: 'none',
-                                        borderRight: '2px solid rgba(0,80,134,0.15)',
-                                        paddingLeft: 0,
-                                        paddingRight: '1rem',
-                                      } : {}}
-                                    >
-                                      <strong style={{ fontSize: '0.85rem', color: '#005086', fontFamily: isArabic ? arabicFont : 'inherit' }}>{col.title}</strong>
-                                      {col.math_blocks?.map((block, bIdx) => (
-                                        <div key={bIdx} style={{ display: 'block', margin: '0.5rem 0' }}>
-                                          {renderWithMath(block)}
-                                        </div>
-                                      ))}
+                                    <span style={{ color: 'var(--violet)', fontWeight: 900, fontSize: '0.9rem' }}>•</span>
+                                    <div style={{ flex: 1, fontFamily: isArabic ? arabicFont : 'inherit' }}>
+                                      {renderWithMath(gText)}
                                     </div>
-                                  ))}
-                                </div>
-                              );
-                            }
-                            if (item.type === 'table') {
-                              return (
-                                <div key={itemIdx} style={{ overflowX: 'auto', width: '100%', margin: '0.5rem 0' }}>
-                                  <table className="sheet-table" style={isArabic ? { direction: 'rtl' } : {}}>
-                                    <thead>
-                                      <tr>
-                                        {item.table_data?.headers?.map((h, hIdx) => (
-                                          <th key={hIdx} style={isArabic ? { fontFamily: arabicFont } : {}}>{renderWithMath(h)}</th>
-                                        ))}
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {item.table_data?.rows?.map((row, rIdx) => (
-                                        <tr key={rIdx}>
-                                          {row.map((cell, cIdx) => (
-                                            <td key={cIdx} style={isArabic ? { fontFamily: arabicFont } : {}}>{renderWithMath(cell)}</td>
-                                          ))}
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              );
-                            }
-                            // text / bullet
-                            return (
-                              <div
-                                key={itemIdx}
-                                className="bullet-item"
-                                style={isArabic ? {
-                                  flexDirection: 'row-reverse',
-                                  textAlign: 'right',
-                                  fontFamily: arabicFont,
-                                } : {}}
-                              >
-                                {item.type === 'bullet' && (
-                                  <span className="bullet-dot" style={isArabic ? { marginLeft: '0.5rem', marginRight: 0 } : {}}>•</span>
-                                )}
-                                {isDirectEdit ? (
-                                  <textarea
-                                    value={item.text || ''}
-                                    onChange={(e) => {
-                                      setLesson(prev => {
-                                        if (!prev) return prev;
-                                        const updatedSections = prev.content.sections.map(s => {
-                                          if (s.id !== sec.id) return s;
-                                          const newItems = (s.items || []).map((it, i) => i === itemIdx ? { ...it, text: e.target.value } : it);
-                                          return { ...s, items: newItems };
-                                        });
-                                        return { ...prev, content: { ...prev.content, sections: updatedSections } };
-                                      });
-                                    }}
-                                    style={{
-                                      flex: 1,
-                                      border: '1px solid rgba(0,80,134,0.15)',
-                                      borderRadius: '4px',
-                                      background: 'rgba(255,255,255,0.7)',
-                                      padding: '0.3rem 0.5rem',
-                                      fontSize: '0.95rem',
-                                      color: '#1a202c',
-                                      fontFamily: isArabic ? arabicFont : 'inherit',
-                                      resize: 'vertical',
-                                      minHeight: '2.2rem',
-                                      width: '100%',
-                                      direction: lessonDir
-                                    }}
-                                  />
-                                ) : (
-                                  <span style={{ flex: 1 }}>{renderMathWithSectionFigures(item.text, sec)}</span>
-                                )}
-                              </div>
-                            );
-                          })}
-
-                          {/* Render text if stored in sec.content */}
-                          {sec.content && (
-                            <div style={{ marginTop: '0.65rem', marginBottom: '0.65rem', width: '100%', direction: lessonDir, fontFamily: isArabic ? arabicFont : 'inherit' }}>
-                              {isDirectEdit ? (
-                                <textarea
-                                  value={sec.content || ''}
-                                  onChange={e => handleUpdateSectionContent(sec.id, e.target.value)}
-                                  rows={Math.max(2, (sec.content || '').split('\n').length)}
-                                  style={{
-                                    width: '100%',
-                                    border: '1px dashed #005086',
-                                    borderRadius: '6px',
-                                    padding: '0.5rem',
-                                    fontSize: '0.92rem',
-                                    background: 'rgba(255,255,255,0.7)',
-                                    color: '#1a202c',
-                                    direction: lessonDir
-                                  }}
-                                />
-                              ) : (
-                                renderMathWithSectionFigures(sec.content, sec)
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })() : (
-                      (() => {
-                        if (isHomework) {
-                          const hwRefFigs = getReferencedFigIds(sec);
-                          const hwEntriesByIdx = new Map(getSectionImageEntries(sec).map(e => [e.itemIdx, e.figId.toLowerCase()]));
-                          const hwUnplacedBefore = (sec.items || [])
-                            .map((it, itIdx) => ({ it, itIdx }))
-                            .filter(({ it, itIdx }) => it?.type === 'image' && it.position === 'before' && !hwRefFigs.has(hwEntriesByIdx.get(itIdx)));
-                          const hwUnplacedAfter = (sec.items || [])
-                            .map((it, itIdx) => ({ it, itIdx }))
-                            .filter(({ it, itIdx }) => it?.type === 'image' && it.position !== 'before' && !hwRefFigs.has(hwEntriesByIdx.get(itIdx)));
-
-                          return (
-                            <div className="homework-table" style={isArabic ? { fontFamily: arabicFont } : {}}>
-                              <div className="homework-header-row">
-                                <div className="homework-bareme-header">{calculateTotalPoints(sec.content, isArabic, `${sec.points ? `(${sec.points} pts) ` : ''}${sec.title || ''} ${sec.section_header || ''}`.trim())}</div>
-                                <div className="homework-content-header">
-                                  {isArabic ? 'تمرين' : 'Exercice'} {exeNumber} {exeLabel ? ` : ${exeLabel}` : ''}
-                                </div>
-                              </div>
-
-                              {hwUnplacedBefore.length > 0 && (
-                                <div className="homework-row homework-media-row">
-                                  <div className="homework-bareme-cell" />
-                                  <div className="homework-content-cell homework-media-cell">
-                                    {hwUnplacedBefore.map(({ it, itIdx }) => renderInlineFigureNode(it, `hw-before-${itIdx}`))}
                                   </div>
-                                </div>
-                              )}
-
-                              {renderHomeworkBody(sec.content, isArabic, arabicFont, renderWithMath, sec.id, handlePointsChange, isDirectEdit, handleContentChange, sec)}
-
-                              {hwUnplacedAfter.length > 0 && (
-                                <div className="homework-row homework-media-row">
-                                  <div className="homework-bareme-cell" />
-                                  <div className="homework-content-cell homework-media-cell">
-                                    {hwUnplacedAfter.map(({ it, itIdx }) => renderInlineFigureNode(it, `hw-after-${itIdx}`))}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Interactive student checks inside homework row */}
-                              {sec.interactive_answers?.length > 0 && (
-                                <div className="homework-row no-print" style={{ background: 'rgba(0,80,134,0.01)' }}>
-                                  <div className="homework-bareme-cell" style={{ color: '#005086' }}><Calculator size={18} /></div>
-                                  <div className="homework-content-cell">
-                                    <form
-                                      onSubmit={(e) => {
-                                        e.preventDefault();
-                                        sec.interactive_answers.forEach(ans => {
-                                          handleCheckAnswer(sec.id, ans.question_idx, ans.expected_answer);
-                                        });
-                                      }}
-                                      className="interactive-form no-print"
-                                      style={{ margin: 0 }}
-                                    >
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700, fontSize: '0.85rem', color: '#005086', marginBottom: '0.5rem' }}>
-                                        <Calculator size={16} /> Mode interactif : Calculez et valisez vos résultats
-                                      </div>
-                                      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                                        {sec.interactive_answers.map((ans, ansIdx) => {
-                                          const ansKey = `${sec.id}-${ans.question_idx}`;
-                                          return (
-                                            <div key={ansIdx} style={{ flex: 1, minWidth: '120px' }}>
-                                              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.25rem' }}>
-                                                {ans.label}
-                                              </label>
-                                              <input
-                                                type="text"
-                                                placeholder="Votre réponse"
-                                                value={studentAnswers[ansKey] || ''}
-                                                onChange={(e) => setStudentAnswers(prev => ({ ...prev, [ansKey]: e.target.value }))}
-                                                className="input-control"
-                                                style={{ padding: '0.4rem 0.75rem', fontSize: '0.85rem', width: '100%' }}
-                                              />
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-
-                                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                                        <button type="submit" className="btn" style={{ padding: '0.4rem 1rem', fontSize: '0.75rem', width: 'fit-content' }}>
-                                          Vérifier mes réponses
-                                        </button>
-
-                                        {sec.interactive_answers.every(ans => checkResults[`${sec.id}-${ans.question_idx}`] === 'success') && (
-                                          <span style={{ color: '#059669', fontSize: '0.8rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                                            <Check size={16} strokeWidth={3} /> Réponses correctes !
-                                          </span>
-                                        )}
-                                        {sec.interactive_answers.some(ans => checkResults[`${sec.id}-${ans.question_idx}`] === 'error') && (
-                                          <span style={{ color: '#ef4444', fontSize: '0.8rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                                            <X size={16} strokeWidth={3} /> Mauvaise réponse, réessayez.
-                                          </span>
-                                        )}
-                                      </div>
-                                    </form>
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Solution block in homework row */}
-                              {sec.solution && (
-                                <div className="homework-row no-print" style={{ background: 'rgba(16,185,129,0.01)' }}>
-                                  <div className="homework-bareme-cell" style={{ background: 'rgba(16,185,129,0.03)', color: '#059669', cursor: 'pointer', borderTop: '1px solid rgba(16,185,129,0.12)' }} onClick={() => toggleSolution(sec.id)}>
-                                    📖
-                                  </div>
-                                  <div className="homework-content-cell" style={{ borderTop: '1px solid rgba(16,185,129,0.12)' }}>
-                                    <button
-                                      className="solution-link-btn"
-                                      onClick={() => toggleSolution(sec.id)}
-                                      style={{ padding: '0.25rem 0', fontFamily: isArabic ? arabicFont : 'inherit', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#059669', fontWeight: 700, fontSize: '0.85rem' }}
-                                    >
-                                      {visibleSolutions[sec.id] ? <EyeOff size={14} /> : <Eye size={14} />}
-                                      {isArabic
-                                        ? (visibleSolutions[sec.id] ? 'إخفاء الحل' : 'إظهار الحل المفصل')
-                                        : (visibleSolutions[sec.id] ? 'Masquer la solution' : 'Afficher la solution rédigée')
-                                      }
-                                    </button>
-
-                                    {visibleSolutions[sec.id] && (
-                                      <div className="solution-block" style={{ marginTop: '0.65rem', padding: '0.75rem 0 0', borderTop: '1px dashed rgba(16,185,129,0.2)' }}>
-                                        <h4 style={{ color: '#059669', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.95rem', flexDirection: isArabic ? 'row-reverse' : 'row', fontFamily: isArabic ? arabicFont : 'inherit' }}>
-                                          <BookOpenCheck size={16} />
-                                          {isArabic ? 'الحل المفصل' : 'Démonstration rédigée'}
-                                        </h4>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontSize: '0.9rem', lineHeight: 1.8, textAlign: isArabic ? 'right' : 'left', fontFamily: isArabic ? arabicFont : 'inherit', direction: isArabic ? 'rtl' : 'ltr' }}>
-                                          {renderMathWithSectionFigures(sec.solution, sec)}
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
+                                );
+                              })}
                             </div>
                           );
                         }
 
-                        return (
-                          <div className="exercise-wrapper" style={isArabic ? { fontFamily: arabicFont } : {}}>
+                        if (item.type === 'highlight_box') {
+                          return (
                             <div
-                              className="exercise-banner-row"
-                              style={isArabic ? { flexDirection: 'row' } : {}}
+                              key={itemIdx}
+                              className="classic-highlight-box"
+                              style={isArabic ? { direction: 'rtl', textAlign: 'right', fontFamily: arabicFont } : {}}
                             >
-                              <div style={{
-                                display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap',
-                                flexDirection: isArabic ? 'row' : 'row',
-                              }}>
-                                <div className="exercise-pill" style={isArabic ? { fontFamily: arabicFont, flexDirection: 'row' } : {}}>
-                                  <span>
-                                    {isArabic
-                                      ? (exePrefix === 'Application' ? 'تطبيق' : exePrefix === 'Activité' ? 'نشاط' : 'تمرين')
-                                      : (exePrefix || 'Exercice N°')
-                                    }
-                                  </span>
-                                  <span style={{
-                                    background: '#ffffff', color: '#005086',
-                                    minWidth: '20px', height: '20px', borderRadius: '10px',
-                                    padding: '0 5px',
-                                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                                    fontSize: '0.75rem', fontWeight: 900,
-                                    whiteSpace: 'nowrap'
-                                  }}>{exeNumber}</span>
-                                </div>
-                                {exeLabel && (
-                                  <span style={{
-                                    fontWeight: 800, fontSize: '1rem', color: 'var(--text-main)',
-                                    display: 'inline-flex', alignItems: 'center',
-                                    fontFamily: isArabic ? arabicFont : 'inherit',
-                                  }}>
-                                    {renderWithMath(exeLabel)}
-                                  </span>
-                                )}
-                              </div>
-
-                              <button
-                                className="solution-link-btn no-print"
-                                onClick={() => toggleSolution(sec.id)}
-                                style={isArabic ? { fontFamily: arabicFont, flexDirection: 'row' } : {}}
-                              >
-                                {visibleSolutions[sec.id] ? <EyeOff size={14} /> : <Eye size={14} />}
-                                {isArabic
-                                  ? (visibleSolutions[sec.id] ? 'إخفاء الحل' : 'إظهار الحل المفصل')
-                                  : (visibleSolutions[sec.id] ? 'Masquer la solution' : 'Afficher la solution rédigée')
-                                }
-                              </button>
+                              {renderWithMath(item.text)}
                             </div>
+                          );
+                        }
 
-                            {(() => {
-                              const customBg = sec.bgColor || sec.bg_color || '';
-                              const customFontSize = sec.fontSize || sec.font_size || '';
-                              const customLineHeight = sec.lineHeight || sec.line_height || '';
-                              const hasCustomBg = customBg && customBg !== 'transparent' && customBg !== '#ffffff';
+                        if (item.type === 'table') {
+                          return (
+                            <div key={itemIdx} style={{ margin: '1.25rem 0', width: '100%' }}>
+                              <SmartTableRenderer
+                                table={item.table_data || item.table || item.data || item.text || item}
+                                title={item.title}
+                              />
+                            </div>
+                          );
+                        }
 
-                              return (
-                                <div
-                                  className={`exercise-body-box ${hasCustomBg ? 'has-custom-bg' : ''}`}
-                                  style={{
-                                    ...(isArabic ? {
-                                      textAlign: 'right',
-                                      fontFamily: arabicFont,
-                                      direction: 'rtl',
-                                    } : {}),
-                                    background: hasCustomBg ? `${customBg} !important` : undefined,
-                                    padding: hasCustomBg ? '0.75rem 1rem' : undefined,
-                                    borderRadius: hasCustomBg ? '8px' : undefined,
-                                    border: hasCustomBg ? '1px solid rgba(0,80,134,0.18)' : undefined,
-                                    fontSize: customFontSize ? `${customFontSize} !important` : undefined,
-                                    lineHeight: customLineHeight ? `${customLineHeight} !important` : undefined,
-                                  }}
-                                >
-                                  {/* Direct Edit Style Toolbar */}
-                                  {isDirectEdit && (
-                                    <div style={{
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      gap: '0.6rem',
-                                      flexWrap: 'wrap',
-                                      background: 'var(--bg-card, #f8fafc)',
-                                      padding: '0.35rem 0.65rem',
-                                      borderRadius: '8px',
-                                      border: '1px solid var(--border, #cbd5e1)',
-                                      marginBottom: '0.6rem'
-                                    }}>
-                                      {/* Background color */}
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                                        <Palette size={13} style={{ color: '#005086' }} />
-                                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted, #64748b)' }}>{isArabic ? 'الخلفية:' : 'Fond :'}</span>
-                                        <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
-                                          {[
-                                            { label: 'Sans fond', val: 'transparent', color: '#ffffff', border: '#cbd5e1' },
-                                            { label: 'Bleu ciel', val: '#f0f9ff', color: '#f0f9ff', border: '#bae6fd' },
-                                            { label: 'Jaune doux', val: '#fefce8', color: '#fefce8', border: '#fef08a' },
-                                            { label: 'Vert menthe', val: '#f0fdf4', color: '#f0fdf4', border: '#bbf7d0' },
-                                            { label: 'Gris élégant', val: '#f8fafc', color: '#f8fafc', border: '#e2e8f0' },
-                                            { label: 'Rose pastel', val: '#fff1f2', color: '#fff1f2', border: '#fecdd3' }
-                                          ].map(c => (
-                                            <button
-                                              key={c.val}
-                                              type="button"
-                                              onClick={() => handleUpdateSectionStyle(sec.id, 'bgColor', (sec.bgColor || 'transparent') === c.val ? 'transparent' : c.val)}
-                                              title={c.label}
-                                              style={{
-                                                width: '16px',
-                                                height: '16px',
-                                                borderRadius: '50%',
-                                                background: c.color,
-                                                border: `2px solid ${(sec.bgColor || 'transparent') === c.val ? '#005086' : c.border}`,
-                                                cursor: 'pointer',
-                                                padding: 0
-                                              }}
-                                            />
-                                          ))}
-                                          <input
-                                            type="color"
-                                            value={sec.bgColor && sec.bgColor !== 'transparent' ? sec.bgColor : '#ffffff'}
-                                            onChange={e => handleUpdateSectionStyle(sec.id, 'bgColor', e.target.value)}
-                                            title="Couleur personnalisée"
-                                            style={{ width: '18px', height: '18px', padding: 0, border: 'none', borderRadius: '3px', cursor: 'pointer', background: 'transparent' }}
-                                          />
-                                        </div>
-                                      </div>
+                        if (item.type === 'image') {
+                          const refFigs = getReferencedFigIds(sec);
+                          const entryForIdx = getSectionImageEntries(sec).find(e => e.itemIdx === itemIdx);
+                          if (entryForIdx && refFigs.has(entryForIdx.figId.toLowerCase())) {
+                            return null;
+                          }
+                          const align = item.align || 'center';
+                          const widthPct = item.width_pct || 80;
+                          const justifyMap = { left: 'flex-start', center: 'center', right: 'flex-end' };
+                          const rawUrl = (item.url || '').trim();
+                          const altText = item.alt || item.description || '';
+                          const altLower = altText.toLowerCase();
+                          const urlLower = rawUrl.toLowerCase();
+                          
+                          const isInvalidUrl = !rawUrl || rawUrl.length < 5 || rawUrl.includes('placeholder') || rawUrl.includes('example.com') || rawUrl === 'none' || rawUrl === 'url' || rawUrl === 'image';
+                          const isSignTable = altLower.includes('tableau de signe') || altLower.includes('sign_table') || urlLower.includes('sign_table');
 
-                                      <span style={{ color: '#cbd5e1' }}>|</span>
+                          if (isSignTable) {
+                            return (
+                              <div key={itemIdx} style={{ display: 'flex', justifyContent: justifyMap[align], width: '100%', margin: '0.75rem 0' }}>
+                                <SignTableViewer altText={altText || rawUrl} />
+                              </div>
+                            );
+                          }
 
-                                      {/* Font size */}
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                                        <Type size={13} style={{ color: '#005086' }} />
-                                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted, #64748b)' }}>{isArabic ? 'الحجم:' : 'Taille :'}</span>
-                                        <select
-                                          value={sec.fontSize || ''}
-                                          onChange={e => handleUpdateSectionStyle(sec.id, 'fontSize', e.target.value)}
-                                          style={{ fontSize: '0.72rem', padding: '1px 5px', borderRadius: '4px', border: '1px solid #cbd5e1', background: 'var(--bg-main, #ffffff)', color: 'var(--text-main, #334155)', fontWeight: 600 }}
-                                        >
-                                          <option value="">{isArabic ? 'افتراضي' : 'Standard (9.2pt)'}</option>
-                                          <option value="8pt">8pt (Compact)</option>
-                                          <option value="8.5pt">8.5pt</option>
-                                          <option value="9.2pt">9.2pt (Normal)</option>
-                                          <option value="10pt">10pt</option>
-                                          <option value="11pt">11pt (Grand)</option>
-                                        </select>
-                                      </div>
-
-                                      <span style={{ color: '#cbd5e1' }}>|</span>
-
-                                      {/* Line height */}
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                                        <Layers size={13} style={{ color: '#005086' }} />
-                                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted, #64748b)' }}>{isArabic ? 'التباعد:' : 'Interligne :'}</span>
-                                        <select
-                                          value={sec.lineHeight || ''}
-                                          onChange={e => handleUpdateSectionStyle(sec.id, 'lineHeight', e.target.value)}
-                                          style={{ fontSize: '0.72rem', padding: '1px 5px', borderRadius: '4px', border: '1px solid #cbd5e1', background: 'var(--bg-main, #ffffff)', color: 'var(--text-main, #334155)', fontWeight: 600 }}
-                                        >
-                                          <option value="">{isArabic ? 'عادي (1.55)' : 'Normal (1.55)'}</option>
-                                          <option value="1.3">1.3 ({isArabic ? 'متقارب' : 'Serré'})</option>
-                                          <option value="1.55">1.55 ({isArabic ? 'متوسط' : 'Standard'})</option>
-                                          <option value="1.75">1.75 ({isArabic ? 'متباعد' : 'Aéré'})</option>
-                                          <option value="2.0">2.0 ({isArabic ? 'واسع' : 'Spacieux'})</option>
-                                        </select>
-                                      </div>
-
-                                      <span style={{ color: '#cbd5e1' }}>|</span>
-
-                                      {/* Apply Style to All / تطبيق على كامل الملف */}
-                                      <button
-                                        type="button"
-                                        onClick={() => handleApplySectionStyleToAll(sec.id, 'all')}
-                                        title={isArabic ? "تطبيق هذه التنسيقات (الخلفية، الحجم، التباعد) على جميع عناصر الملف دفعة واحدة" : "Appliquer ce style (Fond, Taille, Interligne) à tout le document"}
-                                        style={{
-                                          display: 'inline-flex',
-                                          alignItems: 'center',
-                                          gap: '0.25rem',
-                                          background: '#eff6ff',
-                                          color: '#005086',
-                                          border: '1px solid #bfdbfe',
-                                          borderRadius: '4px',
-                                          padding: '0.15rem 0.45rem',
-                                          fontSize: '0.7rem',
-                                          fontWeight: 800,
-                                          cursor: 'pointer'
-                                        }}
-                                      >
-                                        <CheckCheck size={12} style={{ color: '#0284c7' }} />
-                                        <span>{isArabic ? 'تطبيق على الكل' : 'Appliquer à tout'}</span>
-                                      </button>
-                                    </div>
-                                  )}
-
-                                  {/* Attached images/tables with position === 'before' (skip images already placed via [[FIG:N]]) */}
-                                  {(() => {
-                                    const refFigs = getReferencedFigIds(sec);
-                                    const entriesByIdx = new Map(getSectionImageEntries(sec).map(e => [e.itemIdx, e.figId.toLowerCase()]));
-                                    return (sec.items || [])
-                                      .map((it, origIdx) => ({ item: it, origIdx }))
-                                      .filter(({ item, origIdx }) =>
-                                        (item.type === 'image' || item.type === 'table') &&
-                                        item.position === 'before' &&
-                                        !(item.type === 'image' && refFigs.has(entriesByIdx.get(origIdx)))
-                                      )
-                                      .map(({ item, origIdx }) => {
-                                        if (item.type === 'image') {
-                                          return renderInlineFigureNode(item, `ex-img-before-${origIdx}`);
-                                        }
-                                        if (item.type === 'table') {
-                                          return (
-                                            <div key={`ex-tbl-before-${origIdx}`} style={{ margin: '0.8rem 0', width: '100%' }}>
-                                              <SmartTableRenderer table={item.table || item.data || item.text || item} title={item.title} />
-                                            </div>
-                                          );
-                                        }
-                                        return null;
-                                      });
-                                  })()}
-
-                                  {isDirectEdit ? (
-                                    <textarea
-                                      value={sec.content !== undefined ? sec.content : (Array.isArray(sec.items) ? sec.items.filter(it => it && it.type !== 'image' && it.type !== 'table').map(it => it.text || (typeof it === 'string' ? it : '')).join('\n') : '')}
-                                      onChange={e => handleUpdateSectionContent(sec.id, e.target.value)}
-                                      placeholder="Énoncé de l'exercice..."
-                                      rows={Math.max(3, (sec.content || (Array.isArray(sec.items) ? sec.items.map(it => it.text || '').join('\n') : '')).split('\n').length)}
-                                      style={{
-                                        width: '100%',
-                                        border: '1px dashed #005086',
-                                        borderRadius: '6px',
-                                        padding: '0.6rem',
-                                        fontSize: sec.fontSize || '0.92rem',
-                                        lineHeight: sec.lineHeight || 1.55,
-                                        background: hasCustomBg ? customBg : 'var(--bg-main, #ffffff)',
-                                        color: 'var(--text-main)',
-                                        fontFamily: isArabic ? arabicFont : 'inherit',
-                                        direction: isArabic ? 'rtl' : 'ltr',
-                                        outline: 'none'
-                                      }}
-                                    />
-                                  ) : (
-                                    <>
-                                      {sec.content ? renderMathWithSectionFigures(sec.content, sec) : null}
-                                      {(!sec.content || (Array.isArray(sec.items) && sec.items.some(it => it && it.type !== 'image' && it.type !== 'table'))) && (
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: sec.content ? '0.75rem' : '0' }}>
-                                          {(sec.items || [])
-                                            .filter(it => it && it.type !== 'image' && it.type !== 'table')
-                                            .map((it, itIdx) => {
-                                              const itText = it?.text || (typeof it === 'string' ? it : '');
-                                              if (!itText) return null;
-                                              return (
-                                                <div key={itIdx} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.45rem' }}>
-                                                  {it.type === 'bullet' && <span style={{ color: 'var(--violet)', fontWeight: 900, fontSize: '0.9rem', lineHeight: 1.5 }}>•</span>}
-                                                  <span style={{ flex: 1 }}>{renderMathWithSectionFigures(itText, sec)}</span>
-                                                </div>
-                                              );
-                                            })}
-                                        </div>
-                                      )}
-                                    </>
-                                  )}
-
-                                  {/* Attached images and tables inside exercise (default / after, skip images placed via [[FIG:N]]) */}
-                                  {(() => {
-                                    const refFigs = getReferencedFigIds(sec);
-                                    const entriesByIdx = new Map(getSectionImageEntries(sec).map(e => [e.itemIdx, e.figId.toLowerCase()]));
-                                    return (sec.items || [])
-                                      .map((it, origIdx) => ({ item: it, origIdx }))
-                                      .filter(({ item, origIdx }) =>
-                                        (item.type === 'image' || item.type === 'table') &&
-                                        item.position !== 'before' &&
-                                        !(item.type === 'image' && refFigs.has(entriesByIdx.get(origIdx)))
-                                      )
-                                      .map(({ item, origIdx }) => {
-                                        if (item.type === 'image') {
-                                          return renderInlineFigureNode(item, `ex-img-after-${origIdx}`);
-                                        }
-                                        if (item.type === 'table') {
-                                          return (
-                                            <div key={`ex-tbl-${origIdx}`} style={{ margin: '1rem 0', width: '100%' }}>
-                                              <SmartTableRenderer table={item.table || item.data || item.text || item} title={item.title} />
-                                            </div>
-                                          );
-                                        }
-                                        return null;
-                                      });
-                                  })()}
-                                </div>
-                              );
-                            })()}
-
-                            {/* Interactive student checks */}
-                            {sec.interactive_answers?.length > 0 && (
-                              <form
-                                onSubmit={(e) => {
-                                  e.preventDefault();
-                                  sec.interactive_answers.forEach(ans => {
-                                    handleCheckAnswer(sec.id, ans.question_idx, ans.expected_answer);
-                                  });
-                                }}
-                                className="interactive-form no-print"
-                              >
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700, fontSize: '0.85rem', color: '#005086' }}>
-                                  <Calculator size={16} /> Mode interactif : Calculez et valisez vos résultats
-                                </div>
-                                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                                  {sec.interactive_answers.map((ans, ansIdx) => {
-                                    const ansKey = `${sec.id}-${ans.question_idx}`;
-                                    return (
-                                      <div key={ansIdx} style={{ flex: 1, minWidth: '120px' }}>
-                                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.25rem' }}>
-                                          {ans.label}
-                                        </label>
-                                        <input
-                                          type="text"
-                                          placeholder="Votre réponse"
-                                          value={studentAnswers[ansKey] || ''}
-                                          onChange={(e) => setStudentAnswers(prev => ({ ...prev, [ansKey]: e.target.value }))}
-                                          className="input-control"
-                                          style={{ padding: '0.4rem 0.75rem', fontSize: '0.85rem', width: '100%' }}
-                                        />
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                                  <button type="submit" className="btn" style={{ padding: '0.4rem 1rem', fontSize: '0.75rem', width: 'fit-content' }}>
-                                    Vérifier mes réponses
-                                  </button>
-
-                                  {sec.interactive_answers.every(ans => checkResults[`${sec.id}-${ans.question_idx}`] === 'success') && (
-                                    <span style={{ color: '#059669', fontSize: '0.8rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                                      <Check size={16} strokeWidth={3} /> Réponses correctes !
-                                    </span>
-                                  )}
-                                  {sec.interactive_answers.some(ans => checkResults[`${sec.id}-${ans.question_idx}`] === 'error') && (
-                                    <span style={{ color: '#ef4444', fontSize: '0.8rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                                      <X size={16} strokeWidth={3} /> Mauvaise réponse, réessayez.
-                                    </span>
-                                  )}
-                                </div>
-                              </form>
-                            )}
-
-                            {/* Solution block: always rendered, hidden by CSS, shown in print */}
-                            <div
-                              className="solution-block"
-                              style={{
-                                display: visibleSolutions[sec.id] ? 'block' : 'none',
-                                marginTop: '0.5rem',
-                                background: 'rgba(16, 185, 129, 0.02)',
-                                border: '1px solid rgba(16, 185, 129, 0.15)',
-                                borderRadius: '12px',
-                                padding: '1.5rem'
+                          return (
+                            <div 
+                              key={itemIdx} 
+                              style={{ 
+                                display: 'flex', 
+                                flexDirection: 'column', 
+                                alignItems: justifyMap[align], 
+                                margin: '1.25rem 0',
+                                width: '100%' 
                               }}
                             >
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexDirection: isArabic ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: '0.5rem' }}>
-                                <h4 style={{
-                                  color: '#059669', fontWeight: 800,
-                                  display: 'flex', alignItems: 'center', gap: '0.5rem',
-                                  fontSize: '1rem',
-                                  margin: 0,
-                                  flexDirection: isArabic ? 'row-reverse' : 'row',
-                                  fontFamily: isArabic ? arabicFont : 'inherit',
-                                }}>
-                                  <BookOpenCheck size={18} />
-                                  {isArabic ? 'الحل المفصل والتصحيح' : 'Démonstration rédigée & Corrigé'}
-                                </h4>
-                                {sec.solution && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleGenerateAiSolutionForSection(sec.id, sec)}
-                                    disabled={solvingSecId === sec.id}
-                                    className="no-print"
-                                    style={{
-                                      background: 'rgba(16, 185, 129, 0.1)',
-                                      color: '#059669',
-                                      border: '1px solid rgba(16, 185, 129, 0.25)',
-                                      borderRadius: '6px',
-                                      padding: '0.2rem 0.6rem',
-                                      fontSize: '0.75rem',
-                                      fontWeight: 700,
-                                      cursor: solvingSecId === sec.id ? 'not-allowed' : 'pointer',
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: '0.35rem'
-                                    }}
-                                    title={isArabic ? 'إعادة توليد الحل بالذكاء الاصطناعي' : 'Régénérer le corrigé avec l\'IA'}
-                                  >
-                                    {solvingSecId === sec.id ? <Loader2 className="animate-spin" size={12} /> : <Sparkles size={12} />}
-                                    <span>{solvingSecId === sec.id ? (isArabic ? 'جاري الحل...' : 'Génération...') : (isArabic ? 'إعادة التوليد بالذكاء' : 'Régénérer par IA')}</span>
-                                  </button>
-                                )}
-                              </div>
-                              <div style={{
-                                display: 'flex', flexDirection: 'column', gap: '1rem',
-                                fontSize: '0.92rem', lineHeight: 1.85,
-                                textAlign: isArabic ? 'right' : 'left',
-                                fontFamily: isArabic ? arabicFont : 'inherit',
-                                direction: isArabic ? 'rtl' : 'ltr',
-                              }}>
-                                {sec.solution ? (
-                                  renderMathWithSectionFigures(sec.solution, sec)
+                              <div 
+                                style={{ 
+                                  background: 'var(--bg-card)', 
+                                  border: '1px solid var(--border)', 
+                                  borderRadius: '16px', 
+                                  padding: '0.85rem', 
+                                  boxShadow: '0 4px 20px rgba(0,0,0,0.06)', 
+                                  display: 'inline-flex', 
+                                  flexDirection: 'column', 
+                                  alignItems: 'center',
+                                  maxWidth: `${widthPct}%`,
+                                  minWidth: '260px'
+                                }}
+                              >
+                                {isInvalidUrl ? (
+                                  <div style={{ padding: '1.5rem 1rem', textAlign: 'center', color: 'var(--text-subtle)', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', width: '100%' }}>
+                                    <div style={{ fontSize: '2rem', marginBottom: '0.4rem' }}>📈</div>
+                                    <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>{altText ? renderWithMath(altText) : (isArabic ? 'شكل هندسي / منحنى دالة' : 'Figure / Courbe représentative')}</div>
+                                  </div>
                                 ) : (
-                                  <div className="no-print" style={{ textAlign: 'center', padding: '1.25rem 0.5rem' }}>
-                                    <p style={{ color: 'var(--text-muted)', marginBottom: '0.75rem', fontSize: '0.88rem' }}>
-                                      {isArabic ? 'لا يوجد حل مسجل لهذا التمرين حتى الآن.' : 'Aucun corrigé n’est encore enregistré pour cet exercice.'}
-                                    </p>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleGenerateAiSolutionForSection(sec.id, sec)}
-                                      disabled={solvingSecId === sec.id}
-                                      style={{
-                                        background: 'linear-gradient(135deg, #059669, #10b981)',
-                                        color: '#fff',
-                                        border: 'none',
-                                        borderRadius: '8px',
-                                        padding: '0.5rem 1.25rem',
-                                        fontWeight: 800,
-                                        fontSize: '0.85rem',
-                                        cursor: solvingSecId === sec.id ? 'not-allowed' : 'pointer',
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '0.45rem',
-                                        boxShadow: '0 2px 10px rgba(16, 185, 129, 0.25)'
-                                      }}
-                                    >
-                                      {solvingSecId === sec.id ? (
-                                        <>
-                                          <Loader2 className="animate-spin" size={15} />
-                                          <span>{isArabic ? 'جاري توليد الحل بالذكاء الاصطناعي وفق المنهاج المغربي...' : 'Génération du corrigé IA officiel...'}</span>
-                                        </>
-                                      ) : (
-                                        <>
-                                          <Sparkles size={15} style={{ color: '#fef08a' }} />
-                                          <span>{isArabic ? '✨ تصحيح وحل التمرين بالذكاء الاصطناعي' : '✨ Résoudre et corriger avec l\'IA'}</span>
-                                        </>
-                                      )}
-                                    </button>
+                                  <img
+                                    src={rawUrl}
+                                    alt={altText || 'Figure'}
+                                    style={{
+                                      width: '100%',
+                                      maxHeight: '400px',
+                                      borderRadius: '10px',
+                                      display: 'block',
+                                      objectFit: 'contain',
+                                    }}
+                                  />
+                                )}
+                                
+                                {altText && (
+                                  <div style={{ marginTop: '0.6rem', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-muted)', textAlign: 'center' }}>
+                                    {renderWithMath(altText)}
                                   </div>
                                 )}
                               </div>
                             </div>
+                          );
+                        }
+                        if (item.type === 'notation_grid') {
+                          return (
+                            <div key={itemIdx} className="notation-grid">
+                              {item.notation_columns?.map((col, colIdx) => (
+                                <div
+                                  key={colIdx}
+                                  className="notation-column"
+                                  style={isArabic ? {
+                                    borderLeft: 'none',
+                                    borderRight: '2px solid rgba(0,80,134,0.15)',
+                                    paddingLeft: 0,
+                                    paddingRight: '1rem',
+                                  } : {}}
+                                >
+                                  <strong style={{ fontSize: '0.85rem', color: '#005086', fontFamily: isArabic ? arabicFont : 'inherit' }}>{col.title}</strong>
+                                  {col.math_blocks?.map((block, bIdx) => (
+                                    <div key={bIdx} style={{ display: 'block', margin: '0.5rem 0' }}>
+                                      {renderWithMath(block)}
+                                    </div>
+                                  ))}
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        }
+                        if (item.type === 'table') {
+                          return (
+                            <div key={itemIdx} style={{ overflowX: 'auto', width: '100%', margin: '0.5rem 0' }}>
+                              <table className="sheet-table" style={isArabic ? { direction: 'rtl' } : {}}>
+                                <thead>
+                                  <tr>
+                                    {item.table_data?.headers?.map((h, hIdx) => (
+                                      <th key={hIdx} style={isArabic ? { fontFamily: arabicFont } : {}}>{renderWithMath(h)}</th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {item.table_data?.rows?.map((row, rIdx) => (
+                                    <tr key={rIdx}>
+                                      {row.map((cell, cIdx) => (
+                                        <td key={cIdx} style={isArabic ? { fontFamily: arabicFont } : {}}>{renderWithMath(cell)}</td>
+                                      ))}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          );
+                        }
+                        // text / bullet
+                        return (
+                          <div
+                            key={itemIdx}
+                            className="bullet-item"
+                            style={isArabic ? {
+                              flexDirection: 'row-reverse',
+                              textAlign: 'right',
+                              fontFamily: arabicFont,
+                            } : {}}
+                          >
+                            {item.type === 'bullet' && (
+                              <span className="bullet-dot" style={isArabic ? { marginLeft: '0.5rem', marginRight: 0 } : {}}>•</span>
+                            )}
+                            {isDirectEdit ? (
+                              <textarea
+                                value={item.text || ''}
+                                onChange={(e) => {
+                                  setLesson(prev => {
+                                    if (!prev) return prev;
+                                    const updatedSections = prev.content.sections.map(s => {
+                                      if (s.id !== sec.id) return s;
+                                      const newItems = (s.items || []).map((it, i) => i === itemIdx ? { ...it, text: e.target.value } : it);
+                                      return { ...s, items: newItems };
+                                    });
+                                    return { ...prev, content: { ...prev.content, sections: updatedSections } };
+                                  });
+                                }}
+                                style={{
+                                  flex: 1,
+                                  border: '1px solid rgba(0,80,134,0.15)',
+                                  borderRadius: '4px',
+                                  background: 'rgba(255,255,255,0.7)',
+                                  padding: '0.3rem 0.5rem',
+                                  fontSize: '0.95rem',
+                                  color: '#1a202c',
+                                  fontFamily: isArabic ? arabicFont : 'inherit',
+                                  resize: 'vertical',
+                                  minHeight: '2.2rem',
+                                  width: '100%',
+                                  direction: lessonDir
+                                }}
+                              />
+                            ) : (
+                              <span style={{ flex: 1 }}>{renderMathWithSectionFigures(item.text, sec)}</span>
+                            )}
                           </div>
                         );
-                      })()
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                      })}
+
+                      {/* Render text if stored in sec.content */}
+                      {sec.content && (
+                        <div style={{ marginTop: '0.65rem', marginBottom: '0.65rem', width: '100%', direction: lessonDir, fontFamily: isArabic ? arabicFont : 'inherit' }}>
+                          {isDirectEdit ? (
+                            <textarea
+                              value={sec.content || ''}
+                              onChange={e => handleUpdateSectionContent(sec.id, e.target.value)}
+                              rows={Math.max(2, (sec.content || '').split('\n').length)}
+                              style={{
+                                width: '100%',
+                                border: '1px dashed #005086',
+                                borderRadius: '6px',
+                                padding: '0.5rem',
+                                fontSize: '0.92rem',
+                                background: 'rgba(255,255,255,0.7)',
+                                color: '#1a202c',
+                                direction: lessonDir
+                              }}
+                            />
+                          ) : (
+                            renderMathWithSectionFigures(sec.content, sec)
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })() : (
+                    (() => {
+                      if (isHomework) {
+                        const hwRefFigs = getReferencedFigIds(sec);
+                        const hwEntriesByIdx = new Map(getSectionImageEntries(sec).map(e => [e.itemIdx, e.figId.toLowerCase()]));
+                        const hwUnplacedBefore = (sec.items || [])
+                          .map((it, itIdx) => ({ it, itIdx }))
+                          .filter(({ it, itIdx }) => it?.type === 'image' && it.position === 'before' && !hwRefFigs.has(hwEntriesByIdx.get(itIdx)));
+                        const hwUnplacedAfter = (sec.items || [])
+                          .map((it, itIdx) => ({ it, itIdx }))
+                          .filter(({ it, itIdx }) => it?.type === 'image' && it.position !== 'before' && !hwRefFigs.has(hwEntriesByIdx.get(itIdx)));
+
+                        return (
+                          <div className="homework-table" style={isArabic ? { fontFamily: arabicFont } : {}}>
+                            <div className="homework-header-row">
+                              <div className="homework-bareme-header">{calculateTotalPoints(sec.content, isArabic, `${sec.points ? `(${sec.points} pts) ` : ''}${sec.title || ''} ${sec.section_header || ''}`.trim())}</div>
+                              <div className="homework-content-header">
+                                {isArabic ? 'تمرين' : 'Exercice'} {exeNumber} {exeLabel ? ` : ${exeLabel}` : ''}
+                              </div>
+                            </div>
+
+                            {hwUnplacedBefore.length > 0 && (
+                              <div className="homework-row homework-media-row">
+                                <div className="homework-bareme-cell" />
+                                <div className="homework-content-cell homework-media-cell">
+                                  {hwUnplacedBefore.map(({ it, itIdx }) => renderInlineFigureNode(it, `hw-before-${itIdx}`))}
+                                </div>
+                              </div>
+                            )}
+                            
+                            {renderHomeworkBody(sec.content, isArabic, arabicFont, renderWithMath, sec.id, handlePointsChange, isDirectEdit, handleContentChange, sec)}
+
+                            {hwUnplacedAfter.length > 0 && (
+                              <div className="homework-row homework-media-row">
+                                <div className="homework-bareme-cell" />
+                                <div className="homework-content-cell homework-media-cell">
+                                  {hwUnplacedAfter.map(({ it, itIdx }) => renderInlineFigureNode(it, `hw-after-${itIdx}`))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Interactive student checks inside homework row */}
+                            {sec.interactive_answers?.length > 0 && (
+                              <div className="homework-row no-print" style={{ background: 'rgba(0,80,134,0.01)' }}>
+                                <div className="homework-bareme-cell" style={{ color: '#005086' }}><Calculator size={18} /></div>
+                                <div className="homework-content-cell">
+                                  <form 
+                                    onSubmit={(e) => {
+                                      e.preventDefault();
+                                      sec.interactive_answers.forEach(ans => {
+                                        handleCheckAnswer(sec.id, ans.question_idx, ans.expected_answer);
+                                      });
+                                    }}
+                                    className="interactive-form no-print"
+                                    style={{ margin: 0 }}
+                                  >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700, fontSize: '0.85rem', color: '#005086', marginBottom: '0.5rem' }}>
+                                      <Calculator size={16} /> Mode interactif : Calculez et valisez vos résultats
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                                      {sec.interactive_answers.map((ans, ansIdx) => {
+                                        const ansKey = `${sec.id}-${ans.question_idx}`;
+                                        return (
+                                          <div key={ansIdx} style={{ flex: 1, minWidth: '120px' }}>
+                                            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.25rem' }}>
+                                              {ans.label}
+                                            </label>
+                                            <input 
+                                              type="text" 
+                                              placeholder="Votre réponse"
+                                              value={studentAnswers[ansKey] || ''} 
+                                              onChange={(e) => setStudentAnswers(prev => ({ ...prev, [ansKey]: e.target.value }))}
+                                              className="input-control" 
+                                              style={{ padding: '0.4rem 0.75rem', fontSize: '0.85rem', width: '100%' }}
+                                            />
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                    
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                      <button type="submit" className="btn" style={{ padding: '0.4rem 1rem', fontSize: '0.75rem', width: 'fit-content' }}>
+                                        Vérifier mes réponses
+                                      </button>
+
+                                      {sec.interactive_answers.every(ans => checkResults[`${sec.id}-${ans.question_idx}`] === 'success') && (
+                                        <span style={{ color: '#059669', fontSize: '0.8rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                          <Check size={16} strokeWidth={3} /> Réponses correctes !
+                                        </span>
+                                      )}
+                                      {sec.interactive_answers.some(ans => checkResults[`${sec.id}-${ans.question_idx}`] === 'error') && (
+                                        <span style={{ color: '#ef4444', fontSize: '0.8rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                          <X size={16} strokeWidth={3} /> Mauvaise réponse, réessayez.
+                                        </span>
+                                      )}
+                                    </div>
+                                  </form>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Solution block in homework row */}
+                            {sec.solution && (
+                              <div className="homework-row no-print" style={{ background: 'rgba(16,185,129,0.01)' }}>
+                                <div className="homework-bareme-cell" style={{ background: 'rgba(16,185,129,0.03)', color: '#059669', cursor: 'pointer', borderTop: '1px solid rgba(16,185,129,0.12)' }} onClick={() => toggleSolution(sec.id)}>
+                                  📖
+                                </div>
+                                <div className="homework-content-cell" style={{ borderTop: '1px solid rgba(16,185,129,0.12)' }}>
+                                  <button 
+                                    className="solution-link-btn"
+                                    onClick={() => toggleSolution(sec.id)}
+                                    style={{ padding: '0.25rem 0', fontFamily: isArabic ? arabicFont : 'inherit', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#059669', fontWeight: 700, fontSize: '0.85rem' }}
+                                  >
+                                    {visibleSolutions[sec.id] ? <EyeOff size={14} /> : <Eye size={14} />}
+                                    {isArabic
+                                      ? (visibleSolutions[sec.id] ? 'إخفاء الحل' : 'إظهار الحل المفصل')
+                                      : (visibleSolutions[sec.id] ? 'Masquer la solution' : 'Afficher la solution rédigée')
+                                    }
+                                  </button>
+
+                                  {visibleSolutions[sec.id] && (
+                                    <div className="solution-block" style={{ marginTop: '0.65rem', padding: '0.75rem 0 0', borderTop: '1px dashed rgba(16,185,129,0.2)' }}>
+                                      <h4 style={{ color: '#059669', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.95rem', flexDirection: isArabic ? 'row-reverse' : 'row', fontFamily: isArabic ? arabicFont : 'inherit' }}>
+                                        <BookOpenCheck size={16} />
+                                        {isArabic ? 'الحل المفصل' : 'Démonstration rédigée'}
+                                      </h4>
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontSize: '0.9rem', lineHeight: 1.8, textAlign: isArabic ? 'right' : 'left', fontFamily: isArabic ? arabicFont : 'inherit', direction: isArabic ? 'rtl' : 'ltr' }}>
+                                        {renderMathWithSectionFigures(sec.solution, sec)}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="exercise-wrapper" style={isArabic ? { fontFamily: arabicFont } : {}}>
+                          <div
+                            className="exercise-banner-row"
+                            style={isArabic ? { flexDirection: 'row' } : {}}
+                          >
+                            <div style={{
+                              display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap',
+                              flexDirection: isArabic ? 'row' : 'row',
+                            }}>
+                              <div className="exercise-pill" style={isArabic ? { fontFamily: arabicFont, flexDirection: 'row' } : {}}>
+                                <span>
+                                  {isArabic
+                                    ? (exePrefix === 'Application' ? 'تطبيق' : exePrefix === 'Activité' ? 'نشاط' : 'تمرين')
+                                    : (exePrefix || 'Exercice N°')
+                                  }
+                                </span>
+                                <span style={{
+                                  background: '#ffffff', color: '#005086',
+                                  minWidth: '20px', height: '20px', borderRadius: '10px',
+                                  padding: '0 5px',
+                                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                  fontSize: '0.75rem', fontWeight: 900,
+                                  whiteSpace: 'nowrap'
+                                }}>{exeNumber}</span>
+                              </div>
+                              {exeLabel && (
+                                <span style={{
+                                  fontWeight: 800, fontSize: '1rem', color: 'var(--text-main)',
+                                  display: 'inline-flex', alignItems: 'center',
+                                  fontFamily: isArabic ? arabicFont : 'inherit',
+                                }}>
+                                  {renderWithMath(exeLabel)}
+                                </span>
+                              )}
+                            </div>
+
+                            <button
+                              className="solution-link-btn no-print"
+                              onClick={() => toggleSolution(sec.id)}
+                              style={isArabic ? { fontFamily: arabicFont, flexDirection: 'row' } : {}}
+                            >
+                              {visibleSolutions[sec.id] ? <EyeOff size={14} /> : <Eye size={14} />}
+                              {isArabic
+                                ? (visibleSolutions[sec.id] ? 'إخفاء الحل' : 'إظهار الحل المفصل')
+                                : (visibleSolutions[sec.id] ? 'Masquer la solution' : 'Afficher la solution rédigée')
+                              }
+                            </button>
+                          </div>
+
+                          {(() => {
+                            const customBg = sec.bgColor || sec.bg_color || '';
+                            const customFontSize = sec.fontSize || sec.font_size || '';
+                            const customLineHeight = sec.lineHeight || sec.line_height || '';
+                            const hasCustomBg = customBg && customBg !== 'transparent' && customBg !== '#ffffff';
+
+                            return (
+                              <div
+                                className={`exercise-body-box ${hasCustomBg ? 'has-custom-bg' : ''}`}
+                                style={{
+                                  ...(isArabic ? {
+                                    textAlign: 'right',
+                                    fontFamily: arabicFont,
+                                    direction: 'rtl',
+                                  } : {}),
+                                  background: hasCustomBg ? `${customBg} !important` : undefined,
+                                  padding: hasCustomBg ? '0.75rem 1rem' : undefined,
+                                  borderRadius: hasCustomBg ? '8px' : undefined,
+                                  border: hasCustomBg ? '1px solid rgba(0,80,134,0.18)' : undefined,
+                                  fontSize: customFontSize ? `${customFontSize} !important` : undefined,
+                                  lineHeight: customLineHeight ? `${customLineHeight} !important` : undefined,
+                                }}
+                              >
+                                {/* Direct Edit Style Toolbar */}
+                                {isDirectEdit && (
+                                  <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.6rem',
+                                    flexWrap: 'wrap',
+                                    background: 'var(--bg-card, #f8fafc)',
+                                    padding: '0.35rem 0.65rem',
+                                    borderRadius: '8px',
+                                    border: '1px solid var(--border, #cbd5e1)',
+                                    marginBottom: '0.6rem'
+                                  }}>
+                                    {/* Background color */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                      <Palette size={13} style={{ color: '#005086' }} />
+                                      <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted, #64748b)' }}>{isArabic ? 'الخلفية:' : 'Fond :'}</span>
+                                      <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
+                                        {[
+                                          { label: 'Sans fond', val: 'transparent', color: '#ffffff', border: '#cbd5e1' },
+                                          { label: 'Bleu ciel', val: '#f0f9ff', color: '#f0f9ff', border: '#bae6fd' },
+                                          { label: 'Jaune doux', val: '#fefce8', color: '#fefce8', border: '#fef08a' },
+                                          { label: 'Vert menthe', val: '#f0fdf4', color: '#f0fdf4', border: '#bbf7d0' },
+                                          { label: 'Gris élégant', val: '#f8fafc', color: '#f8fafc', border: '#e2e8f0' },
+                                          { label: 'Rose pastel', val: '#fff1f2', color: '#fff1f2', border: '#fecdd3' }
+                                        ].map(c => (
+                                          <button
+                                            key={c.val}
+                                            type="button"
+                                            onClick={() => handleUpdateSectionStyle(sec.id, 'bgColor', (sec.bgColor || 'transparent') === c.val ? 'transparent' : c.val)}
+                                            title={c.label}
+                                            style={{
+                                              width: '16px',
+                                              height: '16px',
+                                              borderRadius: '50%',
+                                              background: c.color,
+                                              border: `2px solid ${(sec.bgColor || 'transparent') === c.val ? '#005086' : c.border}`,
+                                              cursor: 'pointer',
+                                              padding: 0
+                                            }}
+                                          />
+                                        ))}
+                                        <input
+                                          type="color"
+                                          value={sec.bgColor && sec.bgColor !== 'transparent' ? sec.bgColor : '#ffffff'}
+                                          onChange={e => handleUpdateSectionStyle(sec.id, 'bgColor', e.target.value)}
+                                          title="Couleur personnalisée"
+                                          style={{ width: '18px', height: '18px', padding: 0, border: 'none', borderRadius: '3px', cursor: 'pointer', background: 'transparent' }}
+                                        />
+                                      </div>
+                                    </div>
+
+                                    <span style={{ color: '#cbd5e1' }}>|</span>
+
+                                    {/* Font size */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                      <Type size={13} style={{ color: '#005086' }} />
+                                      <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted, #64748b)' }}>{isArabic ? 'الحجم:' : 'Taille :'}</span>
+                                      <select
+                                        value={sec.fontSize || ''}
+                                        onChange={e => handleUpdateSectionStyle(sec.id, 'fontSize', e.target.value)}
+                                        style={{ fontSize: '0.72rem', padding: '1px 5px', borderRadius: '4px', border: '1px solid #cbd5e1', background: 'var(--bg-main, #ffffff)', color: 'var(--text-main, #334155)', fontWeight: 600 }}
+                                      >
+                                        <option value="">{isArabic ? 'افتراضي' : 'Standard (9.2pt)'}</option>
+                                        <option value="8pt">8pt (Compact)</option>
+                                        <option value="8.5pt">8.5pt</option>
+                                        <option value="9.2pt">9.2pt (Normal)</option>
+                                        <option value="10pt">10pt</option>
+                                        <option value="11pt">11pt (Grand)</option>
+                                      </select>
+                                    </div>
+
+                                    <span style={{ color: '#cbd5e1' }}>|</span>
+
+                                    {/* Line height */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                      <Layers size={13} style={{ color: '#005086' }} />
+                                      <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted, #64748b)' }}>{isArabic ? 'التباعد:' : 'Interligne :'}</span>
+                                      <select
+                                        value={sec.lineHeight || ''}
+                                        onChange={e => handleUpdateSectionStyle(sec.id, 'lineHeight', e.target.value)}
+                                        style={{ fontSize: '0.72rem', padding: '1px 5px', borderRadius: '4px', border: '1px solid #cbd5e1', background: 'var(--bg-main, #ffffff)', color: 'var(--text-main, #334155)', fontWeight: 600 }}
+                                      >
+                                        <option value="">{isArabic ? 'عادي (1.55)' : 'Normal (1.55)'}</option>
+                                        <option value="1.3">1.3 ({isArabic ? 'متقارب' : 'Serré'})</option>
+                                        <option value="1.55">1.55 ({isArabic ? 'متوسط' : 'Standard'})</option>
+                                        <option value="1.75">1.75 ({isArabic ? 'متباعد' : 'Aéré'})</option>
+                                        <option value="2.0">2.0 ({isArabic ? 'واسع' : 'Spacieux'})</option>
+                                      </select>
+                                    </div>
+
+                                    <span style={{ color: '#cbd5e1' }}>|</span>
+
+                                    {/* Apply Style to All / تطبيق على كامل الملف */}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleApplySectionStyleToAll(sec.id, 'all')}
+                                      title={isArabic ? "تطبيق هذه التنسيقات (الخلفية، الحجم، التباعد) على جميع عناصر الملف دفعة واحدة" : "Appliquer ce style (Fond, Taille, Interligne) à tout le document"}
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.25rem',
+                                        background: '#eff6ff',
+                                        color: '#005086',
+                                        border: '1px solid #bfdbfe',
+                                        borderRadius: '4px',
+                                        padding: '0.15rem 0.45rem',
+                                        fontSize: '0.7rem',
+                                        fontWeight: 800,
+                                        cursor: 'pointer'
+                                      }}
+                                    >
+                                      <CheckCheck size={12} style={{ color: '#0284c7' }} />
+                                      <span>{isArabic ? 'تطبيق على الكل' : 'Appliquer à tout'}</span>
+                                    </button>
+                                  </div>
+                                )}
+
+                                {/* Attached images/tables with position === 'before' (skip images already placed via [[FIG:N]]) */}
+                                {(() => {
+                                  const refFigs = getReferencedFigIds(sec);
+                                  const entriesByIdx = new Map(getSectionImageEntries(sec).map(e => [e.itemIdx, e.figId.toLowerCase()]));
+                                  return (sec.items || [])
+                                    .map((it, origIdx) => ({ item: it, origIdx }))
+                                    .filter(({ item, origIdx }) =>
+                                      (item.type === 'image' || item.type === 'table') &&
+                                      item.position === 'before' &&
+                                      !(item.type === 'image' && refFigs.has(entriesByIdx.get(origIdx)))
+                                    )
+                                    .map(({ item, origIdx }) => {
+                                      if (item.type === 'image') {
+                                        return renderInlineFigureNode(item, `ex-img-before-${origIdx}`);
+                                      }
+                                      if (item.type === 'table') {
+                                        return (
+                                          <div key={`ex-tbl-before-${origIdx}`} style={{ margin: '0.8rem 0', width: '100%' }}>
+                                            <SmartTableRenderer table={item.table || item.data || item.text || item} title={item.title} />
+                                          </div>
+                                        );
+                                      }
+                                      return null;
+                                    });
+                                })()}
+
+                                {isDirectEdit ? (
+                                  <textarea
+                                    value={sec.content !== undefined ? sec.content : (Array.isArray(sec.items) ? sec.items.filter(it => it && it.type !== 'image' && it.type !== 'table').map(it => it.text || (typeof it === 'string' ? it : '')).join('\n') : '')}
+                                    onChange={e => handleUpdateSectionContent(sec.id, e.target.value)}
+                                    placeholder="Énoncé de l'exercice..."
+                                    rows={Math.max(3, (sec.content || (Array.isArray(sec.items) ? sec.items.map(it => it.text || '').join('\n') : '')).split('\n').length)}
+                                    style={{
+                                      width: '100%',
+                                      border: '1px dashed #005086',
+                                      borderRadius: '6px',
+                                      padding: '0.6rem',
+                                      fontSize: sec.fontSize || '0.92rem',
+                                      lineHeight: sec.lineHeight || 1.55,
+                                      background: hasCustomBg ? customBg : 'var(--bg-main, #ffffff)',
+                                      color: 'var(--text-main)',
+                                      fontFamily: isArabic ? arabicFont : 'inherit',
+                                      direction: isArabic ? 'rtl' : 'ltr',
+                                      outline: 'none'
+                                    }}
+                                  />
+                                ) : (
+                                  <>
+                                    {sec.content ? renderMathWithSectionFigures(sec.content, sec) : null}
+                                    {(!sec.content || (Array.isArray(sec.items) && sec.items.some(it => it && it.type !== 'image' && it.type !== 'table'))) && (
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: sec.content ? '0.75rem' : '0' }}>
+                                        {(sec.items || [])
+                                          .filter(it => it && it.type !== 'image' && it.type !== 'table')
+                                          .map((it, itIdx) => {
+                                            const itText = it?.text || (typeof it === 'string' ? it : '');
+                                            if (!itText) return null;
+                                            return (
+                                              <div key={itIdx} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.45rem' }}>
+                                                {it.type === 'bullet' && <span style={{ color: 'var(--violet)', fontWeight: 900, fontSize: '0.9rem', lineHeight: 1.5 }}>•</span>}
+                                                <span style={{ flex: 1 }}>{renderMathWithSectionFigures(itText, sec)}</span>
+                                              </div>
+                                            );
+                                          })}
+                                      </div>
+                                    )}
+                                  </>
+                                )}
+
+                            {/* Attached images and tables inside exercise (default / after, skip images placed via [[FIG:N]]) */}
+                            {(() => {
+                              const refFigs = getReferencedFigIds(sec);
+                              const entriesByIdx = new Map(getSectionImageEntries(sec).map(e => [e.itemIdx, e.figId.toLowerCase()]));
+                              return (sec.items || [])
+                                .map((it, origIdx) => ({ item: it, origIdx }))
+                                .filter(({ item, origIdx }) =>
+                                  (item.type === 'image' || item.type === 'table') &&
+                                  item.position !== 'before' &&
+                                  !(item.type === 'image' && refFigs.has(entriesByIdx.get(origIdx)))
+                                )
+                                .map(({ item, origIdx }) => {
+                                  if (item.type === 'image') {
+                                    return renderInlineFigureNode(item, `ex-img-after-${origIdx}`);
+                                  }
+                                  if (item.type === 'table') {
+                                    return (
+                                      <div key={`ex-tbl-${origIdx}`} style={{ margin: '1rem 0', width: '100%' }}>
+                                        <SmartTableRenderer table={item.table || item.data || item.text || item} title={item.title} />
+                                      </div>
+                                    );
+                                  }
+                                  return null;
+                                });
+                            })()}
+                          </div>
+                        );
+                      })()}
+
+                          {/* Interactive student checks */}
+                          {sec.interactive_answers?.length > 0 && (
+                            <form 
+                              onSubmit={(e) => {
+                                e.preventDefault();
+                                sec.interactive_answers.forEach(ans => {
+                                  handleCheckAnswer(sec.id, ans.question_idx, ans.expected_answer);
+                                });
+                              }}
+                              className="interactive-form no-print"
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700, fontSize: '0.85rem', color: '#005086' }}>
+                                <Calculator size={16} /> Mode interactif : Calculez et valisez vos résultats
+                              </div>
+                              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                                {sec.interactive_answers.map((ans, ansIdx) => {
+                                  const ansKey = `${sec.id}-${ans.question_idx}`;
+                                  return (
+                                    <div key={ansIdx} style={{ flex: 1, minWidth: '120px' }}>
+                                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.25rem' }}>
+                                        {ans.label}
+                                      </label>
+                                      <input 
+                                        type="text" 
+                                        placeholder="Votre réponse"
+                                        value={studentAnswers[ansKey] || ''} 
+                                        onChange={(e) => setStudentAnswers(prev => ({ ...prev, [ansKey]: e.target.value }))}
+                                        className="input-control" 
+                                        style={{ padding: '0.4rem 0.75rem', fontSize: '0.85rem', width: '100%' }}
+                                      />
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                <button type="submit" className="btn" style={{ padding: '0.4rem 1rem', fontSize: '0.75rem', width: 'fit-content' }}>
+                                  Vérifier mes réponses
+                                </button>
+
+                                {sec.interactive_answers.every(ans => checkResults[`${sec.id}-${ans.question_idx}`] === 'success') && (
+                                  <span style={{ color: '#059669', fontSize: '0.8rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                    <Check size={16} strokeWidth={3} /> Réponses correctes !
+                                  </span>
+                                )}
+                                {sec.interactive_answers.some(ans => checkResults[`${sec.id}-${ans.question_idx}`] === 'error') && (
+                                  <span style={{ color: '#ef4444', fontSize: '0.8rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                    <X size={16} strokeWidth={3} /> Mauvaise réponse, réessayez.
+                                  </span>
+                                )}
+                              </div>
+                            </form>
+                          )}
+
+                          {/* Solution block: always rendered, hidden by CSS, shown in print */}
+                          <div
+                            className="solution-block"
+                            style={{
+                              display: visibleSolutions[sec.id] ? 'block' : 'none',
+                              marginTop: '0.5rem',
+                              background: 'rgba(16, 185, 129, 0.02)',
+                              border: '1px solid rgba(16, 185, 129, 0.15)',
+                              borderRadius: '12px',
+                              padding: '1.5rem'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexDirection: isArabic ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: '0.5rem' }}>
+                              <h4 style={{
+                                color: '#059669', fontWeight: 800,
+                                display: 'flex', alignItems: 'center', gap: '0.5rem',
+                                fontSize: '1rem',
+                                margin: 0,
+                                flexDirection: isArabic ? 'row-reverse' : 'row',
+                                fontFamily: isArabic ? arabicFont : 'inherit',
+                              }}>
+                                <BookOpenCheck size={18} />
+                                {isArabic ? 'الحل المفصل والتصحيح' : 'Démonstration rédigée & Corrigé'}
+                              </h4>
+                              {sec.solution && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleGenerateAiSolutionForSection(sec.id, sec)}
+                                  disabled={solvingSecId === sec.id}
+                                  className="no-print"
+                                  style={{
+                                    background: 'rgba(16, 185, 129, 0.1)',
+                                    color: '#059669',
+                                    border: '1px solid rgba(16, 185, 129, 0.25)',
+                                    borderRadius: '6px',
+                                    padding: '0.2rem 0.6rem',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700,
+                                    cursor: solvingSecId === sec.id ? 'not-allowed' : 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.35rem'
+                                  }}
+                                  title={isArabic ? 'إعادة توليد الحل بالذكاء الاصطناعي' : 'Régénérer le corrigé avec l\'IA'}
+                                >
+                                  {solvingSecId === sec.id ? <Loader2 className="animate-spin" size={12} /> : <Sparkles size={12} />}
+                                  <span>{solvingSecId === sec.id ? (isArabic ? 'جاري الحل...' : 'Génération...') : (isArabic ? 'إعادة التوليد بالذكاء' : 'Régénérer par IA')}</span>
+                                </button>
+                              )}
+                            </div>
+                            <div style={{
+                              display: 'flex', flexDirection: 'column', gap: '1rem',
+                              fontSize: '0.92rem', lineHeight: 1.85,
+                              textAlign: isArabic ? 'right' : 'left',
+                              fontFamily: isArabic ? arabicFont : 'inherit',
+                              direction: isArabic ? 'rtl' : 'ltr',
+                            }}>
+                              {sec.solution ? (
+                                renderMathWithSectionFigures(sec.solution, sec)
+                              ) : (
+                                <div className="no-print" style={{ textAlign: 'center', padding: '1.25rem 0.5rem' }}>
+                                  <p style={{ color: 'var(--text-muted)', marginBottom: '0.75rem', fontSize: '0.88rem' }}>
+                                    {isArabic ? 'لا يوجد حل مسجل لهذا التمرين حتى الآن.' : 'Aucun corrigé n’est encore enregistré pour cet exercice.'}
+                                  </p>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleGenerateAiSolutionForSection(sec.id, sec)}
+                                    disabled={solvingSecId === sec.id}
+                                    style={{
+                                      background: 'linear-gradient(135deg, #059669, #10b981)',
+                                      color: '#fff',
+                                      border: 'none',
+                                      borderRadius: '8px',
+                                      padding: '0.5rem 1.25rem',
+                                      fontWeight: 800,
+                                      fontSize: '0.85rem',
+                                      cursor: solvingSecId === sec.id ? 'not-allowed' : 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.45rem',
+                                      boxShadow: '0 2px 10px rgba(16, 185, 129, 0.25)'
+                                    }}
+                                  >
+                                    {solvingSecId === sec.id ? (
+                                      <>
+                                        <Loader2 className="animate-spin" size={15} />
+                                        <span>{isArabic ? 'جاري توليد الحل بالذكاء الاصطناعي وفق المنهاج المغربي...' : 'Génération du corrigé IA officiel...'}</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Sparkles size={15} style={{ color: '#fef08a' }} />
+                                        <span>{isArabic ? '✨ تصحيح وحل التمرين بالذكاء الاصطناعي' : '✨ Résoudre et corriger avec l\'IA'}</span>
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
+      </div>
       )}
     </div>
   );
