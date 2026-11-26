@@ -1318,14 +1318,14 @@ Pour chaque exercice, activité ou application résolue dans le champ "solution"
           const pMsg = proxyErrData?.error || `Erreur serveur ${proxyRes.status}`;
           lastErr = new Error(pMsg);
           if (proxyRes.status === 401) {
-            throw new Error('انتهت صلاحية الجلسة — يرجى تسجيل الدخول مرة أخرى لاستخدام أدوات الاستخراج.');
+            throw new Error('Session expirée — veuillez vous reconnecter pour utiliser les outils d\'extraction.');
           }
           if (proxyRes.status === 403 || /leaked|permission_denied|api key not valid|api_key_invalid/i.test(pMsg)) {
             throw lastErr;
           }
         }
       } catch (proxyErr) {
-        if (/انتهت صلاحية الجلسة|leaked|permission_denied|api key not valid|api_key_invalid/i.test(proxyErr.message)) {
+        if (/Session expirée|انتهت صلاحية الجلسة|leaked|permission_denied|api key not valid|api_key_invalid/i.test(proxyErr.message)) {
           throw proxyErr;
         }
         console.warn('[Server Proxy Fallback] Failed:', proxyErr.message);
@@ -1392,13 +1392,13 @@ Pour chaque exercice, activité ou application résolue dans le champ "solution"
             const msg = err?.error?.message || `Erreur HTTP ${res.status}`;
             console.warn(`[Gemini Direct] Model ${modelToUse} failed (${res.status}): ${msg}`);
             if (res.status === 403 || /leaked|permission_denied|api key not valid|api_key_invalid/i.test(msg)) {
-              throw new Error(`مفتاح Google Gemini ملغى أو غير صالح من Google (${msg}). يرجى إدخال مفتاح جديد أدناه.`);
+              throw new Error(`Clé Google Gemini révoquée ou invalide (${msg}). Veuillez saisir une nouvelle clé ci-dessous.`);
             }
             lastErr = new Error(`Gemini [${modelToUse}] (${res.status}): ${msg}`);
           }
         } catch (err) {
           lastErr = err;
-          if (/leaked|permission_denied|api key not valid|api_key_invalid|ملغى أو غير صالح/i.test(err.message)) {
+          if (/leaked|permission_denied|api key not valid|api_key_invalid|révoquée ou invalide|ملغى أو غير صالح/i.test(err.message)) {
             throw err;
           }
           console.warn(`[Gemini Direct] Model ${modelToUse} direct fetch failed:`, err.message);
@@ -1629,14 +1629,14 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
         if (content && content.trim()) return content;
       } else if (proxyRes.status === 401) {
         if (!deepseekKey?.trim()) {
-          throw new Error('انتهت صلاحية الجلسة — يرجى تسجيل الدخول مرة أخرى لاستخدام DeepSeek.');
+          throw new Error('Session expirée — veuillez vous reconnecter pour utiliser DeepSeek.');
         }
       } else if (!deepseekKey?.trim()) {
         const err = await proxyRes.json().catch(() => ({}));
         throw new Error(err?.error || `Erreur DeepSeek ${proxyRes.status}`);
       }
     } catch (proxyErr) {
-      if (/انتهت صلاحية الجلسة/.test(proxyErr.message) && !deepseekKey?.trim()) {
+      if (/Session expirée|انتهت صلاحية الجلسة/.test(proxyErr.message) && !deepseekKey?.trim()) {
         throw proxyErr;
       }
       console.warn('[DeepSeek Proxy] Server proxy error:', proxyErr.message);
@@ -3226,7 +3226,7 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
           </div>
 
           {/* Quick API Key recovery box when key fails or is leaked */}
-          {/leaked|403|api[ _]key|permission_denied|secours ont échoué|manquante|ملغى أو غير صالح/i.test(error) && (
+          {/leaked|403|api[ _]key|permission_denied|secours ont échoué|manquante|révoquée ou invalide|ملغى أو غير صالح/i.test(error) && (
             <div style={{
               marginTop: '0.5rem',
               padding: '1rem',
@@ -3239,10 +3239,10 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
             }}>
               <div style={{ fontWeight: 800, color: 'var(--danger)', fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                 <span>🔑</span>
-                <span>تحديث مفتاح Google Gemini / Actualiser la clé API</span>
+                <span>Actualiser la clé API Google Gemini</span>
               </div>
               <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-main)', lineHeight: 1.5 }}>
-                تم إيقاف أو انتهاء صلاحية المفتاح الحالي من طرف Google (Leaked key أو 403). الصق مفتاحاً جديداً واضغط &quot;حفظ وتجربة ثانية&quot;:
+                La clé actuelle a expiré ou été révoquée par Google (Leaked key ou erreur 403). Collez une nouvelle clé et cliquez sur « Enregistrer &amp; Réessayer » :
               </p>
               <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
                 <input
@@ -3287,7 +3287,7 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                 rel="noopener noreferrer"
                 style={{ color: '#4285F4', textDecoration: 'underline', fontSize: '0.78rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.3rem', width: 'fit-content' }}
               >
-                🔗 اضغط هنا لإنشاء مفتاح Google AI Studio جديد ومجاني في 10 ثوانٍ ↗
+                🔗 Cliquez ici pour créer une nouvelle clé Google AI Studio gratuite en 10 s ↗
               </a>
             </div>
           )}
@@ -3480,11 +3480,11 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                         value={openaiModel}
                         onChange={e => { setOpenaiModel(e.target.value); localStorage.setItem('openaiModel', e.target.value); }}
                       >
-                        <option value="gpt-4o">🌟 GPT-4o (Vision Multimodale & Haute Précision - موصى به)</option>
-                        <option value="gpt-4o-mini">⚡ GPT-4o-mini (الأسرع والأعلى كفاءة واقتصاداً)</option>
-                        <option value="o3-mini">🧠 o3-mini (استدلال رياضي متقدم فائق الدقة)</option>
-                        <option value="o1">🚀 o1 (استدلال عميق للمسائل والأولمبياد الرياضية)</option>
-                        <option value="chatgpt-4o-latest">✨ ChatGPT-4o Latest (النسخة الأحدث التلقائية)</option>
+                        <option value="gpt-4o">🌟 GPT-4o (Vision Multimodale &amp; Haute Précision - Recommandé)</option>
+                        <option value="gpt-4o-mini">⚡ GPT-4o-mini (Rapide, efficace et économique)</option>
+                        <option value="o3-mini">🧠 o3-mini (Raisonnement mathématique avancé)</option>
+                        <option value="o1">🚀 o1 (Raisonnement approfondi &amp; Olympiades)</option>
+                        <option value="chatgpt-4o-latest">✨ ChatGPT-4o Latest (Dernière version auto)</option>
                       </select>
                       <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
                         {[
@@ -3544,16 +3544,16 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                         value={geminiModel || 'gemini-3.5-flash-lite'}
                         onChange={e => { setGeminiModel(e.target.value); localStorage.setItem('geminiModel', e.target.value); }}
                       >
-                        <option value="gemini-3.5-flash-lite">⚡ Gemini 3.5 Flash-Lite (الأسرع والأعلى كفاءة - موصى به)</option>
-                        <option value="gemini-3.1-flash-lite">🚀 Gemini 3.1 Flash-Lite (سريع ودقيق جداً)</option>
-                        <option value="gemini-flash-lite-latest">✨ Gemini Flash-Lite Latest (النسخة الأحدث التلقائية)</option>
-                        <option value="gemini-3-flash-preview">⭐ Gemini 3.0 Flash Preview (استقرار وجودة عالية)</option>
-                        <option value="gemini-3.5-flash">💡 Gemini 3.5 Flash (ذكاء موسع)</option>
-                        <option value="gemini-3.8-flash">🧠 Gemini 3.8 Flash (الأقوى استدلالاً وتفصيلاً للرياضيات)</option>
+                        <option value="gemini-3.5-flash-lite">⚡ Gemini 3.5 Flash-Lite (Rapide &amp; efficace - Recommandé)</option>
+                        <option value="gemini-3.1-flash-lite">🚀 Gemini 3.1 Flash-Lite (Rapide et très précis)</option>
+                        <option value="gemini-flash-lite-latest">✨ Gemini Flash-Lite Latest (Dernière version auto)</option>
+                        <option value="gemini-3-flash-preview">⭐ Gemini 3.0 Flash Preview (Stable et haute qualité)</option>
+                        <option value="gemini-3.5-flash">💡 Gemini 3.5 Flash (Intelligence étendue)</option>
+                        <option value="gemini-3.8-flash">🧠 Gemini 3.8 Flash (Raisonnement mathématique avancé)</option>
                       </select>
                       <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
                         {[
-                          { id: 'gemini-3.5-flash-lite', label: '⚡ 3.5 Lite (الأسرع)' },
+                          { id: 'gemini-3.5-flash-lite', label: '⚡ 3.5 Lite (Rapide)' },
                           { id: 'gemini-3.1-flash-lite', label: '🚀 3.1 Lite' },
                           { id: 'gemini-flash-lite-latest', label: '✨ Latest Lite' },
                           { id: 'gemini-3-flash-preview', label: '⭐ 3.0 Preview' },
@@ -5064,7 +5064,7 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                         <div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                             <h2 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>
-                              جدول النقط وسلم التنقيط (Grille & Barème des Points)
+                              Grille &amp; Barème des Points
                             </h2>
                             <span style={{
                               fontSize: '0.75rem',
@@ -5079,7 +5079,7 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                             </span>
                           </div>
                           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                            تفريغ تلقائي لسلّم التنقيط وتوزيع النقط على التمارين والأسئلة الفرعية مع حفظها في جدول قاعدة البيانات (tbl_grades)
+                            Extraction automatique du barème et répartition des points par exercice et sous-question avec enregistrement en base (tbl_grades)
                           </span>
                         </div>
                       </div>
@@ -5098,9 +5098,9 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                             alignItems: 'center',
                             gap: '0.35rem'
                           }}
-                          title="استخراج النقط تلقائياً من محتوى التمارين الحالية"
+                          title="Extraire automatiquement les points depuis le contenu des exercices actuels"
                         >
-                          <RefreshCw size={13} /> استخراج من التمارين
+                          <RefreshCw size={13} /> Extraire des exercices
                         </button>
                         <button
                           type="button"
@@ -5114,7 +5114,7 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                             gap: '0.35rem'
                           }}
                         >
-                          <Plus size={13} /> + إضافة تمرين
+                          <Plus size={13} /> + Ajouter un exercice
                         </button>
                         <button
                           type="button"
@@ -5122,7 +5122,7 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                           className="btn-outline"
                           style={{ fontSize: '0.75rem', padding: '0.35rem 0.6rem' }}
                         >
-                          {showPointsTable ? 'طوي الجدول ▲' : 'عرض الجدول ▼'}
+                          {showPointsTable ? 'Réduire ▲' : 'Afficher ▼'}
                         </button>
                       </div>
                     </div>
@@ -5140,18 +5140,18 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                         }}>
                           <thead>
                             <tr style={{ background: 'rgba(14, 165, 233, 0.08)', borderBottom: '1px solid rgba(14, 165, 233, 0.2)' }}>
-                              <th style={{ padding: '0.6rem 0.75rem', textAlign: 'left', fontWeight: 800, width: '130px' }}>التمرين / Exercice</th>
-                              <th style={{ padding: '0.6rem 0.75rem', textAlign: 'left', fontWeight: 800 }}>الموضوع / Thème</th>
-                              <th style={{ padding: '0.6rem 0.75rem', textAlign: 'center', fontWeight: 800, width: '120px' }}>النقطة / Barème</th>
-                              <th style={{ padding: '0.6rem 0.75rem', textAlign: 'left', fontWeight: 800 }}>تفاصيل الأسئلة الفرعية (Subpoints)</th>
-                              <th style={{ padding: '0.6rem 0.75rem', textAlign: 'center', fontWeight: 800, width: '60px' }}>حذف</th>
+                              <th style={{ padding: '0.6rem 0.75rem', textAlign: 'left', fontWeight: 800, width: '130px' }}>Exercice</th>
+                              <th style={{ padding: '0.6rem 0.75rem', textAlign: 'left', fontWeight: 800 }}>Thème</th>
+                              <th style={{ padding: '0.6rem 0.75rem', textAlign: 'center', fontWeight: 800, width: '120px' }}>Barème</th>
+                              <th style={{ padding: '0.6rem 0.75rem', textAlign: 'left', fontWeight: 800 }}>Détail des sous-questions</th>
+                              <th style={{ padding: '0.6rem 0.75rem', textAlign: 'center', fontWeight: 800, width: '60px' }}>Suppr.</th>
                             </tr>
                           </thead>
                           <tbody>
                             {pointsTable.length === 0 ? (
                               <tr>
                                 <td colSpan={5} style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                                  لا توجد نقط مفرغة حالياً. اضغط على "استخراج من التمارين" لتفريغ النقط تلقائياً من محتوى الفرض.
+                                  Aucun point extrait pour le moment. Cliquez sur « Extraire des exercices » pour calculer automatiquement le barème.
                                 </td>
                               </tr>
                             ) : (
@@ -5172,7 +5172,7 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                                       className="input-control"
                                       value={row.title || ''}
                                       onChange={(e) => handleUpdateExerciseTitle(idx, e.target.value)}
-                                      placeholder="موضوع التمرين (مثال: دراسة الدوال، المتتاليات...)"
+                                      placeholder="Thème de l'exercice (ex: Étude de fonctions, Suites...)"
                                       style={{ width: '100%', fontSize: '0.8rem', padding: '0.35rem 0.5rem' }}
                                     />
                                   </td>
@@ -5254,7 +5254,7 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                                               fontSize: '0.8rem',
                                               lineHeight: 1
                                             }}
-                                            title="حذف هذا السؤال الفرعي"
+                                            title="Supprimer cette sous-question"
                                           >
                                             ×
                                           </button>
@@ -5273,9 +5273,9 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                                           padding: '0.15rem 0.45rem',
                                           fontWeight: 700
                                         }}
-                                        title="إضافة سؤال فرعي بسلم تنقيطه"
+                                        title="Ajouter une sous-question avec son barème"
                                       >
-                                        + سؤال
+                                        + Question
                                       </button>
                                     </div>
                                   </td>
@@ -5285,7 +5285,7 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                                       onClick={() => handleDeletePointsTableRow(idx)}
                                       className="btn-outline"
                                       style={{ padding: '0.25rem 0.45rem', color: 'var(--rose, #f43f5e)', borderColor: 'rgba(244,63,94,0.3)' }}
-                                      title="حذف هذا التمرين من جدول النقط"
+                                      title="Supprimer cet exercice de la grille"
                                     >
                                       <Trash2 size={13} />
                                     </button>
@@ -5298,7 +5298,7 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                             <tfoot>
                               <tr style={{ background: 'rgba(14, 165, 233, 0.08)', fontWeight: 800 }}>
                                 <td colSpan={2} style={{ padding: '0.65rem 0.75rem', textAlign: 'right' }}>
-                                  المجموع الكلي للنقط (Total) :
+                                  Total des points :
                                 </td>
                                 <td style={{ padding: '0.65rem 0.75rem', textAlign: 'center', color: '#0284c7', fontSize: '0.95rem' }}>
                                   {pointsTable.reduce((sum, row) => sum + (parseFloat(row.points) || 0), 0).toFixed(2)} pts
@@ -5306,11 +5306,11 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                                 <td colSpan={2} style={{ padding: '0.65rem 0.75rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                                   {Math.abs(pointsTable.reduce((sum, row) => sum + (parseFloat(row.points) || 0), 0) - totalPoints) < 0.01 ? (
                                     <span style={{ color: '#10b981', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                                      <CheckCircle size={14} /> مطابق للإجمالي ({totalPoints} نقطة)
+                                      <CheckCircle size={14} /> Conforme au total ({totalPoints} pts)
                                     </span>
                                   ) : (
                                     <span style={{ color: '#f59e0b', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                                      <AlertTriangle size={14} /> تنبيه: مجموع النقط ({pointsTable.reduce((sum, row) => sum + (parseFloat(row.points) || 0), 0).toFixed(2)}) يختلف عن إجمالي الفرض ({totalPoints} نقطة)
+                                      <AlertTriangle size={14} /> Attention : le total ({pointsTable.reduce((sum, row) => sum + (parseFloat(row.points) || 0), 0).toFixed(2)}) diffère du barème global ({totalPoints} pts)
                                     </span>
                                   )}
                                 </td>
@@ -5359,9 +5359,9 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                             onClick={() => handleOpenCropperModal(secIdx)}
                             className="btn-outline"
                             style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem', color: 'var(--emerald)', borderColor: 'rgba(16,185,129,0.3)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
-                            title="قص شكل هندسي من الـ PDF وربطه بهذا القسم"
+                            title="Découper une figure depuis le PDF et l'associer à cette section"
                           >
-                            <Crop size={13} /> ✂️ قص شكل من الـ PDF
+                            <Crop size={13} /> ✂️ Découper du PDF
                           </button>
                           <button 
                             onClick={() => handleRemoveSection(secIdx)}
@@ -5639,7 +5639,7 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', border: '1px dashed var(--border)', borderRadius: '8px', padding: '0.75rem', background: 'rgba(255,255,255,0.01)' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                   <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--violet)' }}>
-                                    🖼️ عناصر وإشكال التمرين والأسئلة (Éléments & Figures d'exercice)
+                                    🖼️ Éléments &amp; Figures de l&apos;exercice
                                   </span>
                                   <div style={{ display: 'flex', gap: '0.5rem' }}>
                                     <button
@@ -5647,12 +5647,12 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                                       onClick={() => handleOpenCropperModal(secIdx)}
                                       className="btn-outline"
                                       style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', color: 'var(--emerald)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
-                                      title="قص شكل من مستند الـ PDF وإدراجه في هذا التمرين"
+                                      title="Découper une figure du document PDF et l'insérer dans cet exercice"
                                     >
-                                      <Crop size={12} /> ✂️ قص شكل من PDF
+                                      <Crop size={12} /> ✂️ Découper du PDF
                                     </button>
                                     <button onClick={() => handleAddItemToContentSection(secIdx)} className="btn-outline" style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}>
-                                      <Plus size={12} /> + إضافة سؤال / شكل صورة
+                                      <Plus size={12} /> + Ajouter question / figure
                                     </button>
                                   </div>
                                 </div>
@@ -5668,8 +5668,8 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                                       <option value="text">Texte Standard</option>
                                       <option value="bullet">Puce / Question</option>
                                       <option value="highlight_box">Formule (Encadré)</option>
-                                      <option value="table">📊 Tableau (جدول/تغيرات)</option>
-                                      <option value="image">🖼️ Figure / Image (شكل/مبيان)</option>
+                                      <option value="table">📊 Tableau (Variations / Valeurs)</option>
+                                      <option value="image">🖼️ Figure / Graphique</option>
                                     </select>
 
                                     {item.type === 'table' ? (
@@ -5719,7 +5719,7 @@ ${buildExtractionUserPrompt(pageCount, solveSolutions)}`;
                                         className="input-control"
                                         value={item.text || ''}
                                         onChange={e => handleUpdateContentItem(secIdx, itemIdx, 'text', e.target.value)}
-                                        placeholder="نص السؤال (LaTeX supporté مع $ ... $)"
+                                        placeholder="Texte de la question (LaTeX supporté avec $ ... $)"
                                         rows={2}
                                         style={{ flex: 1, padding: '0.4rem' }}
                                       />

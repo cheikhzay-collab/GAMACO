@@ -9,32 +9,32 @@
  */
 export function exportToMassarCSV(students = [], examResults = [], className = 'Classe') {
   if (!students || students.length === 0) {
-    throw new Error('لا يوجد تلاميذ لتصديرهم إلى ملف مسار');
+    throw new Error('Aucun élève à exporter vers le fichier Massar');
   }
 
-  // بناء قاموس النقط
+  // Construction du dictionnaire des notes
   const gradeMap = {};
   examResults.forEach(res => {
     if (res.studentId) gradeMap[res.studentId] = res.score;
     if (res.massarCode) gradeMap[res.massarCode] = res.score;
   });
 
-  const headers = ['رقم مسار (Code Massar)', 'الاسم الكامل (Nom & Prénom)', 'النقطة /20 (Note)', 'الملاحظة (Appréciation)'];
+  const headers = ['Code Massar', 'Nom & Prénom', 'Note /20', 'Appréciation'];
 
   const rows = students.map(st => {
     const code = st.massarCode || st.codeMassar || st.id || '';
-    const name = st.name || `${st.firstName || ''} ${st.lastName || ''}`.trim() || 'تلميذ';
+    const name = st.name || `${st.firstName || ''} ${st.lastName || ''}`.trim() || 'Élève';
     const rawNote = gradeMap[st.id] ?? gradeMap[code] ?? st.note ?? st.score ?? '';
     const noteNum = parseFloat(rawNote);
     const noteStr = isNaN(noteNum) ? '' : noteNum.toFixed(2);
 
     let appreciation = '';
     if (!isNaN(noteNum)) {
-      if (noteNum >= 16) appreciation = 'ممتاز (Excellent)';
-      else if (noteNum >= 14) appreciation = 'جيد جداً (Très bien)';
-      else if (noteNum >= 12) appreciation = 'جيد (Bien)';
-      else if (noteNum >= 10) appreciation = 'متوسط (Moyen)';
-      else appreciation = 'يحتاج إلى دعم (À soutenir)';
+      if (noteNum >= 16) appreciation = 'Excellent';
+      else if (noteNum >= 14) appreciation = 'Très bien';
+      else if (noteNum >= 12) appreciation = 'Bien';
+      else if (noteNum >= 10) appreciation = 'Moyen';
+      else appreciation = 'À soutenir';
     }
 
     return [
@@ -72,7 +72,7 @@ export function parseMassarCSV(csvText) {
     if (cols.length >= 2 && cols[0]) {
       students.push({
         massarCode: cols[0],
-        name: cols[1] || 'تلميذ جديد',
+        name: cols[1] || 'Nouvel élève',
         note: cols[2] || '',
         appreciation: cols[3] || ''
       });

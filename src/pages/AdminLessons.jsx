@@ -1175,14 +1175,14 @@ ${sectionsContentText}
             style={{ fontSize: '0.85rem', minWidth: '150px', flex: '1' }}
           >
             <option value="Tous">Tous les types</option>
-            <option value="course">Cours (درس)</option>
-            <option value="summary">Résumé (ملخص درس)</option>
-            <option value="ebook">E-Book (كتاب إلكتروني)</option>
-            <option value="exercises">Exercices (تمارين)</option>
-            <option value="homework">Devoirs (فرض محروس)</option>
-            <option value="devoir_prime">DEVOIR PRIME ⭐ (فرض مصحح بالنقط)</option>
-            <option value="national">Examen National (امتحان وطني)</option>
-            <option value="concours">Concours (مباراة)</option>
+            <option value="course">Cours</option>
+            <option value="summary">Résumé de cours</option>
+            <option value="ebook">E-Book</option>
+            <option value="exercises">Série d&apos;exercices</option>
+            <option value="homework">Devoirs surveillés</option>
+            <option value="devoir_prime">DEVOIR PRIME ⭐</option>
+            <option value="national">Examen National</option>
+            <option value="concours">Concours</option>
           </select>
 
           {/* Date Sort Dropdown */}
@@ -2153,7 +2153,7 @@ ${sectionsContentText}
             fetchLessonsList(); // Refresh the list to show the new translated lesson
             setSuccess(
               language === 'ar'
-                ? '✅ تم إنشاء النسخة العربية بنجاح! يمكنك مراجعتها في القائمة.'
+                ? '✅ Version arabe générée avec succès ! Vous pouvez la consulter dans la liste.'
                 : `✅ La version traduite a été créée avec succès !`
             );
             setTimeout(() => setSuccess(''), 5000);

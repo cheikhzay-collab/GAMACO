@@ -985,13 +985,13 @@ Pour le champ 'astuce', extrais/résume l'explication officielle fournie dans le
             const msg = err?.error?.message || `Erreur HTTP ${res.status}`;
             console.warn(`[Gemini Direct] Model ${modelToUse} failed:`, msg);
             if (res.status === 403 || /leaked|permission_denied|api key not valid|api_key_invalid/i.test(msg)) {
-              throw new Error(`مفتاح Google Gemini ملغى أو غير صالح من Google (${msg}). يرجى إدخال مفتاح جديد أدناه.`);
+              throw new Error(`Clé Google Gemini révoquée ou invalide (${msg}). Veuillez saisir une nouvelle clé ci-dessous.`);
             }
             lastError = new Error(`Gemini [${modelToUse}] (${res.status}): ${msg}`);
           }
         } catch (err) {
           if (err.name === 'AbortError') throw err;
-          if (/leaked|permission_denied|api key not valid|api_key_invalid|ملغى أو غير صالح/i.test(err.message)) {
+          if (/leaked|permission_denied|api key not valid|api_key_invalid|révoquée ou invalide|ملغى أو غير صالح/i.test(err.message)) {
             throw err;
           }
           console.warn(`[Gemini Direct] ${modelToUse} fetch failed:`, err.message);
@@ -2127,11 +2127,11 @@ ${pdfText}
               <label>Modèle Gemini <span style={{fontWeight:400, color:'var(--text-muted)'}}>— ID exact de l'API</span></label>
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
                 {[
-                  { id: 'gemini-3.5-flash-lite', label: '⚡ Gemini 3.5 Flash-Lite (الأسرع والأعلى كفاءة - موصى به)' },
-                  { id: 'gemini-3.1-flash-lite', label: '🚀 Gemini 3.1 Flash-Lite (سريع ودقيق)' },
-                  { id: 'gemini-flash-lite-latest', label: '✨ Flash-Lite Latest (الأحدث)' },
+                  { id: 'gemini-3.5-flash-lite', label: '⚡ Gemini 3.5 Flash-Lite (Rapide & efficace - Recommandé)' },
+                  { id: 'gemini-3.1-flash-lite', label: '🚀 Gemini 3.1 Flash-Lite (Rapide & précis)' },
+                  { id: 'gemini-flash-lite-latest', label: '✨ Flash-Lite Latest (Dernière version)' },
                   { id: 'gemini-3-flash-preview', label: '⭐ Gemini 3.0 Preview' },
-                  { id: 'gemini-3.8-flash', label: '🧠 Gemini 3.8 Flash (الأقوى استدلالاً)' }
+                  { id: 'gemini-3.8-flash', label: '🧠 Gemini 3.8 Flash (Raisonnement avancé)' }
                 ].map(item => (
                   <button key={item.id} type="button"
                     onClick={() => { setGeminiModel(item.id); localStorage.setItem('geminiModel', item.id); }}
@@ -2151,7 +2151,7 @@ ${pdfText}
                 style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}
               />
               <p style={{ marginTop: '0.4rem', fontSize: '0.73rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                💡 Recommandé : <strong>gemini-3.5-flash-lite</strong> (الأحدث والأسرع من جوجل)، <strong>gemini-3.1-flash-lite</strong> أو <strong>gemini-3.8-flash</strong>.
+                💡 Recommandé : <strong>gemini-3.5-flash-lite</strong> (le plus récent et rapide de Google), <strong>gemini-3.1-flash-lite</strong> ou <strong>gemini-3.8-flash</strong>.
               </p>
             </div>
           )}
@@ -2169,7 +2169,7 @@ ${pdfText}
               </div>
 
               {/* Quick API Key recovery box when key fails or is leaked */}
-              {/leaked|403|api[ _]key|permission_denied|secours ont échoué|manquante|ملغى أو غير صالح/i.test(error) && (
+              {/leaked|403|api[ _]key|permission_denied|secours ont échoué|manquante|révoquée ou invalide|ملغى أو غير صالح/i.test(error) && (
                 <div style={{
                   marginTop: '0.5rem',
                   padding: '1rem',
@@ -2182,10 +2182,10 @@ ${pdfText}
                 }}>
                   <div style={{ fontWeight: 800, color: 'var(--danger)', fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                     <span>🔑</span>
-                    <span>تحديث مفتاح Google Gemini / Actualiser la clé API</span>
+                    <span>Actualiser la clé API Google Gemini</span>
                   </div>
                   <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-main)', lineHeight: 1.5 }}>
-                    تم إيقاف أو انتهاء صلاحية المفتاح الحالي من طرف Google (Leaked key أو 403). الصق مفتاحاً جديداً واضغط &quot;حفظ وتجربة ثانية&quot;:
+                    La clé actuelle a expiré ou été révoquée par Google (Leaked key ou erreur 403). Collez une nouvelle clé et cliquez sur « Enregistrer &amp; Réessayer » :
                   </p>
                   <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
                     <input
@@ -2228,7 +2228,7 @@ ${pdfText}
                     rel="noopener noreferrer"
                     style={{ color: '#4285F4', textDecoration: 'underline', fontSize: '0.78rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.3rem', width: 'fit-content' }}
                   >
-                    🔗 اضغط هنا لإنشاء مفتاح Google AI Studio جديد ومجاني في 10 ثوانٍ ↗
+                    🔗 Cliquez ici pour créer une nouvelle clé Google AI Studio gratuite en 10 s ↗
                   </a>
                 </div>
               )}

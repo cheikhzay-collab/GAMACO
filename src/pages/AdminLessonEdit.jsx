@@ -171,7 +171,7 @@ export default function AdminLessonEdit() {
       if (prev.length === 0) return prev;
       const previous = prev[prev.length - 1];
       setSections(previous);
-      showToast('↶ تم التراجع عن آخر تعديل');
+      showToast('↶ Dernière modification annulée');
       return prev.slice(0, -1);
     });
   }, [showToast]);
@@ -213,7 +213,7 @@ export default function AdminLessonEdit() {
       try {
         const data = await getLessonById(id, { forceRefresh: true });
         if (!data) {
-          setError('هذه الوثيقة غير موجودة أو تم حذفها.');
+          setError('Ce document est introuvable ou a été supprimé.');
         } else {
           setLesson(data);
           const header = data.content?.header || {};
@@ -286,7 +286,7 @@ export default function AdminLessonEdit() {
         }
       } catch (err) {
         console.error(err);
-        setError('تعذر تحميل الوثيقة من قاعدة البيانات.');
+        setError('Impossible de charger le document depuis la base de données.');
       } finally {
         setLoading(false);
       }
@@ -378,7 +378,7 @@ export default function AdminLessonEdit() {
   const performSave = useCallback(async ({ silent = false, customSections = null } = {}) => {
     if (!id || isSavingRef.current) return;
     if (!ficheTitle.trim() && !silent) {
-      setError('عنوان الوثيقة مطلوب للحفظ.');
+      setError('Le titre du document est requis pour enregistrer.');
       return;
     }
 
@@ -437,13 +437,13 @@ export default function AdminLessonEdit() {
       setSyncOk(Boolean(syncResult?.localDbSuccess || syncResult?.supabaseSuccess || syncResult?.neonSuccess || true));
 
       if (!silent) {
-        showToast(`✓ تم الحفظ في قاعدة البيانات (${nowStr})`);
+        showToast(`✓ Enregistré dans la base de données (${nowStr})`);
       }
     } catch (err) {
       console.error('Save error:', err);
       setSyncOk(false);
       if (!silent) {
-        setError(`فشل الحفظ: ${err.message || err}`);
+        setError(`Échec de l'enregistrement : ${err.message || err}`);
       }
     } finally {
       setSaving(false);
@@ -502,7 +502,7 @@ export default function AdminLessonEdit() {
         const dataUrl = await fileToDataUrl(imgFile);
         const targetIdx = sections[activeIdx] ? activeIdx : Math.max(0, sections.length - 1);
         await handleAddImageFile(targetIdx, dataUrl, 'Figure collée');
-        showToast('🖼️ تم لصق الصورة وإضافتها للفقرة الحالية');
+        showToast('🖼️ Image collée et ajoutée à la section active');
       } catch (err) {
         console.warn('Paste image failed:', err);
       }
@@ -597,10 +597,10 @@ export default function AdminLessonEdit() {
       const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       setLastSavedTime(nowStr);
       setHasUnsavedChanges(false);
-      if (isManual) showToast(`✓ تم حفظ DEVOIR PRIME في قاعدة البيانات (${nowStr})`);
+      if (isManual) showToast(`✓ DEVOIR PRIME enregistré dans la base (${nowStr})`);
     } catch (err) {
       console.error('[DEVOIR PRIME save error]', err);
-      if (isManual) setError(`فشل حفظ DEVOIR PRIME: ${err.message || err}`);
+      if (isManual) setError(`Échec de l'enregistrement DEVOIR PRIME : ${err.message || err}`);
     }
   }, [id, lesson, selectedLevel, ficheTitle, subject, isActiveStatus, showToast]);
 
@@ -662,18 +662,18 @@ export default function AdminLessonEdit() {
     const copy = {
       ...src,
       id: `sec-${Date.now()}-copy`,
-      title: `${src.title || 'Section'} (نسخة)`,
+      title: `${src.title || 'Section'} (Copie)`,
       items: (src.items || []).map(it => ({ ...it })),
     };
     const next = [...sections];
     next.splice(idx + 1, 0, copy);
     setSections(next);
     setActiveIdx(idx + 1);
-    showToast('✓ تم نسخ الفقرة');
+    showToast('✓ Section dupliquée');
   };
 
   const handleDeleteSection = (idx) => {
-    if (!window.confirm('هل أنت متأكد من حذف هذه الفقرة؟ (يمكنك التراجع بزر تراجع)')) return;
+    if (!window.confirm('Voulez-vous vraiment supprimer cette section ? (Annulable via Annuler)')) return;
     pushUndoSnapshot(sections);
     const next = sections.filter((_, i) => i !== idx);
     setSections(next);
@@ -747,14 +747,14 @@ export default function AdminLessonEdit() {
       next[sIdx] = sec;
       return next;
     });
-    showToast('✓ تم إدراج الشكل المقصوص من PDF');
+    showToast('✓ Figure recadrée du PDF insérée');
   };
 
   const handleApplyAiEnhancedFigure = (newUrl) => {
     const { secIdx, itemIdx } = aiEnhancerTarget;
     pushUndoSnapshot(sections);
     handleUpdateItem(secIdx, itemIdx, 'url', newUrl);
-    showToast('✓ تم تطبيق الشكل المحسّن بجودة HD');
+    showToast('✓ Figure HD appliquée avec succès');
   };
 
   // Smart cursor-aware LaTeX insertion
@@ -810,7 +810,7 @@ export default function AdminLessonEdit() {
   const handleSolveSection = async (secIdx) => {
     const sec = sections[secIdx];
     if (!sec || !String(sec.content || '').trim()) {
-      setError('أدخل نص التمرين أولاً قبل تشغيل الحل بالذكاء الاصطناعي.');
+      setError('Veuillez d’abord saisir l’énoncé de l’exercice avant de lancer la résolution IA.');
       return;
     }
     setSolvingSecIdx(secIdx);
@@ -838,10 +838,10 @@ export default function AdminLessonEdit() {
         docType,
         solutionText: cleaned,
       }).catch(() => {});
-      showToast('✨ تم توليد الحل بالذكاء الاصطناعي وحفظه ✓');
+      showToast('✨ Corrigé généré par IA et enregistré ✓');
     } catch (err) {
       console.error('AI Solve error:', err);
-      setError(err.message || 'فشل توليد الحل بالذكاء الاصطناعي.');
+      setError(err.message || 'Échec de la génération du corrigé par IA.');
     } finally {
       setSolvingSecIdx(null);
     }
@@ -853,10 +853,10 @@ export default function AdminLessonEdit() {
       .map((sec, idx) => ({ sec, idx }))
       .filter(({ sec }) => (sec.type === 'exercise' || sec.type === 'activity') && String(sec.content || '').trim());
     if (targets.length === 0) {
-      setError('لا توجد تمارين تحتوي على نص لحلها.');
+      setError('Aucun exercice ne contient d’énoncé à résoudre.');
       return;
     }
-    if (!window.confirm(`سيتم حل ${targets.length} تمرين بالذكاء الاصطناعي. هل تريد المتابعة؟`)) return;
+    if (!window.confirm(`${targets.length} exercice(s) vont être résolus par l'IA. Voulez-vous continuer ?`)) return;
 
     setSolvingAll(true);
     pushUndoSnapshot(sections);
@@ -894,7 +894,7 @@ export default function AdminLessonEdit() {
     setSolvingSecIdx(null);
     setSolvingAll(false);
     setSolveAllProgress(null);
-    showToast(`✨ اكتمل حل ${ok}/${targets.length} تمرين بنجاح ✓`);
+    showToast(`✨ ${ok}/${targets.length} exercice(s) résolu(s) avec succès ✓`);
   };
 
   // Global style apply (from Settings Drawer)
@@ -945,7 +945,7 @@ export default function AdminLessonEdit() {
   // Smart back navigation
   const goBack = () => {
     if (hasUnsavedChanges) {
-      if (!window.confirm('لديك تعديلات غير محفوظة. هل تريد المغادرة دون حفظ؟')) return;
+      if (!window.confirm('Vous avez des modifications non enregistrées. Quitter sans sauvegarder ?')) return;
     }
     if (location.state?.from) {
       navigate(location.state.from);
@@ -1008,7 +1008,7 @@ export default function AdminLessonEdit() {
     return (
       <div style={{ minHeight: '70vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.8rem', color: 'var(--text-muted)' }}>
         <Loader2 size={32} className="animate-spin" style={{ color: 'var(--violet)' }} />
-        <span style={{ fontWeight: 700, fontSize: '0.92rem' }}>جاري فتح المحرر الذكي...</span>
+        <span style={{ fontWeight: 700, fontSize: '0.92rem' }}>Ouverture de l&apos;éditeur...</span>
       </div>
     );
   }
@@ -1019,7 +1019,7 @@ export default function AdminLessonEdit() {
         <AlertCircle size={38} style={{ color: '#ef4444', marginBottom: '0.75rem' }} />
         <h3 style={{ margin: '0 0 0.5rem' }}>{error}</h3>
         <button type="button" onClick={() => navigate('/admin/lessons')} className="btn" style={{ marginTop: '1rem', padding: '0.55rem 1.25rem', borderRadius: '10px' }}>
-          العودة إلى قائمة الوثائق
+          Retour à la liste des documents
         </button>
       </div>
     );
@@ -1059,10 +1059,10 @@ export default function AdminLessonEdit() {
             onClick={goBack}
             className="btn-outline"
             style={{ padding: '0.38rem 0.55rem', borderRadius: '8px', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', fontWeight: 700 }}
-            title="رجوع"
+            title="Retour"
           >
             <ArrowLeft size={15} />
-            {!isMobile && <span>رجوع</span>}
+            {!isMobile && <span>Retour</span>}
           </button>
 
           {isMobile && !isDevoirPrimeVisual && (
@@ -1071,7 +1071,7 @@ export default function AdminLessonEdit() {
               onClick={() => setOutlineOpenMobile(v => !v)}
               className="btn-outline"
               style={{ padding: '0.38rem 0.55rem', borderRadius: '8px', flexShrink: 0 }}
-              title="فهرس الوثيقة"
+              title="Plan du document"
             >
               <PanelLeft size={16} />
             </button>
@@ -1081,7 +1081,7 @@ export default function AdminLessonEdit() {
             type="text"
             value={ficheTitle}
             onChange={e => setFicheTitle(e.target.value)}
-            placeholder="عنوان الوثيقة..."
+            placeholder="Titre du document..."
             style={{
               flex: 1,
               minWidth: '120px',
@@ -1113,7 +1113,7 @@ export default function AdminLessonEdit() {
                 flexShrink: 0,
               }}
             >
-              {docTypeObj.labelAr}
+              {docTypeObj.labelFr}
             </span>
           )}
         </div>
@@ -1135,7 +1135,7 @@ export default function AdminLessonEdit() {
                 color: primeVisualMode ? '#fff' : 'var(--text-muted)',
               }}
             >
-              ⭐ {docType === 'national' ? 'قالب DEVOIR PRIME للوطني' : 'محرر DEVOIR PRIME'}
+              ⭐ {docType === 'national' ? 'Modèle DEVOIR PRIME (National)' : 'Éditeur DEVOIR PRIME'}
             </button>
             <button
               type="button"
@@ -1151,7 +1151,7 @@ export default function AdminLessonEdit() {
                 color: !primeVisualMode ? '#fff' : 'var(--text-muted)',
               }}
             >
-              📋 محرر الفقرات
+              📋 Éditeur de sections
             </button>
           </div>
         ) : (
@@ -1166,9 +1166,9 @@ export default function AdminLessonEdit() {
             }}
           >
             {[
-              { id: 'split', label: 'تحرير + معاينة', icon: Columns },
-              { id: 'write', label: 'كتابة', icon: Edit3 },
-              { id: 'preview', label: 'معاينة', icon: Eye },
+              { id: 'split', label: 'Édition + Aperçu', icon: Columns },
+              { id: 'write', label: 'Rédaction', icon: Edit3 },
+              { id: 'preview', label: 'Aperçu', icon: Eye },
             ].map(({ id: m, label, icon: Icon }) => (
               <button
                 key={m}
@@ -1204,7 +1204,7 @@ export default function AdminLessonEdit() {
               onClick={handleUndo}
               className="btn-outline"
               style={{ padding: '0.36rem 0.5rem', borderRadius: '8px', opacity: undoStack.length === 0 ? 0.35 : 1 }}
-              title={`تراجع (${undoStack.length})`}
+              title={`Annuler (${undoStack.length})`}
             >
               <Undo2 size={15} />
             </button>
@@ -1215,10 +1215,10 @@ export default function AdminLessonEdit() {
             onClick={() => setSettingsOpen(true)}
             className="btn-outline"
             style={{ padding: '0.36rem 0.6rem', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
-            title="إعدادات الوثيقة والتنسيق العام"
+            title="Paramètres du document et mise en page"
           >
             <Settings2 size={15} />
-            {!isMobile && <span>الإعدادات</span>}
+            {!isMobile && <span>Paramètres</span>}
           </button>
 
           <button
@@ -1226,7 +1226,7 @@ export default function AdminLessonEdit() {
             onClick={handlePrintPdf}
             className="btn-outline"
             style={{ padding: '0.36rem 0.6rem', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
-            title="طباعة أو تصدير PDF مباشرة"
+            title="Imprimer ou exporter en PDF"
           >
             <Printer size={15} />
             {!isMobile && <span>PDF</span>}
@@ -1254,16 +1254,16 @@ export default function AdminLessonEdit() {
                     ? '#d97706'
                     : '#059669',
               }}
-              title="حالة المزامنة مع قاعدة البيانات MySQL"
+              title="État de synchronisation avec MySQL"
             >
               {autoSaving || saving ? (
-                <><Loader2 size={12} className="animate-spin" /> جاري الحفظ...</>
+                <><Loader2 size={12} className="animate-spin" /> Enregistrement...</>
               ) : hasUnsavedChanges ? (
-                <>● تعديلات غير محفوظة</>
+                <>● Modifications non enregistrées</>
               ) : (
                 <>
                   {syncOk ? <Cloud size={12} /> : <CloudOff size={12} />}
-                  {lastSavedTime ? `محفوظ ${lastSavedTime}` : 'محفوظ'}
+                  {lastSavedTime ? `Enregistré ${lastSavedTime}` : 'Enregistré'}
                 </>
               )}
             </div>
@@ -1285,10 +1285,10 @@ export default function AdminLessonEdit() {
                 gap: '0.35rem',
                 boxShadow: hasUnsavedChanges ? '0 0 0 2px rgba(99, 102, 241, 0.35)' : 'none',
               }}
-              title="حفظ في قاعدة البيانات (Ctrl+S)"
+              title="Enregistrer dans la base de données (Ctrl+S)"
             >
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-              <span>حفظ</span>
+              <span>Enregistrer</span>
             </button>
           )}
         </div>
@@ -1397,16 +1397,16 @@ export default function AdminLessonEdit() {
                 }}
               >
                 <Sparkles size={32} style={{ color: 'var(--violet)', marginBottom: '0.6rem' }} />
-                <h3 style={{ margin: '0 0 0.4rem', fontSize: '1.05rem' }}>هذه الوثيقة فارغة حالياً</h3>
+                <h3 style={{ margin: '0 0 0.4rem', fontSize: '1.05rem' }}>Ce document est actuellement vide</h3>
                 <p style={{ margin: '0 0 1.2rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                  ابدأ بإضافة أول فقرة درس أو تمرين مع معاينة فورية لصيغ LaTeX.
+                  Commencez par ajouter un paragraphe de cours ou un exercice avec aperçu LaTeX en direct.
                 </p>
                 <div style={{ display: 'inline-flex', gap: '0.65rem', flexWrap: 'wrap', justifyContent: 'center' }}>
                   <button type="button" onClick={() => handleAddSection('content')} className="btn" style={{ padding: '0.55rem 1.1rem', borderRadius: '10px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                    <Plus size={15} /> إضافة فقرة درس
+                    <Plus size={15} /> Ajouter un paragraphe
                   </button>
                   <button type="button" onClick={() => handleAddSection('exercise')} className="btn-outline" style={{ padding: '0.55rem 1.1rem', borderRadius: '10px', fontWeight: 800, color: '#dc2626', borderColor: 'rgba(220, 38, 38, 0.35)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                    <Plus size={15} /> إضافة تمرين
+                    <Plus size={15} /> Ajouter un exercice
                   </button>
                 </div>
               </div>
@@ -1475,7 +1475,7 @@ export default function AdminLessonEdit() {
                         className="btn-outline"
                         style={{ padding: '0.4rem 0.75rem', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 700, opacity: safeActiveIdx === 0 ? 0.35 : 1, display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
                       >
-                        <ChevronRight size={15} /> السابق
+                        <ChevronLeft size={15} /> Précédent
                       </button>
                       <span style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-muted)', padding: '0 0.35rem' }}>
                         {safeActiveIdx + 1} / {sections.length}
@@ -1487,12 +1487,12 @@ export default function AdminLessonEdit() {
                         className="btn-outline"
                         style={{ padding: '0.4rem 0.75rem', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 700, opacity: safeActiveIdx >= sections.length - 1 ? 0.35 : 1, display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
                       >
-                        التالي <ChevronLeft size={15} />
+                        Suivant <ChevronRight size={15} />
                       </button>
                     </div>
                   ) : (
                     <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)' }}>
-                      إجمالي الفقرات: {sections.length} • يمكنك لصق أي صورة مباشرة بـ Ctrl+V
+                      Total des sections : {sections.length} • Collez une image directement avec Ctrl+V
                     </span>
                   )}
 
@@ -1503,7 +1503,7 @@ export default function AdminLessonEdit() {
                       className="btn-outline"
                       style={{ padding: '0.4rem 0.75rem', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
                     >
-                      <Plus size={14} /> فقرة جديدة
+                      <Plus size={14} /> Nouveau paragraphe
                     </button>
                     <button
                       type="button"
@@ -1511,7 +1511,7 @@ export default function AdminLessonEdit() {
                       className="btn-outline"
                       style={{ padding: '0.4rem 0.75rem', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 800, color: '#dc2626', borderColor: 'rgba(220, 38, 38, 0.35)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
                     >
-                      <Plus size={14} /> تمرين جديد
+                      <Plus size={14} /> Nouvel exercice
                     </button>
                   </div>
                 </div>
@@ -1561,8 +1561,8 @@ export default function AdminLessonEdit() {
         onInsert={insertTextOrSnippet}
         activeTargetLabel={
           sections[activeFieldTargetRef.current?.secIdx]?.title
-            ? `${sections[activeFieldTargetRef.current.secIdx].title} (${activeFieldTargetRef.current.field === 'solution' ? 'الحل' : 'النص'})`
-            : 'المحرر'
+            ? `${sections[activeFieldTargetRef.current.secIdx].title} (${activeFieldTargetRef.current.field === 'solution' ? 'Corrigé' : 'Énoncé'})`
+            : 'Éditeur'
         }
         isArMode={isArMode}
       />
@@ -1570,7 +1570,7 @@ export default function AdminLessonEdit() {
       {/* ── MOBILE FLOATING QUICK-SAVE BAR ── */}
       {isMobile && (
         <div
-          dir="rtl"
+          dir="ltr"
           style={{
             position: 'fixed',
             bottom: 0,
@@ -1593,16 +1593,16 @@ export default function AdminLessonEdit() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0, flex: 1 }}>
             {autoSaving || saving ? (
               <span style={{ fontSize: '0.78rem', color: '#818cf8', display: 'flex', alignItems: 'center', gap: '0.3rem', fontWeight: 700 }}>
-                <Loader2 size={14} className="animate-spin" /> جاري الحفظ...
+                <Loader2 size={14} className="animate-spin" /> Enregistrement...
               </span>
             ) : hasUnsavedChanges ? (
               <span style={{ fontSize: '0.78rem', color: '#fbbf24', display: 'flex', alignItems: 'center', gap: '0.3rem', fontWeight: 700 }}>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#fbbf24', display: 'inline-block' }} />
-                تعديلات غير محفوظة
+                Modifications non enregistrées
               </span>
             ) : (
               <span style={{ fontSize: '0.76rem', color: '#34d399', display: 'flex', alignItems: 'center', gap: '0.3rem', fontWeight: 700 }}>
-                <CheckCircle2 size={14} /> {lastSavedTime ? `محفوظ ${lastSavedTime}` : 'محفوظ في السيرفر'}
+                <CheckCircle2 size={14} /> {lastSavedTime ? `Enregistré ${lastSavedTime}` : 'Enregistré sur le serveur'}
               </span>
             )}
           </div>
@@ -1623,7 +1623,7 @@ export default function AdminLessonEdit() {
                 border: '1px solid rgba(255, 255, 255, 0.15)',
               }}
             >
-              {viewMode === 'write' ? 'معاينة' : 'كتابة'}
+              {viewMode === 'write' ? 'Aperçu' : 'Rédaction'}
             </button>
 
             <button
@@ -1646,7 +1646,7 @@ export default function AdminLessonEdit() {
               }}
             >
               {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
-              <span>حفظ التعديل</span>
+              <span>Enregistrer</span>
             </button>
           </div>
         </div>

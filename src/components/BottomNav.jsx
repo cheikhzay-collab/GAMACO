@@ -20,22 +20,22 @@ export default function BottomNav() {
   const dueToday  = isStudent ? (dueTodayCount || 0) : 0;
 
   const studentItems = [
-    { to: '/dashboard', icon: LayoutDashboard, label: 'الرئيسية' },
-    { to: '/levels',    icon: Library,         label: 'الدروس'   },
-    { to: '/study',     icon: BookOpen,        label: 'المراجعة' },
-    { to: '/scanner',   icon: Camera,          label: 'الماسح'   },
+    { to: '/dashboard', icon: LayoutDashboard, label: 'Accueil'  },
+    { to: '/levels',    icon: Library,         label: 'Cours'    },
+    { to: '/study',     icon: BookOpen,        label: 'Révision' },
+    { to: '/scanner',   icon: Camera,          label: 'Scanner'  },
   ];
 
   const adminItems = [
-    { to: '/admin/dashboard', icon: LayoutDashboard, label: 'الرئيسية' },
-    { to: '/admin/lessons',   icon: FileText,        label: 'الدروس'   },
-    { to: '/admin/logbook',   icon: ClipboardList,   label: 'الدفتر'   },
-    { to: '/admin/classes',   icon: Users,           label: 'الأقسام'  },
+    { to: '/admin/dashboard', icon: LayoutDashboard, label: 'Accueil' },
+    { to: '/admin/lessons',   icon: FileText,        label: 'Cours'   },
+    { to: '/admin/logbook',   icon: ClipboardList,   label: 'Cahier'  },
+    { to: '/admin/classes',   icon: Users,           label: 'Classes' },
   ];
 
   const guestItems = [
-    { to: '/national-exams', icon: Award,         label: 'الوطنيات' },
-    { to: '/levels',         icon: GraduationCap, label: 'المستويات' },
+    { to: '/national-exams', icon: Award,         label: 'Nationaux' },
+    { to: '/levels',         icon: GraduationCap, label: 'Niveaux'   },
   ];
 
   const items = !user ? guestItems : (isStudent ? studentItems : adminItems);
@@ -119,20 +119,20 @@ export default function BottomNav() {
             <button
               className={`mob-nav-item${showSheet ? ' active' : ''}`}
               onClick={() => setShowSheet(true)}
-              title="المزيد من الأدوات"
-              aria-label="المزيد من الأدوات"
+              title="Plus d'outils"
+              aria-label="Plus d'outils"
             >
               <div className="mob-nav-icon-wrap">
                 <Zap size={21} strokeWidth={2} className={showSheet ? 'text-violet' : ''} />
               </div>
-              <span className="mob-nav-label">المزيد</span>
+              <span className="mob-nav-label">Plus</span>
             </button>
           ) : (
             <button
               className={`mob-nav-item${showSheet ? ' active' : ''}`}
               onClick={() => setShowSheet(true)}
-              title="حسابي والإعدادات"
-              aria-label="حسابي والإعدادات"
+              title="Mon compte & paramètres"
+              aria-label="Mon compte & paramètres"
               style={{ position: 'relative' }}
             >
               <div className="mob-nav-icon-wrap" style={{ position: 'relative' }}>
@@ -147,7 +147,7 @@ export default function BottomNav() {
                   {initial}
                 </div>
               </div>
-              <span className="mob-nav-label">حسابي</span>
+              <span className="mob-nav-label">Compte</span>
             </button>
           )}
         </div>

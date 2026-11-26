@@ -485,7 +485,7 @@ export const addLesson = async (lessonData) => {
   } catch (err) {
     console.error('[lessonService] addLesson MySQL save failed:', err);
     if (err?.status === 401 || err?.status === 403) {
-      throw new Error('انتهت صلاحية الجلسة — يرجى تسجيل الدخول مرة أخرى كأستاذ/أدمن لحفظ الدرس في قاعدة البيانات.');
+      throw new Error('Session expirée — veuillez vous reconnecter en tant qu\'enseignant/admin pour enregistrer le cours.');
     }
     throw err;
   }
@@ -734,7 +734,7 @@ export const updateLesson = async (lessonId, updates) => {
   } catch (err) {
     console.error('[lessonService] updateLesson MySQL save failed:', err);
     if (err?.status === 401 || err?.status === 403) {
-      throw new Error('انتهت صلاحية الجلسة — يرجى تسجيل الدخول مرة أخرى لحفظ التعديلات في قاعدة البيانات.');
+      throw new Error('Session expirée — veuillez vous reconnecter pour enregistrer les modifications.');
     }
   }
 
@@ -783,9 +783,9 @@ export const deleteLesson = async (lessonId) => {
   } catch (err) {
     console.error('[lessonService] deleteLesson MySQL delete failed:', err);
     if (err?.status === 401 || err?.status === 403) {
-      throw new Error('انتهت صلاحية الجلسة — يرجى تسجيل الدخول مرة أخرى لحذف الملف من قاعدة البيانات.');
+      throw new Error('Session expirée — veuillez vous reconnecter pour supprimer le fichier de la base de données.');
     }
-    throw new Error(err?.message || 'تعذر حذف الملف من قاعدة البيانات.');
+    throw new Error(err?.message || 'Impossible de supprimer le fichier de la base de données.');
   }
 
   // 2. Clean up local storage & single-lesson cache ONLY after MySQL confirms deletion

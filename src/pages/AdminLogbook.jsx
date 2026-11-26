@@ -3187,7 +3187,7 @@ export default function AdminLogbook() {
                       {new Date(session.date).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })} • {session.time}{session.isDoubleHour ? ' (2h)' : ''}
                     </p>
                     <span style={{ fontSize: '0.65rem', color: 'var(--text-subtle)' }}>
-                      Salle / القاعة: {session.room}
+                      Salle : {session.room}
                     </span>
                   </div>
                   
@@ -3465,7 +3465,7 @@ export default function AdminLogbook() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.3rem' }}>
                   <button 
                     onClick={() => setManualLanguage(prev => (isArMode ? 'fr' : 'ar'))}
-                    title="اضغط لتغيير لغة العرض والطباعة بين العربية والفرنسية"
+                    title="Cliquez pour basculer la langue d'affichage et d'impression entre l'arabe et le français"
                     style={{ 
                       background: isArMode ? 'linear-gradient(135deg, #d97706 0%, #b45309 100%)' : 'linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)', 
                       color: 'white', fontWeight: 900, fontSize: '0.75rem', padding: '0.35rem 0.8rem', borderRadius: '8px',

@@ -742,7 +742,7 @@ export function openCoursePrintWindow(lesson, options = {}) {
   const html = generateCoursePDFHtml(lesson, options);
   const w = window.open('', '_blank');
   if (!w) {
-    alert('يرجى السماح بالنوافذ المنبثقة لفتح معاينة الطباعة PDF.');
+    alert('Veuillez autoriser les fenêtres pop-up pour ouvrir l\'aperçu d\'impression PDF.');
     return;
   }
   w.document.open();

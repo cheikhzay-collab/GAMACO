@@ -359,9 +359,9 @@ export const deleteExam = async (examId) => {
   } catch (err) {
     console.error('[examService] deleteExam MySQL delete failed:', err);
     if (err?.status === 401 || err?.status === 403) {
-      throw new Error('انتهت صلاحية الجلسة — يرجى تسجيل الدخول مرة أخرى لحذف الاختبار من قاعدة البيانات.');
+      throw new Error('Session expirée — veuillez vous reconnecter pour supprimer l\'examen de la base de données.');
     }
-    throw new Error(err?.message || 'تعذر حذف الاختبار من قاعدة البيانات.');
+    throw new Error(err?.message || 'Impossible de supprimer l\'examen de la base de données.');
   }
 
   queryCache.invalidate('exams_all');

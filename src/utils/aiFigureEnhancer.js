@@ -272,7 +272,7 @@ export async function regenerateMathFigureWithAI(imageBase64OrDataUrl, options =
     base64Data = parts[1];
   }
 
-  onStatusUpdate('فحص المعلم والمكونات الرياضية للشكل (Analyse des axes et composantes mathématiques)...');
+  onStatusUpdate('Analyse des axes et des composantes mathématiques de la figure...');
 
   const systemPrompt = `Tu es un Expert Pédagogique et Concepteur Graphique de référence en Mathématiques pour l'enseignement secondaire marocain (Lycée : Tronc Commun, 1BAC, 2BAC Sciences Maths, PC, SVT).
 Ta mission est d'analyser minutieusement l'image fournie (qui peut être une capture scannée d'un examen, d'un cours ou d'un devoir) et de la RECONSTRUIRE INTÉGRALEMENT sous forme de code SVG vectoriel d'une pureté géométrique et mathématique ABSOLUE.
@@ -316,7 +316,7 @@ Aucun commentaire, aucune balise Markdown autour du code SVG.`;
 ${customInstructions ? `Instructions spéciales de l'enseignant : ${customInstructions}\n` : ''}
 Régénère cette figure avec une fidélité mathématique totale en code SVG pur, ultra-net, sans aucun flou ni déformation.`;
 
-  onStatusUpdate('توليد الشكل الهندسي المتجهي فائق الدقة بالذكاء الاصطناعي (Génération vectorielle SVG)...');
+  onStatusUpdate('Génération vectorielle SVG haute précision par IA...');
 
   // Modèles candidats de Gemini supportant la vision multimodale
   const modelsToTry = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro', 'gemini-1.5-flash'];
@@ -404,7 +404,7 @@ Régénère cette figure avec une fidélité mathématique totale en code SVG pu
 
       const cleanSvg = extractCleanSvg(generatedText);
       if (cleanSvg) {
-        onStatusUpdate('تحويل الرسم المتجهي إلى صورة فائقة الدقة (Conversion en PNG 300+ DPI)...');
+        onStatusUpdate('Conversion du dessin vectoriel en image haute définition (PNG 300+ DPI)...');
         const pngDataUrl = await svgToPngDataUrl(cleanSvg, 2.5);
         return {
           svg: cleanSvg,

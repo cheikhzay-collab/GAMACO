@@ -79,7 +79,7 @@ export default function ImageDropZone({
       if (onImageInsert) {
         onImageInsert(dataUrl, `Figure (${source})`);
       }
-      showFlash(`✓ تم إدراج الصورة بنجاح (${source})`);
+      showFlash(`✓ Image insérée avec succès (${source})`);
       setTimeout(() => setPreviewUrl(null), 2000);
     } catch (err) {
       console.error('[ImageDropZone] Error processing image:', err);
@@ -93,7 +93,7 @@ export default function ImageDropZone({
       if (imageFile) {
         e.preventDefault();
         e.stopPropagation();
-        processImage(imageFile, 'لصق');
+        processImage(imageFile, 'Collage');
       }
     };
 
@@ -129,7 +129,7 @@ export default function ImageDropZone({
 
     const imageFile = extractImageFile(e.dataTransfer);
     if (imageFile) {
-      processImage(imageFile, 'سحب وإفلات');
+      processImage(imageFile, 'Glisser-déposer');
     }
   }, [processImage]);
 
@@ -137,7 +137,7 @@ export default function ImageDropZone({
   const handleFileSelect = useCallback((e) => {
     const file = e.target.files?.[0];
     if (file) {
-      processImage(file, 'ملف');
+      processImage(file, 'Fichier');
     }
     if (fileInputRef.current) fileInputRef.current.value = '';
   }, [processImage]);
@@ -159,7 +159,7 @@ export default function ImageDropZone({
       }, 100);
     } catch (err) {
       console.error('[Camera] Access denied:', err);
-      showFlash('❌ تعذر الوصول إلى الكاميرا');
+      showFlash('❌ Impossible d’accéder à la caméra');
     }
   }, [showFlash]);
 
@@ -183,9 +183,9 @@ export default function ImageDropZone({
     
     const dataUrl = canvas.toDataURL('image/png', 0.92);
     if (onImageInsert) {
-      onImageInsert(dataUrl, 'صورة من الكاميرا');
+      onImageInsert(dataUrl, 'Photo caméra');
     }
-    showFlash('📸 تم التقاط الصورة وإدراجها');
+    showFlash('📸 Photo capturée et insérée');
     stopCamera();
   }, [onImageInsert, showFlash, stopCamera]);
 
@@ -259,7 +259,7 @@ export default function ImageDropZone({
         </div>
 
         <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem', fontWeight: 600 }}>
-          📷 وجّه الكاميرا نحو الشكل الهندسي ثم اضغط زر الالتقاط
+          📷 Orientez la caméra vers la figure géométrique puis appuyez sur capturer
         </p>
       </div>
     );
@@ -279,9 +279,9 @@ export default function ImageDropZone({
             color: '#7c3aed', cursor: 'pointer',
             display: 'inline-flex', alignItems: 'center', gap: '0.3rem'
           }}
-          title="تحميل صورة من جهازك (أو اضغط Ctrl+V للصق)"
+          title="Importer une image (ou Ctrl+V pour coller)"
         >
-          <Upload size={12} /> 📸 + صورة
+          <Upload size={12} /> 📸 + Image
         </button>
 
         {showCamera && (
@@ -294,9 +294,9 @@ export default function ImageDropZone({
               color: '#0891b2', cursor: 'pointer',
               display: 'inline-flex', alignItems: 'center', gap: '0.3rem'
             }}
-            title="التقاط صورة مباشرة بكاميرا الهاتف/الحاسوب"
+            title="Prendre une photo avec la caméra"
           >
-            <Camera size={12} /> 📷 كاميرا
+            <Camera size={12} /> 📷 Caméra
           </button>
         )}
 
@@ -343,7 +343,7 @@ export default function ImageDropZone({
             <ImageIcon size={28} color="#fff" />
           </div>
           <p style={{ fontSize: '1rem', fontWeight: 800, color: '#7c3aed', margin: 0 }}>
-            أفلت الصورة هنا لإدراجها في مكانها 📸
+            Déposez l&apos;image ici pour l&apos;insérer 📸
           </p>
         </div>
       )}

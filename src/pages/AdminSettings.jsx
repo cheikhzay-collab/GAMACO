@@ -150,27 +150,27 @@ export default function AdminSettings() {
 
   const SOLVER_MODELS_BY_PROVIDER = {
     gemini: [
-      { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', tag: 'الأقوى في البراهين والرياضيات' },
-      { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', tag: 'سريع ومتوازن (موصى به)' },
-      { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash-Lite', tag: 'اقتصادي وسريع جداً' },
-      { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash', tag: 'مستقر' },
-      { id: 'gemini-pro-latest', label: 'Gemini Pro Latest', tag: 'أحدث إصدار Pro' },
+      { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', tag: 'Le plus puissant pour les démonstrations' },
+      { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', tag: 'Rapide et équilibré (recommandé)' },
+      { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash-Lite', tag: 'Économique et très rapide' },
+      { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash', tag: 'Stable' },
+      { id: 'gemini-pro-latest', label: 'Gemini Pro Latest', tag: 'Dernière version Pro' },
     ],
     deepseek: [
-      { id: 'deepseek-reasoner', label: 'DeepSeek R1 (Reasoner)', tag: 'الأفضل للتفكير الرياضي المعمق' },
-      { id: 'deepseek-chat', label: 'DeepSeek V3 (Chat)', tag: 'سريع واقتصادي' },
+      { id: 'deepseek-reasoner', label: 'DeepSeek R1 (Reasoner)', tag: 'Optimal pour le raisonnement mathématique' },
+      { id: 'deepseek-chat', label: 'DeepSeek V3 (Chat)', tag: 'Rapide et économique' },
     ],
     openai: [
-      { id: 'o3-mini', label: 'OpenAI o3-mini', tag: 'نموذج تفكير رياضي متقدم' },
-      { id: 'o4-mini', label: 'OpenAI o4-mini', tag: 'تفكير حديث وسريع' },
-      { id: 'gpt-4o', label: 'GPT-4o', tag: 'دقة عالية وشاملة' },
-      { id: 'gpt-4.1', label: 'GPT-4.1', tag: 'أحدث نموذج نصي' },
-      { id: 'gpt-4o-mini', label: 'GPT-4o mini', tag: 'اقتصادي' },
+      { id: 'o3-mini', label: 'OpenAI o3-mini', tag: 'Modèle de raisonnement avancé' },
+      { id: 'o4-mini', label: 'OpenAI o4-mini', tag: 'Raisonnement moderne et rapide' },
+      { id: 'gpt-4o', label: 'GPT-4o', tag: 'Haute précision polyvalente' },
+      { id: 'gpt-4.1', label: 'GPT-4.1', tag: 'Dernier modèle texte' },
+      { id: 'gpt-4o-mini', label: 'GPT-4o mini', tag: 'Économique' },
     ],
     claude: [
-      { id: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4', tag: 'الأحدث والأقوى في الصياغة' },
-      { id: 'claude-3-7-sonnet-20250219', label: 'Claude 3.7 Sonnet', tag: 'تفكير رياضي موسع' },
-      { id: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet', tag: 'مستقر ومجرب' },
+      { id: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4', tag: 'Le plus récent et précis en rédaction' },
+      { id: 'claude-3-7-sonnet-20250219', label: 'Claude 3.7 Sonnet', tag: 'Raisonnement mathématique étendu' },
+      { id: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet', tag: 'Stable et éprouvé' },
     ],
   };
 
@@ -289,21 +289,21 @@ export default function AdminSettings() {
   };
 
   const handleResetExamPrompt = () => {
-    if (window.confirm('هل أنت متأكد من استعادة برومبت استخراج الامتحانات الافتراضي؟')) {
+    if (window.confirm("Voulez-vous vraiment restaurer le prompt par défaut d'extraction des examens ?")) {
       const def = resetExamPrompt();
       setExamPrompt(def);
     }
   };
 
   const handleResetLessonPrompt = () => {
-    if (window.confirm('هل أنت متأكد من استعادة برومبت استخراج الدروس الافتراضي؟')) {
+    if (window.confirm("Voulez-vous vraiment restaurer le prompt par défaut d'extraction des cours ?")) {
       const def = resetLessonPrompt();
       setLessonPrompt(def);
     }
   };
 
   const handleResetDirectives = () => {
-    if (window.confirm('هل أنت متأكد من استعادة التوجيهات الافتراضية؟')) {
+    if (window.confirm('Voulez-vous vraiment restaurer les directives par défaut ?')) {
       const def = resetExtractorDirectives();
       setExtractorDirectives(def);
     }
@@ -453,11 +453,11 @@ export default function AdminSettings() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Échec de création');
-      setSnapshotNotice(`✅ تم حفظ نسخة احتياطية فورية على الخادم (${data.snapshot?.fileName})`);
+      setSnapshotNotice(`✅ Sauvegarde instantanée enregistrée sur le serveur (${data.snapshot?.fileName})`);
       setTimeout(() => setSnapshotNotice(''), 4500);
       await fetchServerSnapshots();
     } catch (err) {
-      alert('❌ ' + (err?.message || 'تعذر إنشاء النسخة الاحتياطية على الخادم.'));
+      alert('❌ ' + (err?.message || 'Impossible de créer la sauvegarde sur le serveur.'));
     } finally {
       setCreatingSnapshot(false);
     }
@@ -466,7 +466,7 @@ export default function AdminSettings() {
   const handleDownloadServerSnapshot = async (fileName) => {
     try {
       const res = await fetch(`/api/admin/snapshots/download?file=${encodeURIComponent(fileName)}`);
-      if (!res.ok) throw new Error('تعذر تحميل الملف');
+      if (!res.ok) throw new Error('Impossible de télécharger le fichier');
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -482,7 +482,7 @@ export default function AdminSettings() {
   };
 
   const handleRestoreServerSnapshot = async (fileName) => {
-    if (!window.confirm(`هل أنت متأكد من استعادة النسخة الاحتياطية "${fileName}" إلى قاعدة البيانات MySQL؟\n\n(سيتم تلقائياً أخذ نسخة أمان لحالتك الحالية قبل الاستعادة)`)) {
+    if (!window.confirm(`Voulez-vous vraiment restaurer la sauvegarde « ${fileName} » dans la base de données MySQL ?\n\n(Une sauvegarde de sécurité de votre état actuel sera créée automatiquement avant la restauration)`)) {
       return;
     }
     setRestoringSnapshotFile(fileName);
@@ -495,10 +495,10 @@ export default function AdminSettings() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Échec restauration');
-      alert(`✅ تمت استعادة قاعدة البيانات بنجاح من ${fileName}!\nالدروس: ${data.restored?.lessons || 0} | الأقسام: ${data.restored?.classes || 0} | دفتر النصوص: ${data.restored?.logbook || 0}`);
+      alert(`✅ Base de données restaurée avec succès depuis ${fileName} !\nCours : ${data.restored?.lessons || 0} | Classes : ${data.restored?.classes || 0} | Cahier de textes : ${data.restored?.logbook || 0}`);
       window.location.reload();
     } catch (err) {
-      alert('❌ ' + (err?.message || 'تعذرت الاستعادة.'));
+      alert('❌ ' + (err?.message || 'La restauration a échoué.'));
     } finally {
       setRestoringSnapshotFile(null);
     }
@@ -1042,7 +1042,7 @@ export default function AdminSettings() {
 
   const loadMoroccanOfficialHolidays = () => {
     if (logbookHolidays.length > 0) {
-      if (!window.confirm("هل تريد إضافة لائحة العطل المدرسية الرسمية بالمغرب إلى لائحتك الحالية؟")) {
+      if (!window.confirm('Voulez-vous ajouter la liste officielle des vacances scolaires du Maroc à votre liste actuelle ?')) {
         return;
       }
     }
@@ -1231,7 +1231,7 @@ export default function AdminSettings() {
     try {
       const res = await syncAllConfigsAndSchedule();
       if (res.success) {
-        setSyncSuccessMsg(`✓ تم مزامنة جدول الحصص (${res.scheduleSlots} حصص) وجميع الإعدادات سحابياً بنجاح!`);
+        setSyncSuccessMsg(`✓ Emploi du temps (${res.scheduleSlots} créneaux) et tous les paramètres synchronisés dans le cloud avec succès !`);
         // Refresh local states
         const freshSched = await getTeacherScheduleConfig({ forceRefresh: true });
         if (freshSched && typeof freshSched === 'object' && Object.keys(freshSched).length > 0) {
@@ -1242,10 +1242,10 @@ export default function AdminSettings() {
           setLogbookHolidays(freshHols);
         }
       } else {
-        setSyncSuccessMsg('⚠️ تمت المزامنة مع بعض الملاحظات: ' + (res.error || ''));
+        setSyncSuccessMsg('⚠️ Synchronisation terminée avec quelques remarques : ' + (res.error || ''));
       }
     } catch (e) {
-      setSyncSuccessMsg('❌ حدث خطأ أثناء المزامنة: ' + (e.message || ''));
+      setSyncSuccessMsg('❌ Erreur lors de la synchronisation : ' + (e.message || ''));
     } finally {
       setSyncingAll(false);
       setTimeout(() => setSyncSuccessMsg(''), 5000);
@@ -1954,10 +1954,10 @@ export default function AdminSettings() {
             onClick={handleSyncAll}
             disabled={syncingAll}
             className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md shadow-emerald-500/20 active:scale-95 transition-all duration-200 cursor-pointer disabled:opacity-50"
-            title="مزامنة شاملة لجدول الحصص وجميع الإعدادات سحابياً ومحلياً"
+            title="Synchronisation complète de l'emploi du temps et de tous les paramètres dans le cloud et en local"
           >
             <RefreshCw size={14} className={syncingAll ? 'animate-spin' : ''} />
-            <span>{syncingAll ? 'جاري المزامنة...' : 'مزامنة السحاب وجدول الحصص'}</span>
+            <span>{syncingAll ? 'Synchronisation...' : "Synchroniser Cloud & Emploi du temps"}</span>
           </button>
           <div className="flex flex-col items-center px-4 py-2 bg-[var(--bg-card)] border border-[var(--border)] rounded-xl min-w-[75px]">
             <span className="text-lg font-black text-[var(--text-main)]">{(classes || []).length}</span>
@@ -1967,7 +1967,7 @@ export default function AdminSettings() {
       </div>
 
       {syncSuccessMsg && (
-        <div className="mt-3 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center gap-2 animate-fade-in" style={{ direction: 'rtl' }}>
+        <div className="mt-3 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center gap-2 animate-fade-in">
           <CheckCircle2 size={16} />
           <span>{syncSuccessMsg}</span>
         </div>
@@ -2593,10 +2593,10 @@ export default function AdminSettings() {
                       </div>
                       <div>
                         <h3 style={{ fontSize: '1.08rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
-                          النموذج المخصص لحل الامتحانات والتمارين (Solveur IA Examens &amp; Exercices)
+                          Solveur IA dédié aux Examens &amp; Exercices
                         </h3>
                         <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                          اختر المزود والنموذج الافتراضي المعتمد في تصحيح التمارين، الامتحانات الوطنية، وقالب DEVOIR PRIME
+                          Choisissez le fournisseur et le modèle par défaut pour résoudre les exercices, examens nationaux et DEVOIR PRIME
                         </span>
                       </div>
                     </div>
@@ -2611,8 +2611,8 @@ export default function AdminSettings() {
                     <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10B981' }} />
                     <span>
                       {solverProvider === 'auto'
-                        ? 'الوضع التلقائي الذكي (Cascade)'
-                        : `${solverProvider.toUpperCase()} — ${solverModel || 'افتراضي'}`}
+                        ? 'Mode automatique intelligent (Cascade)'
+                        : `${solverProvider.toUpperCase()} — ${solverModel || 'Par défaut'}`}
                     </span>
                   </div>
                 </div>
@@ -2620,11 +2620,11 @@ export default function AdminSettings() {
                 {/* Provider Selector Pills */}
                 <div style={{ marginBottom: '1.15rem' }}>
                   <label className="settings-label" style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-subtle)', marginBottom: '0.5rem', display: 'block' }}>
-                    1. اختر المزود الأساسي للحل (Fournisseur IA) :
+                    1. Choisissez le fournisseur IA principal pour la résolution :
                   </label>
                   <div className="flex flex-wrap gap-2.5">
                     {[
-                      { id: 'auto', label: '⚡ تلقائي ذكي (Auto)', color: '#6366f1', hasKey: true },
+                      { id: 'auto', label: '⚡ Automatique intelligent (Auto)', color: '#6366f1', hasKey: true },
                       { id: 'deepseek', label: '🧠 DeepSeek (R1 / V3)', color: '#00BA7C', hasKey: Boolean(deepseekKey.trim()) },
                       { id: 'gemini', label: '✨ Google Gemini', color: '#4285F4', hasKey: Boolean(geminiKey.trim()) },
                       { id: 'openai', label: '🤖 OpenAI (o3 / GPT-4o)', color: '#8B5CF6', hasKey: Boolean(openaiKey.trim()) },
@@ -2660,7 +2660,7 @@ export default function AdminSettings() {
                               background: p.hasKey ? 'rgba(16,185,129,0.14)' : 'rgba(239,68,68,0.12)',
                               color: p.hasKey ? '#10B981' : '#ef4444'
                             }}>
-                              {p.hasKey ? '✓ مفعل' : 'بدون مفتاح'}
+                              {p.hasKey ? '✓ Actif' : 'Sans clé'}
                             </span>
                           )}
                         </button>
@@ -2679,7 +2679,7 @@ export default function AdminSettings() {
                     marginBottom: '1rem'
                   }}>
                     <label className="settings-label" style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-subtle)', marginBottom: '0.6rem', display: 'block' }}>
-                      2. اختر النموذج الدقيق المخصص للحل (Modèle exact) :
+                      2. Choisissez le modèle exact dédié à la résolution :
                     </label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 mb-3">
                       {(SOLVER_MODELS_BY_PROVIDER[solverProvider] || []).map(m => {
@@ -2716,7 +2716,7 @@ export default function AdminSettings() {
 
                     <div className="settings-field" style={{ marginBottom: 0 }}>
                       <label className="settings-label" style={{ fontSize: '0.72rem', color: 'var(--text-subtle)' }}>
-                        أو أدخل معرف النموذج يدوياً (ID du modèle personnalisé) :
+                        Ou saisissez l&apos;identifiant du modèle manuellement (ID personnalisé) :
                       </label>
                       <input
                         type="text"
@@ -2739,7 +2739,7 @@ export default function AdminSettings() {
                     color: 'var(--text-muted)',
                     lineHeight: 1.55
                   }}>
-                    💡 في الوضع <strong>التلقائي</strong>، يقوم النظام باختيار أفضل محرك متوفر ومفعل (مع التبديل التلقائي إلى المحرك الاحتياطي في حال نفاد الرصيد أو الضغط على الخادم).
+                    💡 En mode <strong>Automatique</strong>, le système sélectionne le meilleur moteur actif disponible (avec bascule automatique vers le moteur de secours en cas de quota atteint ou de surcharge).
                   </div>
                 )}
 
@@ -2763,7 +2763,7 @@ export default function AdminSettings() {
                     }}
                   >
                     {solverSaved ? <Check size={16} /> : <Sparkles size={16} />}
-                    <span>{solverSaved ? '✅ تم حفظ نموذج الحل بنجاح' : 'حفظ إعدادات نموذج الحل'}</span>
+                    <span>{solverSaved ? '✅ Modèle de résolution enregistré' : 'Enregistrer la configuration du solveur'}</span>
                   </button>
                 </div>
               </div>
@@ -2810,8 +2810,8 @@ export default function AdminSettings() {
                     </div>
 
                     <div className="flex items-center gap-1.5 flex-wrap mb-3">
-                      <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.45rem', borderRadius: '6px', background: 'rgba(66,133,244,0.12)', color: '#4285F4' }}>Gemini 2.5 Flash (الأحدث والموصى به)</span>
-                      <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.45rem', borderRadius: '6px', background: 'rgba(66,133,244,0.12)', color: '#4285F4' }}>Gemini 2.5 Pro (الأقوى في الرياضيات)</span>
+                      <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.45rem', borderRadius: '6px', background: 'rgba(66,133,244,0.12)', color: '#4285F4' }}>Gemini 2.5 Flash (Recommandé)</span>
+                      <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.45rem', borderRadius: '6px', background: 'rgba(66,133,244,0.12)', color: '#4285F4' }}>Gemini 2.5 Pro (Puissant en maths)</span>
                       <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '0.15rem 0.45rem', borderRadius: '6px', background: 'rgba(66,133,244,0.12)', color: '#4285F4' }}>Gemini 2.0 Flash</span>
                     </div>
 
@@ -3375,7 +3375,7 @@ export default function AdminSettings() {
               </div>
 
 
-              {/* ── SECTION: PROMPTS ET DIRECTIVES DU مستخرج (Extraction System Prompts & Custom Directives) ── */}
+              {/* ── SECTION: PROMPTS ET DIRECTIVES DE L'EXTRACTEUR (Extraction System Prompts & Custom Directives) ── */}
               <div className="bento-card" style={{
                 background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.4) 0%, rgba(15, 23, 42, 0.6) 100%)',
                 border: '1.5px solid rgba(139, 92, 246, 0.3)',
@@ -3398,15 +3398,15 @@ export default function AdminSettings() {
                       </div>
                       <div>
                         <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
-                          إعدادات برومبت وتوجيهات المستخرج الذكي
+                          Prompts et directives de l&apos;extracteur intelligent
                         </h3>
                         <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                          Architecture des Prompts Système & Directives d'Extraction IA (QCM, Examens, Cours)
+                          Architecture des Prompts Système &amp; Directives d&apos;Extraction IA (QCM, Examens, Cours)
                         </span>
                       </div>
                     </div>
                     <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.6, maxWidth: '820px' }}>
-                      تحكم بدقة متناهية في سلوك محركات الذكاء الاصطناعي أثناء استخراج ملفات PDF والصور. يمكنك تعديل البرومبت الأساسي للامتحانات و QCM، برومبت الدروس والمقررات، وإضافة توجيهات وتعليمات خاصة تطبق تلقائياً على كافة عمليات الاستخراج.
+                      Contrôlez avec précision le comportement des moteurs IA lors de l&apos;extraction de PDF et d&apos;images. Vous pouvez modifier le prompt de base des examens et QCM, celui des cours et synthèses, et ajouter des directives personnalisées appliquées automatiquement à toutes les extractions.
                     </p>
                   </div>
 
@@ -3432,7 +3432,7 @@ export default function AdminSettings() {
                       }}
                     >
                       {promptsSaved ? <Check size={16} /> : <Sparkles size={16} />}
-                      {promptsSaved ? 'تم الحفظ بنجاح وتفعيل التوجيهات!' : 'حفظ التعديلات'}
+                      {promptsSaved ? 'Enregistré et directives activées !' : 'Enregistrer les modifications'}
                     </button>
                   </div>
                 </div>
@@ -3457,7 +3457,7 @@ export default function AdminSettings() {
                       gap: '0.4rem'
                     }}
                   >
-                    <span>📝</span> برومبت استخراج الامتحانات و QCM
+                    <span>📝</span> Prompt d&apos;extraction Examens &amp; QCM
                   </button>
 
                   <button
@@ -3478,7 +3478,7 @@ export default function AdminSettings() {
                       gap: '0.4rem'
                     }}
                   >
-                    <span>📚</span> برومبت استخراج الدروس والمقررات
+                    <span>📚</span> Prompt d&apos;extraction Cours &amp; Synthèses
                   </button>
 
                   <button
@@ -3499,7 +3499,7 @@ export default function AdminSettings() {
                       gap: '0.4rem'
                     }}
                   >
-                    <span>🎯</span> توجيهات وتعليمات المستخرج الإضافية
+                    <span>🎯</span> Directives supplémentaires de l&apos;extracteur
                   </button>
                 </div>
 
@@ -3509,15 +3509,15 @@ export default function AdminSettings() {
                     <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
                       <div>
                         <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', display: 'block' }}>
-                          برومبت استخراج الامتحانات و QCM (System Prompt - Examens & Concours)
+                          Prompt d&apos;extraction Examens &amp; QCM (System Prompt - Examens &amp; Concours)
                         </span>
                         <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)' }}>
-                          يتحكم في دقة استخراج الأسئلة، الخيارات الأربعة، الإجابة الصحيحة، وصياغة الـ Astuce والـ Trick.
+                          Contrôle la précision de l&apos;extraction des questions, des quatre choix, de la bonne réponse, ainsi que la rédaction des Astuces et Tricks.
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', padding: '0.2rem 0.6rem', borderRadius: '6px', background: 'var(--bg-glass)', border: '1px solid var(--border)' }}>
-                          {examPrompt.length} حرف (~{Math.round(examPrompt.length / 4)} توكن)
+                          {examPrompt.length} car. (~{Math.round(examPrompt.length / 4)} tokens)
                         </span>
                         <button
                           type="button"
@@ -3526,7 +3526,7 @@ export default function AdminSettings() {
                           style={{ fontSize: '0.74rem', padding: '0.35rem 0.7rem', borderRadius: '8px', gap: '0.35rem', cursor: 'pointer' }}
                         >
                           {copiedField === 'exam' ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
-                          {copiedField === 'exam' ? 'تم النسخ' : 'نسخ'}
+                          {copiedField === 'exam' ? 'Copié' : 'Copier'}
                         </button>
                         <button
                           type="button"
@@ -3534,7 +3534,7 @@ export default function AdminSettings() {
                           className="btn-secondary"
                           style={{ fontSize: '0.74rem', padding: '0.35rem 0.7rem', borderRadius: '8px', gap: '0.35rem', color: 'var(--text-subtle)', cursor: 'pointer' }}
                         >
-                          <RotateCcw size={13} /> استعادة الافتراضي
+                          <RotateCcw size={13} /> Réinitialiser
                         </button>
                       </div>
                     </div>
@@ -3569,15 +3569,15 @@ export default function AdminSettings() {
                     <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
                       <div>
                         <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', display: 'block' }}>
-                          برومبت استخراج الدروس والمقررات (System Prompt - Cours & Résumés)
+                          Prompt d&apos;extraction Cours &amp; Programmes (System Prompt - Cours &amp; Résumés)
                         </span>
                         <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)' }}>
-                          يحدد معايير استخراج ملخصات الدروس، سلاسل التمارين، والأنشطة بتنسيق الجداول وتضمين LaTeX.
+                          Définit les règles d&apos;extraction des résumés de cours, séries d&apos;exercices et activités avec mise en forme en tableaux et formules LaTeX.
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', padding: '0.2rem 0.6rem', borderRadius: '6px', background: 'var(--bg-glass)', border: '1px solid var(--border)' }}>
-                          {lessonPrompt.length} حرف (~{Math.round(lessonPrompt.length / 4)} توكن)
+                          {lessonPrompt.length} car. (~{Math.round(lessonPrompt.length / 4)} tokens)
                         </span>
                         <button
                           type="button"
@@ -3586,7 +3586,7 @@ export default function AdminSettings() {
                           style={{ fontSize: '0.74rem', padding: '0.35rem 0.7rem', borderRadius: '8px', gap: '0.35rem', cursor: 'pointer' }}
                         >
                           {copiedField === 'lesson' ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
-                          {copiedField === 'lesson' ? 'تم النسخ' : 'نسخ'}
+                          {copiedField === 'lesson' ? 'Copié' : 'Copier'}
                         </button>
                         <button
                           type="button"
@@ -3594,7 +3594,7 @@ export default function AdminSettings() {
                           className="btn-secondary"
                           style={{ fontSize: '0.74rem', padding: '0.35rem 0.7rem', borderRadius: '8px', gap: '0.35rem', color: 'var(--text-subtle)', cursor: 'pointer' }}
                         >
-                          <RotateCcw size={13} /> استعادة الافتراضي
+                          <RotateCcw size={13} /> Réinitialiser
                         </button>
                       </div>
                     </div>
@@ -3629,15 +3629,15 @@ export default function AdminSettings() {
                     <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
                       <div>
                         <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', display: 'block' }}>
-                          توجيهات وتعليمات المستخرج الإضافية (Directives Personnalisées de l'Extracteur)
+                          Directives personnalisées de l&apos;extracteur (Directives Personnalisées)
                         </span>
                         <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)' }}>
-                          تعليمات وقواعد مخصصة يتم حقنها تلقائياً مع كل طلب استخراج (لفرض أسلوب معين، لغة محددة، أو ضوابط إضافية).
+                          Instructions et règles personnalisées injectées automatiquement dans chaque requête d&apos;extraction (style, langue cible ou contraintes spécifiques).
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', padding: '0.2rem 0.6rem', borderRadius: '6px', background: 'var(--bg-glass)', border: '1px solid var(--border)' }}>
-                          {extractorDirectives.length} حرف
+                          {extractorDirectives.length} car.
                         </span>
                         <button
                           type="button"
@@ -3646,7 +3646,7 @@ export default function AdminSettings() {
                           style={{ fontSize: '0.74rem', padding: '0.35rem 0.7rem', borderRadius: '8px', gap: '0.35rem', cursor: 'pointer' }}
                         >
                           {copiedField === 'directives' ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
-                          {copiedField === 'directives' ? 'تم النسخ' : 'نسخ'}
+                          {copiedField === 'directives' ? 'Copié' : 'Copier'}
                         </button>
                         <button
                           type="button"
@@ -3654,7 +3654,7 @@ export default function AdminSettings() {
                           className="btn-secondary"
                           style={{ fontSize: '0.74rem', padding: '0.35rem 0.7rem', borderRadius: '8px', gap: '0.35rem', color: 'var(--text-subtle)', cursor: 'pointer' }}
                         >
-                          <RotateCcw size={13} /> استعادة الافتراضي
+                          <RotateCcw size={13} /> Réinitialiser
                         </button>
                       </div>
                     </div>
@@ -3669,7 +3669,7 @@ export default function AdminSettings() {
                       marginBottom: '0.75rem',
                       lineHeight: 1.6
                     }}>
-                      💡 <strong>ملاحظة هامة:</strong> أي توجيهات تضيفها هنا ستُضاف تلقائياً في نهاية البرومبت لكافة عمليات الاستخراج (الامتحانات، التمارين، والدروس) دون الحاجة لتعديل نصوص البرومبت الأساسية.
+                      💡 <strong>Note importante :</strong> Toute directive ajoutée ici sera ajoutée automatiquement à la fin du prompt pour toutes les extractions (examens, exercices et cours) sans modifier les prompts de base.
                     </div>
 
                     <textarea
@@ -3677,7 +3677,7 @@ export default function AdminSettings() {
                       onChange={e => setExtractorDirectives(e.target.value)}
                       rows={8}
                       className="input-control"
-                      placeholder="أدخل توجيهات إضافية للمستخرج هنا (مثال: ركز على صياغة الحل بالعربية الفصحى، اكتب جميع الرموز بـ LaTeX...)"
+                      placeholder="Saisissez des directives supplémentaires pour l'extracteur ici (ex. : rédiger les solutions de manière détaillée, écrire tous les symboles en LaTeX...)"
                       style={{
                         width: '100%',
                         fontSize: '0.82rem',
@@ -3689,8 +3689,8 @@ export default function AdminSettings() {
                         color: 'var(--text-main)',
                         resize: 'vertical',
                         whiteSpace: 'pre-wrap',
-                        direction: 'rtl',
-                        textAlign: 'right'
+                        direction: 'ltr',
+                        textAlign: 'left'
                       }}
                     />
                   </div>
@@ -3700,7 +3700,7 @@ export default function AdminSettings() {
                 <div className="flex items-center justify-between gap-4 mt-5 pt-4 border-t border-[var(--border)] flex-wrap">
                   <div className="flex items-center gap-2">
                     <span style={{ fontSize: '0.75rem', color: 'var(--text-subtle)' }}>
-                      🔒 يتم حفظ البرومبتات والتوجيهات محلياً في المتصفح وتزامنها سحابياً مع قاعدة البيانات.
+                      🔒 Les prompts et directives sont enregistrés localement et synchronisés dans la base de données cloud.
                     </span>
                   </div>
 
@@ -3708,7 +3708,7 @@ export default function AdminSettings() {
                     <button
                       type="button"
                       onClick={() => {
-                        if (window.confirm('هل تريد استعادة كافة البرومبتات والتوجيهات إلى الإعدادات الأصلية؟')) {
+                        if (window.confirm('Voulez-vous restaurer tous les prompts et directives aux valeurs par défaut ?')) {
                           setExamPrompt(resetExamPrompt());
                           setLessonPrompt(resetLessonPrompt());
                           setExtractorDirectives(resetExtractorDirectives());
@@ -3717,7 +3717,7 @@ export default function AdminSettings() {
                       className="btn-secondary"
                       style={{ fontSize: '0.76rem', padding: '0.5rem 0.85rem', borderRadius: '9px', cursor: 'pointer' }}
                     >
-                      <RotateCcw size={14} /> استعادة كافة الافتراضيات
+                      <RotateCcw size={14} /> Tout réinitialiser
                     </button>
 
                     <button
@@ -3739,7 +3739,7 @@ export default function AdminSettings() {
                       }}
                     >
                       {promptsSaved ? <Check size={15} /> : <Sparkles size={15} />}
-                      {promptsSaved ? 'تم الحفظ بنجاح!' : 'حفظ إعدادات البرومبت'}
+                      {promptsSaved ? 'Enregistré avec succès !' : 'Enregistrer les prompts'}
                     </button>
                   </div>
                 </div>
@@ -3883,7 +3883,7 @@ export default function AdminSettings() {
                           </div>
                           <div>
                             <div style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--text-main)' }}>
-                              Logo officiel du Ministère (شعار الوزارة)
+                              Logo officiel du Ministère
                             </div>
                             <div style={{ fontSize: '0.74rem', color: 'var(--text-subtle)', marginTop: '0.15rem', lineHeight: 1.4 }}>
                               S&apos;affiche automatiquement dans l&apos;en-tête des Examens Nationaux, DEVOIR PRIME et PDF.
@@ -4048,10 +4048,10 @@ export default function AdminSettings() {
                     </div>
                     <div>
                       <h2 className="settings-title" style={{ margin: 0, fontSize: '1.18rem' }}>
-                        الحماية التلقائية لقاعدة البيانات (Auto-Snapshots MySQL)
+                        Protection automatique de la base de données (Auto-Snapshots MySQL)
                       </h2>
                       <p style={{ margin: '0.2rem 0 0', fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                        نسخ احتياطي تلقائي في مجلد دائم خارج مجلد التحديثات عند كل تشغيل/تحديث وكل 6 ساعات (يحتفظ بآخر {snapshotsInfo?.maxSnapshots || 30} نسخة).
+                        Sauvegarde automatique dans un dossier persistant hors des mises à jour à chaque démarrage/mise à jour et toutes les 6 heures (conserve les {snapshotsInfo?.maxSnapshots || 30} dernières versions).
                       </p>
                     </div>
                   </div>
@@ -4065,7 +4065,7 @@ export default function AdminSettings() {
                       style={{ padding: '0.55rem 0.9rem', borderRadius: 10, fontSize: '0.8rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
                     >
                       <RefreshCw size={14} className={loadingSnapshots ? 'animate-spin' : ''} />
-                      تحديث
+                      Actualiser
                     </button>
                     <button
                       type="button"
@@ -4079,7 +4079,7 @@ export default function AdminSettings() {
                       }}
                     >
                       {creatingSnapshot ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={15} />}
-                      {creatingSnapshot ? 'جاري الحفظ...' : 'أخذ نسخة فورية على الخادم'}
+                      {creatingSnapshot ? 'Enregistrement...' : 'Créer un snapshot immédiat'}
                     </button>
                   </div>
                 </div>
@@ -4092,7 +4092,7 @@ export default function AdminSettings() {
                     color: snapshotsInfo?.mysqlActive ? '#059669' : '#d97706',
                     border: `1px solid ${snapshotsInfo?.mysqlActive ? 'rgba(16,185,129,0.3)' : 'rgba(245,158,11,0.3)'}`
                   }}>
-                    {snapshotsInfo?.mysqlActive ? '● MySQL متصل ومحمي' : '● وضع التخزين المحلي'}
+                    {snapshotsInfo?.mysqlActive ? '● MySQL connecté et protégé' : '● Mode stockage local'}
                   </span>
                   <span style={{
                     padding: '0.28rem 0.7rem', borderRadius: 999, fontSize: '0.75rem', fontWeight: 800,
@@ -4100,11 +4100,11 @@ export default function AdminSettings() {
                     color: snapshotsInfo?.persistentDirActive ? 'var(--violet)' : 'var(--text-muted)',
                     border: '1px solid rgba(99,102,241,0.25)'
                   }}>
-                    {snapshotsInfo?.persistentDirActive ? '🛡️ مجلد Hostinger الدائم مُفعّل (معزول عن التحديثات)' : '💾 مجلد النسخ المحلي'}
+                    {snapshotsInfo?.persistentDirActive ? '🛡️ Dossier persistant Hostinger actif (isolé des mises à jour)' : '💾 Dossier de sauvegarde local'}
                   </span>
                   {snapshotsInfo?.tables && (
                     <span style={{ padding: '0.28rem 0.7rem', borderRadius: 999, fontSize: '0.74rem', fontWeight: 700, background: 'var(--bg-glass)', border: '1px solid var(--border)', color: 'var(--text-main)' }}>
-                      الدروس: {snapshotsInfo.tables.tbl_lessons ?? 0} · الأقسام: {snapshotsInfo.tables.tbl_classes ?? 0} · دفتر النصوص: {snapshotsInfo.tables.tbl_logbook ?? 0} · الامتحانات: {snapshotsInfo.tables.tbl_exams ?? 0} · النقط: {snapshotsInfo.tables.tbl_grades ?? 0}
+                      Cours : {snapshotsInfo.tables.tbl_lessons ?? 0} · Classes : {snapshotsInfo.tables.tbl_classes ?? 0} · Cahier de textes : {snapshotsInfo.tables.tbl_logbook ?? 0} · Examens : {snapshotsInfo.tables.tbl_exams ?? 0} · Notes : {snapshotsInfo.tables.tbl_grades ?? 0}
                     </span>
                   )}
                 </div>
@@ -4118,22 +4118,22 @@ export default function AdminSettings() {
                 {/* Snapshots List */}
                 {loadingSnapshots && !snapshotsInfo ? (
                   <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                    جاري تحميل سجل النسخ الاحتياطية من الخادم...
+                    Chargement de l&apos;historique des sauvegardes depuis le serveur...
                   </div>
                 ) : !snapshotsInfo?.snapshots?.length ? (
                   <div style={{ padding: '1.25rem', borderRadius: 12, background: 'var(--bg-glass)', border: '1px dashed var(--border)', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.84rem' }}>
-                    لا توجد نسخ مسجلة بعد — اضغط "أخذ نسخة فورية على الخادم" لحفظ أول نقطة استعادة الآن.
+                    Aucune sauvegarde enregistrée pour le moment — cliquez sur « Créer un snapshot immédiat » pour enregistrer un premier point de restauration.
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '290px', overflowY: 'auto', paddingRight: '2px' }}>
                     {snapshotsInfo.snapshots.map((snap) => {
                       const reasonLabels = {
-                        startup: '🔄 عند التحديث/التشغيل',
-                        auto: '⏱️ تلقائي (6س)',
-                        manual: '📌 يدوي',
-                        'pre-restore': '🛡️ قبل الاستعادة',
-                        'pre-reset': '🛡️ قبل التفريغ',
-                        'pre-rollback': '🛡️ قبل التراجع'
+                        startup: '🔄 Démarrage / Mise à jour',
+                        auto: '⏱️ Automatique (6h)',
+                        manual: '📌 Manuel',
+                        'pre-restore': '🛡️ Avant restauration',
+                        'pre-reset': '🛡️ Avant réinitialisation',
+                        'pre-rollback': '🛡️ Avant retour arrière'
                       };
                       const label = reasonLabels[snap.reason] || snap.reason;
                       const formattedTime = (() => {
@@ -4160,11 +4160,11 @@ export default function AdminSettings() {
                                 {formattedTime}
                               </span>
                               <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)' }}>
-                                ({snap.sizeKB} KB)
+                                ({snap.sizeKB} Ko)
                               </span>
                             </div>
                             <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)' }}>
-                              {snap.stats?.lessonsCount ?? 0} دروس · {snap.stats?.classesCount ?? 0} أقسام · {snap.stats?.logbookCount ?? 0} دفتر نصوص · {snap.stats?.examsCount ?? 0} امتحانات · {snap.stats?.usersCount ?? 0} مستخدمين
+                              {snap.stats?.lessonsCount ?? 0} cours · {snap.stats?.classesCount ?? 0} classes · {snap.stats?.logbookCount ?? 0} cahier de textes · {snap.stats?.examsCount ?? 0} examens · {snap.stats?.usersCount ?? 0} utilisateurs
                             </div>
                           </div>
 
@@ -4174,9 +4174,9 @@ export default function AdminSettings() {
                               onClick={() => handleDownloadServerSnapshot(snap.fileName)}
                               className="btn-outline"
                               style={{ padding: '0.35rem 0.65rem', borderRadius: 8, fontSize: '0.75rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
-                              title="تحميل ملف النسخة"
+                              title="Télécharger le fichier de sauvegarde"
                             >
-                              <Download size={13} /> تحميل
+                              <Download size={13} /> Télécharger
                             </button>
                             <button
                               type="button"
@@ -4188,9 +4188,9 @@ export default function AdminSettings() {
                                 color: '#059669', cursor: restoringSnapshotFile === snap.fileName ? 'wait' : 'pointer',
                                 display: 'inline-flex', alignItems: 'center', gap: '0.3rem'
                               }}
-                              title="استعادة قاعدة البيانات من هذه النقطة"
+                              title="Restaurer la base de données depuis ce point"
                             >
-                              <RotateCcw size={13} /> {restoringSnapshotFile === snap.fileName ? 'جاري...' : 'استعادة'}
+                              <RotateCcw size={13} /> {restoringSnapshotFile === snap.fileName ? 'En cours...' : 'Restaurer'}
                             </button>
                           </div>
                         </div>
@@ -4310,10 +4310,10 @@ export default function AdminSettings() {
                     </div>
                     <div>
                       <h2 className="settings-title" style={{ margin: 0, fontSize: '1.18rem' }}>
-                        تحديث المنصة الفوري ومسح كاش الموبايل (Force Clear Cache &amp; Reload)
+                        Mise à jour immédiate et vidage du cache mobile (Force Clear Cache &amp; Reload)
                       </h2>
                       <p style={{ margin: '0.2rem 0 0', fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                        إذا واجهت أي شاشة قديمة أو لم تظهر التحديثات على هاتفك، اضغط هنا لتفريغ Service Worker والكاش المخزن مؤقتاً وتحميل أحدث نسخة فورياً دون الحاجة لمسح بيانات المتصفح يدوياً.
+                        Si vous constatez un affichage obsolète ou si les dernières mises à jour n&apos;apparaissent pas sur votre téléphone, cliquez ici pour vider le Service Worker et le cache local et charger immédiatement la dernière version.
                       </p>
                     </div>
                   </div>
@@ -4356,7 +4356,7 @@ export default function AdminSettings() {
                     }}
                   >
                     <RefreshCw size={16} />
-                    تحديث فوري ومسح الكاش الآن
+                    Actualiser et vider le cache maintenant
                   </button>
                 </div>
               </div>
@@ -4379,23 +4379,23 @@ export default function AdminSettings() {
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
                           <h2 className="settings-title" style={{ margin: 0, fontSize: '1.18rem', color: '#ef4444' }}>
-                            Zone de Danger : Réinitialisation & Purge de la Plateforme
+                            Zone de Danger : Réinitialisation &amp; Purge de la Plateforme
                           </h2>
                           <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.55rem', borderRadius: '6px', background: 'rgba(239,68,68,0.15)', color: '#ef4444', fontWeight: 800, border: '1px solid rgba(239,68,68,0.3)' }}>
-                            DANGER / حذف كلي
+                            DANGER / PURGE TOTALE
                           </span>
                         </div>
                         <p style={{ margin: '0.2rem 0 0', fontSize: '0.86rem', fontWeight: 700, color: '#f87171' }}>
-                          زر إعادة تهيئة وتفريغ المنصة من جميع البيانات (قاعدة البيانات والملفات)
+                          Réinitialiser et purger toutes les données de la plateforme (base de données et fichiers)
                         </p>
                       </div>
                     </div>
 
                     <p style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-muted)', lineHeight: 1.6, margin: '0 0 0.5rem 0' }}>
-                      يقوم هذا الزر بتفريغ المنصة كلياً وإعادتها لحالتها الأولية؛ حيث يتم حذف جميع الدروس، التمارين، الامتحانات، الفروض، الأقسام، قوائم التلاميذ، وسجلات دفتر النصوص من قاعدة البيانات (MySQL والخادم) والذاكرة كلياً.
+                      Cette action vide entièrement la plateforme et la rétablit à son état initial : tous les cours, exercices, examens, devoirs, classes, listes d&apos;élèves et entrées du cahier de textes seront supprimés de la base de données (MySQL et serveur) et du stockage.
                     </p>
                     <p style={{ fontSize: '0.82rem', fontWeight: 500, color: 'var(--text-subtle)', margin: 0 }}>
-                      ⚠️ <b>ملاحظة أمان:</b> يتطلب هذا الإجراء تأكيداً صريحاً ولا يؤثر على استقرار الخادم أو الكود البرمجي للمنصة.
+                      ⚠️ <b>Note de sécurité :</b> Cette action nécessite une confirmation explicite et n&apos;affecte ni la stabilité du serveur ni le code source de la plateforme.
                     </p>
                   </div>
 
@@ -4426,7 +4426,7 @@ export default function AdminSettings() {
                       }}
                     >
                       <Trash2 size={18} />
-                      تفريغ وإعادة تهيئة المنصة
+                      Purger et réinitialiser la plateforme
                     </button>
                   </div>
                 </div>
@@ -4586,7 +4586,7 @@ export default function AdminSettings() {
                         title="Charger la liste officielle des vacances scolaires au Maroc"
                       >
                         <Sparkles size={13} />
-                        <span>العطل الرسمية (المغرب)</span>
+                        <span>Vacances officielles (Maroc)</span>
                       </button>
                       <label className="btn flex items-center gap-1.5 py-1.5 px-3 text-xs cursor-pointer bg-[var(--violet-soft)] text-[var(--violet)] border border-[var(--violet)] hover:bg-[var(--violet-soft)] transition-all duration-200 rounded-lg">
                         <Upload size={13} />
@@ -4757,7 +4757,7 @@ export default function AdminSettings() {
                       <label className="settings-label">Police de la langue arabe</label>
                       <select className="input-control" value={logbookArFont} onChange={e => setLogbookArFont(e.target.value)}>
                         <option value="UKIJ Merdane">UKIJ Merdane (classique)</option>
-                        <option value="Aref Ruqaa">✍️ Aref Ruqaa (خط الرقعة اليدوي)</option>
+                        <option value="Aref Ruqaa">✍️ Aref Ruqaa (calligraphie manuscrite)</option>
                         <option value="Noto Naskh Arabic">Noto Naskh Arabic</option>
                         <option value="Amiri">Amiri (académique)</option>
                         <option value="Tajawal">Tajawal (moderne)</option>
@@ -4973,10 +4973,10 @@ export default function AdminSettings() {
                   <CheckCircle2 size={36} />
                 </div>
                 <h3 style={{ fontSize: '1.3rem', fontWeight: 800, margin: '0 0 0.5rem 0', color: '#10b981' }}>
-                  تمت إعادة تهيئة المنصة بنجاح!
+                  Plateforme réinitialisée avec succès !
                 </h3>
                 <p style={{ fontSize: '0.92rem', color: 'var(--text-muted)', margin: '0 0 1.25rem 0' }}>
-                  تم تفريغ جميع البيانات والدروس والامتحانات وقاعدة البيانات كلياً. جاري تحديث التطبيق...
+                  Toutes les données, cours, examens et tables de la base ont été purgés. Rechargement de l&apos;application...
                 </p>
                 <Loader2 size={24} className="animate-spin" style={{ margin: '0 auto', color: '#10b981' }} />
               </div>
@@ -4988,35 +4988,35 @@ export default function AdminSettings() {
                   </div>
                   <div>
                     <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: '#ef4444' }}>
-                      تأكيد تفريغ وإعادة تهيئة المنصة
+                      Confirmer la purge et réinitialisation
                     </h3>
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                      Réinitialisation d'usine et purge totale des données
+                      Réinitialisation d&apos;usine et purge totale des données
                     </span>
                   </div>
                 </div>
 
                 <div style={{ padding: '0.9rem 1rem', borderRadius: '12px', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.25)', marginBottom: '1.25rem', fontSize: '0.88rem', lineHeight: 1.6, color: '#fca5a5' }}>
-                  ⚠️ <b>تحذير نهائي لا رجعة فيه:</b> هذا الإجراء سيقوم بحذف ومسح كافة السجلات من قاعدة بيانات الخادم (MySQL) والملفات الدائمة.
+                  ⚠️ <b>Avertissement final irréversible :</b> Cette opération supprimera définitivement tous les enregistrements de la base de données serveur (MySQL) et des fichiers persistants.
                 </div>
 
                 <div style={{ marginBottom: '1.25rem', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: '12px', padding: '0.85rem 1rem' }}>
                   <p style={{ fontSize: '0.82rem', fontWeight: 700, margin: '0 0 0.5rem 0', color: 'var(--text-main)' }}>
-                    ما الذي سيتم تفريغه وحذفه بالكامل؟
+                    Éléments qui seront intégralement supprimés :
                   </p>
-                  <ul style={{ margin: 0, paddingRight: '1.25rem', fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.7 }}>
-                    <li>🗑️ جميع الدروس والملفات والتمارين والأنشطة (118+ ملف).</li>
-                    <li>🗑️ جميع الامتحانات والفروض وبنوك أسئلة الـ QCM.</li>
-                    <li>🗑️ جميع الفصول الدراسية وقوائم التلاميذ ونقاطهم.</li>
-                    <li>🗑️ جميع سجلات دفتر النصوص والأنشطة اليومية.</li>
-                    <li>🗑️ كافة ملفات التخزين الاحتياطي المؤقتة.</li>
+                  <ul style={{ margin: 0, paddingLeft: '1.25rem', fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.7 }}>
+                    <li>🗑️ Tous les cours, fichiers, exercices et activités.</li>
+                    <li>🗑️ Tous les examens, devoirs et banques de QCM.</li>
+                    <li>🗑️ Toutes les classes, listes d&apos;élèves et notes.</li>
+                    <li>🗑️ Tous les journaux du cahier de textes et activités quotidiennes.</li>
+                    <li>🗑️ Tous les fichiers de cache temporaires.</li>
                   </ul>
                 </div>
 
                 {/* Backup recommendation button */}
                 <div style={{ marginBottom: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', background: 'rgba(16, 185, 129, 0.06)', border: '1px solid rgba(16, 185, 129, 0.25)', padding: '0.75rem 1rem', borderRadius: '12px' }}>
                   <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#34d399' }}>
-                    💡 ننصح بتحميل نسخة احتياطية كاملة قبل المتابعة:
+                    💡 Conseil : téléchargez une sauvegarde complète avant de continuer :
                   </div>
                   <button
                     type="button"
@@ -5036,7 +5036,7 @@ export default function AdminSettings() {
                       whiteSpace: 'nowrap'
                     }}
                   >
-                    <Download size={14} /> تحميل نسخة (.json)
+                    <Download size={14} /> Télécharger (.json)
                   </button>
                 </div>
 
@@ -5049,20 +5049,20 @@ export default function AdminSettings() {
                       onChange={(e) => setResetIncludeConfig(e.target.checked)}
                       style={{ width: '16px', height: '16px', accentColor: '#ef4444', cursor: 'pointer' }}
                     />
-                    <span>تفريغ مفاتيح الذكاء الاصطناعي والإعدادات أيضاً (افتراضياً تُحفظ لتجنب إعادة إدخالها)</span>
+                    <span>Supprimer aussi les clés API et réglages (conservés par défaut pour éviter de les ressaisir)</span>
                   </label>
                 </div>
 
                 {/* Confirmation text input */}
                 <div style={{ marginBottom: '1.5rem' }}>
                   <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 700, marginBottom: '0.5rem', color: 'var(--text-main)' }}>
-                    لتأكيد العملية، يرجى كتابة كلمة <b style={{ color: '#ef4444' }}>تفريغ</b> أو <b style={{ color: '#ef4444' }}>RESET</b> في الحقل أدناه:
+                    Pour confirmer, veuillez saisir <b style={{ color: '#ef4444' }}>CONFIRMER</b> ou <b style={{ color: '#ef4444' }}>RESET</b> ci-dessous :
                   </label>
                   <input 
                     type="text"
                     value={resetConfirmInput}
                     onChange={(e) => setResetConfirmInput(e.target.value)}
-                    placeholder='اكتب "تفريغ" أو "RESET" هنا للتأكيد'
+                    placeholder='Saisissez "CONFIRMER" ou "RESET" pour valider'
                     disabled={isResetting}
                     style={{
                       width: '100%',
@@ -5123,11 +5123,11 @@ export default function AdminSettings() {
                   >
                     {isResetting ? (
                       <>
-                        <Loader2 size={18} className="animate-spin" /> جاري التفريغ...
+                        <Loader2 size={18} className="animate-spin" /> Réinitialisation...
                       </>
                     ) : (
                       <>
-                        <Trash2 size={18} /> تأكيد تفريغ وحذف جميع البيانات
+                        <Trash2 size={18} /> Confirmer la purge totale
                       </>
                     )}
                   </button>
@@ -5147,7 +5147,7 @@ export default function AdminSettings() {
                       cursor: 'pointer'
                     }}
                   >
-                    إلغاء
+                    Annuler
                   </button>
                 </div>
               </>

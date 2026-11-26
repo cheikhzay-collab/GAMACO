@@ -159,7 +159,7 @@ Langue : Français (termes mathématiques en LaTeX)`;
       // Header
       'Context,Topic,Question,Options,Réponse,Astuce,Trick',
       // Row 1 — with context, with trick
-      '"نعتبر الدالة $f(x) = x^2$ معرّفة على $\\mathbb{R}$","Analyse","ما هي مشتقة الدالة $f$؟","A) $2x$, B) $x^2$, C) $1$, D) $2$","A","مشتقة $x^n$ هي $n \\cdot x^{n-1}$. إذن مشتقة $x^2$ هي $2x$.","⚡ القاعدة السريعة: الأس ينزل ويُضرب، ثم يُنقص الأس بـ1."',
+      '"Soit la fonction $f(x) = x^2$ définie sur $\\mathbb{R}$.","Analyse","Quelle est la dérivée de $f$ ?","A) $2x$, B) $x^2$, C) $1$, D) $2$","A","La dérivée de $x^n$ est $n \\cdot x^{n-1}$, donc celle de $x^2$ est $2x$.","⚡ Règle rapide : on multiplie par l\'exposant puis on le diminue de 1."',
       // Row 2 — without context, without trick
       ',"Suites","Soit $U_{n+1} = \\sqrt{2 + U_n}$ avec $U_0=1$. Quelle est la limite ?","A) $\\sqrt{2}$, B) $1+\\sqrt{2}$, C) $2$, D) divergente","C","Résoudre $L = \\sqrt{2+L}$ ⟹ $L^2 - L - 2 = 0$ ⟹ $L = 2$ (limite positive).",""',
       // Row 3 — with trick

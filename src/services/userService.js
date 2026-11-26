@@ -479,9 +479,9 @@ export const deleteUser = async (uid) => {
   } catch (err) {
     console.error('[userService] deleteUser MySQL delete failed:', err);
     if (err?.status === 401 || err?.status === 403) {
-      throw new Error('انتهت صلاحية الجلسة — يرجى تسجيل الدخول مرة أخرى لحذف الحساب من قاعدة البيانات.');
+      throw new Error('Session expirée — veuillez vous reconnecter pour supprimer le compte.');
     }
-    throw new Error(err?.message || 'تعذر حذف الحساب من قاعدة البيانات.');
+    throw new Error(err?.message || 'Impossible de supprimer le compte de la base de données.');
   }
 
   // 2. Clean up LocalStorage & caches

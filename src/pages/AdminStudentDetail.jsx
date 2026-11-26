@@ -296,22 +296,22 @@ export default function AdminStudentDetail() {
     }
   };
 
-  // WhatsApp template texts in Arabic for 2026 conversion campaigns
+  // WhatsApp template texts in French
   const getWhatsAppTemplateText = (templateKey) => {
-    const sName = unescapeHTML(student.name || 'تلميذنا العزيز');
-    const sSchool = unescapeHTML(student.school || 'المدرسة المستهدفة');
+    const sName = unescapeHTML(student.name || 'cher élève');
+    const sSchool = unescapeHTML(student.school || 'votre objectif');
     
     if (templateKey === 'welcome') {
-      return `السلام عليكم ${sName}، معك فريق منصة L'Conq للتحضير للمباريات. كيف تسير استعداداتك لمباراة ${sSchool}؟ نحن هنا لمساعدتك وتوجيهك خطوة بخطوة 🚀`;
+      return `Bonjour ${sName}, ici l'équipe L'CONQ pour la préparation aux examens et concours. Comment avance votre préparation pour ${sSchool} ? Nous sommes là pour vous accompagner étape par étape 🚀`;
     }
     if (templateKey === 'congrats') {
-      return `ألف مبروك ${sName} على نتائجك المتميزة في الامتحانات التجريبية! لزيادة فرص نجاحك واجتياز مباراة ${sSchool} بنجاح، نقترح عليك تفعيل حساب البريميوم اليوم للحصول على التصحيح بالفيديو لجميع الامتحانات وتغطية شاملة للمنهج 🏆`;
+      return `Félicitations ${sName} pour vos excellents résultats aux examens blancs ! Pour maximiser vos chances de réussite à ${sSchool}, activez votre accès Premium et profitez des corrigés détaillés et de tout le programme 🏆`;
     }
     if (templateKey === 'discount') {
-      return `مرحباً ${sName}، بمناسبة تميزك واجتهادك في منصتنا، يسعدنا أن نقدم لك كود خصم خاص 20% لتفعيل حساب البريميوم اليوم والاستفادة من كل الدروس والامتحانات الحصرية. كود الخصم: LCONQ2026 🎁`;
+      return `Bonjour ${sName}, pour récompenser votre assiduité sur notre plateforme, profitez d'un code promo exclusif de -20% pour activer le compte Premium dès aujourd'hui. Code : LCONQ2026 🎁`;
     }
     if (templateKey === 'renewal') {
-      return `مرحباً ${sName}، نأمل أنك تستفيد لأقصى حد من حساب البريميوم. نذكرك أن اشتراكك سينتهي قريباً. لتجنب انقطاع الخدمة ومواصلة التحضير لمباراة ${sSchool}، يمكنك التجديد الآن بكل سهولة. بالتوفيق! ⚡`;
+      return `Bonjour ${sName}, nous espérons que vous profitez pleinement de votre abonnement Premium. Votre accès arrive bientôt à échéance : renouvelez-le dès maintenant pour poursuivre votre préparation pour ${sSchool} sans interruption ⚡`;
     }
     return '';
   };

@@ -91,12 +91,12 @@ export default function MobileInstallBanner() {
         </div>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontWeight: 800, fontSize: '0.84rem', lineHeight: 1.25 }}>
-            ثبّت تطبيق GAMACO على هاتفك
+            Installez l&apos;application GAMACO sur votre téléphone
           </div>
           <div style={{ fontSize: '0.72rem', opacity: 0.85, lineHeight: 1.3 }}>
             {showIosGuide
-              ? 'اضغط على زر المشاركة (↑) بالأسفل ثم اختر «إضافة إلى الشاشة الرئيسية»'
-              : 'دخول أسرع وتجربة تطبيق كامل بدون شريط المتصفح'}
+              ? 'Appuyez sur Partager (↑) ci-dessous puis « Sur l’écran d’accueil »'
+              : 'Accès plus rapide et expérience plein écran sans barre de navigateur'}
           </div>
         </div>
       </div>
@@ -120,12 +120,12 @@ export default function MobileInstallBanner() {
           }}
         >
           {isIos ? <Share size={13} /> : <Download size={13} />}
-          <span>{isIos ? 'الطريقة' : 'تثبيت'}</span>
+          <span>{isIos ? 'Comment ?' : 'Installer'}</span>
         </button>
         <button
           type="button"
           onClick={handleDismiss}
-          aria-label="إغلاق"
+          aria-label="Fermer"
           style={{
             width: 28,
             height: 28,

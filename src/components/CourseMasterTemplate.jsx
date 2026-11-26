@@ -324,7 +324,7 @@ export default function CourseMasterTemplate({
               type="button"
               onClick={() => setFontScale(s => Math.max(0.85, Number((s - 0.08).toFixed(2))))}
               style={{ background: 'none', border: 'none', padding: '0.32rem 0.45rem', cursor: 'pointer', color: 'var(--text-main)' }}
-              title="تصغير الخط"
+              title="Réduire la police"
             >
               <Minus size={12} />
             </button>
@@ -335,7 +335,7 @@ export default function CourseMasterTemplate({
               type="button"
               onClick={() => setFontScale(s => Math.min(1.3, Number((s + 0.08).toFixed(2))))}
               style={{ background: 'none', border: 'none', padding: '0.32rem 0.45rem', cursor: 'pointer', color: 'var(--text-main)' }}
-              title="تكبير الخط"
+              title="Agrandir la police"
             >
               <Plus size={12} />
             </button>

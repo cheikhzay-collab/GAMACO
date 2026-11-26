@@ -73,7 +73,7 @@ export default function AiFigureEnhancerModal({
 
     setLoading(true);
     setErrorMsg('');
-    setStatusMsg('الاتصال بنموذج الذكاء الاصطناعي لفحص الشكل الرياضي...');
+    setStatusMsg('Connexion au modèle IA pour analyser la figure mathématique...');
 
     try {
       const res = await regenerateMathFigureWithAI(imageSrc, {
@@ -100,7 +100,7 @@ export default function AiFigureEnhancerModal({
     if (!imageSrc) return;
     setLoading(true);
     setErrorMsg('');
-    setStatusMsg('تطبيق التصفية الفائقة وتبييض الخلفية...');
+    setStatusMsg('Application du filtre HD et blanchiment de l’arrière-plan...');
 
     try {
       const res = await enhanceMathLineArt(imageSrc, {
@@ -188,7 +188,7 @@ export default function AiFigureEnhancerModal({
             </div>
             <div>
               <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                توليد وتحسين الأشكال الرياضية بالذكاء الاصطناعي
+                Génération et amélioration des figures par IA
                 <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: 20, background: 'rgba(99,102,241,0.25)', color: '#a5b4fc', border: '1px solid rgba(99,102,241,0.4)' }}>
                   Ultra-HD Math Engine
                 </span>
@@ -229,7 +229,7 @@ export default function AiFigureEnhancerModal({
             {/* Mode Tabs */}
             <div>
               <label style={{ fontSize: '0.72rem', fontWeight: 800, color: '#94a3b8', display: 'block', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                اختر طريقة التوليد والتحسين :
+                Choisir la méthode de génération :
               </label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem' }}>
                 <button
@@ -245,7 +245,7 @@ export default function AiFigureEnhancerModal({
                   }}
                 >
                   <Wand2 size={16} style={{ color: activeTab === 'vector' ? '#818cf8' : '#64748b' }} />
-                  <span>توليد متجهي (IA SVG)</span>
+                  <span>Vectoriel IA (SVG)</span>
                 </button>
 
                 <button
@@ -261,7 +261,7 @@ export default function AiFigureEnhancerModal({
                   }}
                 >
                   <Sliders size={16} style={{ color: activeTab === 'enhance' ? '#22d3ee' : '#64748b' }} />
-                  <span>تصفية فورية (HD)</span>
+                  <span>Amélioration HD</span>
                 </button>
               </div>
             </div>
@@ -272,24 +272,24 @@ export default function AiFigureEnhancerModal({
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
                   <ShieldCheck size={18} style={{ color: '#10b981', flexShrink: 0, marginTop: 2 }} />
                   <p style={{ margin: 0, fontSize: '0.73rem', color: '#cbd5e1', lineHeight: 1.45 }}>
-                    يقوم الذكاء الاصطناعي بفحص دقيق لمعلم الإحداثيات، المنحنيات $(C_f)$، المقاربات والمماسات، وإعادة رسمها بالكامل كـ <strong>Vector SVG</strong> نقي فائق الدقة بدون أي تشويش.
+                    L&apos;IA analyse avec précision les repères, courbes $(C_f)$, asymptotes et tangentes, puis les redessine en <strong>Vector SVG</strong> haute netteté sans aucun bruit.
                   </p>
                 </div>
 
                 {caption && (
                   <div style={{ fontSize: '0.72rem', color: '#94a3b8', background: 'rgba(0,0,0,0.25)', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid rgba(255,255,255,0.05)' }}>
-                    <span style={{ fontWeight: 700, color: '#e2e8f0' }}>عنوان الشكل : </span>{caption}
+                    <span style={{ fontWeight: 700, color: '#e2e8f0' }}>Légende : </span>{caption}
                   </div>
                 )}
 
                 {/* Additional instructions */}
                 <div>
                   <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#a5b4fc', display: 'block', marginBottom: '0.25rem' }}>
-                    توجيهات أو تعديلات إضافية (اختياري) :
+                    Instructions ou ajustements supplémentaires (optionnel) :
                   </label>
                   <textarea
                     rows={3}
-                    placeholder="مثال : أعد رسم المنحنى Cf باللون الأزرق مع مقارب مائل أحمر ونقطة انعطاف عند x = 1..."
+                    placeholder="Ex : Redessiner la courbe Cf en bleu avec une asymptote oblique rouge et un point d'inflexion en x = 1..."
                     value={customPrompt}
                     onChange={e => setCustomPrompt(e.target.value)}
                     style={{
@@ -316,9 +316,9 @@ export default function AiFigureEnhancerModal({
                   }}
                 >
                   {loading ? (
-                    <><RefreshCw size={15} className="pdf-cropper-spin" /> جاري التوليد بالذكاء الاصطناعي...</>
+                    <><RefreshCw size={15} className="pdf-cropper-spin" /> Génération IA en cours...</>
                   ) : (
-                    <><Wand2 size={15} /> توليد الشكل المتجهي (Gemini AI)</>
+                    <><Wand2 size={15} /> Générer la figure vectorielle (Gemini AI)</>
                   )}
                 </button>
               </div>
@@ -328,13 +328,13 @@ export default function AiFigureEnhancerModal({
             {activeTab === 'enhance' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: '0.85rem' }}>
                 <p style={{ margin: 0, fontSize: '0.72rem', color: '#94a3b8', lineHeight: 1.4 }}>
-                  تصفية فورية تحافظ على الشكل الأصلي بنسبة 100% مع تبييض خلفية الورقة ومضاعفة حدة الحبر والدقة.
+                  Filtrage instantané fidèle à 100% à l&apos;original avec fond blanc pur et tracés renforcés.
                 </p>
 
                 {/* Whitening */}
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', marginBottom: 2 }}>
-                    <span style={{ color: '#e2e8f0', fontWeight: 700 }}>تبييض الخلفية (إزالة الرماد)</span>
+                    <span style={{ color: '#e2e8f0', fontWeight: 700 }}>Blanchiment du fond</span>
                     <span style={{ color: '#38bdf8' }}>{whitening}</span>
                   </div>
                   <input
@@ -347,7 +347,7 @@ export default function AiFigureEnhancerModal({
                 {/* Contrast */}
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', marginBottom: 2 }}>
-                    <span style={{ color: '#e2e8f0', fontWeight: 700 }}>تباين الحبر والمنحنيات</span>
+                    <span style={{ color: '#e2e8f0', fontWeight: 700 }}>Contraste des traits &amp; courbes</span>
                     <span style={{ color: '#38bdf8' }}>{contrast.toFixed(2)}x</span>
                   </div>
                   <input
@@ -360,7 +360,7 @@ export default function AiFigureEnhancerModal({
                 {/* Sharpness */}
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', marginBottom: 2 }}>
-                    <span style={{ color: '#e2e8f0', fontWeight: 700 }}>حدة الخطوط والأرقام (Netteté)</span>
+                    <span style={{ color: '#e2e8f0', fontWeight: 700 }}>Netteté des lignes &amp; chiffres</span>
                     <span style={{ color: '#38bdf8' }}>{Math.round(sharpness * 100)}%</span>
                   </div>
                   <input
@@ -373,7 +373,7 @@ export default function AiFigureEnhancerModal({
                 {/* Upscale Factor */}
                 <div>
                   <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#e2e8f0', display: 'block', marginBottom: 4 }}>
-                    مضاعف الدقة (Résolution) :
+                    Facteur de résolution :
                   </label>
                   <div style={{ display: 'flex', gap: '0.3rem' }}>
                     {[1.5, 2.0, 2.5, 3.5].map(scale => (
@@ -407,7 +407,7 @@ export default function AiFigureEnhancerModal({
                     boxShadow: '0 2px 10px rgba(2,132,199,0.3)', marginTop: '0.2rem'
                   }}
                 >
-                  <RefreshCw size={14} /> تطبيق التصفية الفائقة
+                  <RefreshCw size={14} /> Appliquer le filtre HD
                 </button>
               </div>
             )}
@@ -458,9 +458,9 @@ export default function AiFigureEnhancerModal({
                 }}
               >
                 {successApplied ? (
-                  <><CheckCircle size={16} /> تم اعتماد الصورة بنجاح !</>
+                  <><CheckCircle size={16} /> Image appliquée avec succès !</>
                 ) : (
-                  <><FileCheck size={16} /> حفظ واعتماد الصورة المولدة في الدرس</>
+                  <><FileCheck size={16} /> Enregistrer et appliquer la figure</>
                 )}
               </button>
 
@@ -478,7 +478,7 @@ export default function AiFigureEnhancerModal({
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem'
                   }}
                 >
-                  <Download size={13} /> تحميل HD
+                  <Download size={13} /> Télécharger HD
                 </button>
 
                 <button
@@ -490,7 +490,7 @@ export default function AiFigureEnhancerModal({
                     color: '#94a3b8', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer'
                   }}
                 >
-                  إلغاء
+                  Annuler
                 </button>
               </div>
             </div>
@@ -510,11 +510,11 @@ export default function AiFigureEnhancerModal({
               background: 'rgba(255,255,255,0.02)'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 700 }}>طريقة العرض :</span>
+                <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 700 }}>Affichage :</span>
                 {[
-                  { id: 'split', label: 'مقارنة (Côte à côte)' },
-                  { id: 'enhanced', label: 'الصورة المولدة (HD)' },
-                  { id: 'original', label: 'الأصلية المقصوصة' },
+                  { id: 'split', label: 'Comparaison (Côte à côte)' },
+                  { id: 'enhanced', label: 'Image générée (HD)' },
+                  { id: 'original', label: 'Originale recadrée' },
                 ].map(m => (
                   <button
                     key={m.id}
@@ -536,7 +536,7 @@ export default function AiFigureEnhancerModal({
               {enhancedUrl && (
                 <span style={{ fontSize: '0.68rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 700 }}>
                   <CheckCircle size={12} />
-                  {generatedSvg ? 'متجهي خالص (Pure Vector SVG)' : 'صورة مصفاة عالية الدقة (Super-Res HD)'}
+                  {generatedSvg ? 'Vectoriel pur (SVG)' : 'Image haute résolution (HD)'}
                 </span>
               )}
             </div>
@@ -560,14 +560,14 @@ export default function AiFigureEnhancerModal({
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#dc2626', background: '#fee2e2', padding: '2px 8px', borderRadius: 4 }}>
-                        الصورة الأصلية (قبل التحسين)
+                        Image originale
                       </span>
                     </div>
                     <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                       {imageSrc ? (
                         <img src={imageSrc} alt="Original" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
                       ) : (
-                        <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>لا توجد صورة</span>
+                        <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>Aucune image</span>
                       )}
                     </div>
                   </div>
@@ -581,7 +581,7 @@ export default function AiFigureEnhancerModal({
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#059669', background: '#dcfce7', padding: '2px 8px', borderRadius: 4 }}>
-                        ✓ الصورة المولدة فائقة الدقة (HD)
+                        ✓ Image générée HD
                       </span>
                       {enhancedUrl && (
                         <button
@@ -593,7 +593,7 @@ export default function AiFigureEnhancerModal({
                             cursor: 'pointer'
                           }}
                         >
-                          اعتماد الآن
+                          Appliquer
                         </button>
                       )}
                     </div>
@@ -603,7 +603,7 @@ export default function AiFigureEnhancerModal({
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, color: '#64748b' }}>
                           <RefreshCw size={24} className={loading ? "pdf-cropper-spin" : ""} />
-                          <span style={{ fontSize: '0.78rem' }}>{loading ? 'جاري المعالجة...' : 'انقر على "توليد" أو "تطبيق التصفية"'}</span>
+                          <span style={{ fontSize: '0.78rem' }}>{loading ? 'Traitement en cours...' : 'Cliquez sur « Générer » ou « Appliquer le filtre »'}</span>
                         </div>
                       )}
                     </div>
@@ -621,7 +621,7 @@ export default function AiFigureEnhancerModal({
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#059669', background: '#dcfce7', padding: '2px 10px', borderRadius: 5 }}>
-                      ✓ عرض كامل للصورة المولدة (Ultra-HD Canvas)
+                      ✓ Aperçu complet HD (Ultra-HD Canvas)
                     </span>
                     <button
                       type="button"
@@ -632,14 +632,14 @@ export default function AiFigureEnhancerModal({
                         cursor: 'pointer', boxShadow: '0 2px 8px rgba(16,185,129,0.3)'
                       }}
                     >
-                      ✓ اعتماد الصورة المولدة
+                      ✓ Appliquer cette image
                     </button>
                   </div>
                   <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                     {enhancedUrl ? (
                       <img src={enhancedUrl} alt="Enhanced Full" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
                     ) : (
-                      <span style={{ color: '#64748b', fontSize: '0.8rem' }}>لم يتم توليد الصورة بعد</span>
+                      <span style={{ color: '#64748b', fontSize: '0.8rem' }}>Aucune image générée pour le moment</span>
                     )}
                   </div>
                 </div>
@@ -653,7 +653,7 @@ export default function AiFigureEnhancerModal({
                   display: 'flex', flexDirection: 'column', gap: '0.5rem', overflow: 'hidden'
                 }}>
                   <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#475569' }}>
-                    الصورة الأصلية المقصوصة
+                    Image originale recadrée
                   </span>
                   <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                     <img src={imageSrc} alt="Original Full" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />

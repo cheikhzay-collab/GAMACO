@@ -300,7 +300,7 @@ export default function DevoirPrimeTemplate({
       const updated = [...exercises];
       for (let eIdx = 0; eIdx < updated.length; eIdx++) {
         const ex = updated[eIdx];
-        setSolvingStatus(`جاري حل ${ex.title || `Exercice ${eIdx + 1}`} (${eIdx + 1}/${updated.length}) بأسلوب الأستاذ المغربي المختصر...`);
+        setSolvingStatus(`Résolution de ${ex.title || `Exercice ${eIdx + 1}`} (${eIdx + 1}/${updated.length}) en style rédigé concis...`);
         const results = await solveDevoirPrimeWithAI(ex, {
           level: meta.level || lesson?.level || '2bac_pc_svt',
           docTitle: meta.title,
@@ -367,7 +367,7 @@ export default function DevoirPrimeTemplate({
     setErrorMsg('');
     try {
       await onSave(meta, exercises, convertToPrime);
-      setSaveToast(convertToPrime ? '✅ تم التحويل والحفظ بنظام DEVOIR PRIME بنجاح!' : '✅ تم حفظ تعديلات DEVOIR PRIME بنجاح!');
+      setSaveToast(convertToPrime ? '✅ Converti et enregistré en mode DEVOIR PRIME avec succès !' : '✅ Modifications DEVOIR PRIME enregistrées avec succès !');
       setTimeout(() => setSaveToast(''), 3500);
     } catch (err) {
       setErrorMsg(err.message || "Erreur lors de l'enregistrement.");
@@ -416,7 +416,7 @@ export default function DevoirPrimeTemplate({
               color: '#e2e8f0',
               fontWeight: 700,
             }}>
-              {totalPoints} pts • ~{estimatedPages} صفحات
+              {totalPoints} pts • ~{estimatedPages} pages
             </span>
             {autoSaveState === 'saving' && (
               <span style={{
@@ -430,7 +430,7 @@ export default function DevoirPrimeTemplate({
                 alignItems: 'center',
                 gap: '0.3rem',
               }}>
-                <Loader2 size={11} className="spin" /> جاري الحفظ في قاعدة البيانات...
+                <Loader2 size={11} className="spin" /> Enregistrement en base...
               </span>
             )}
             {autoSaveState === 'saved' && (
@@ -442,7 +442,7 @@ export default function DevoirPrimeTemplate({
                 color: '#6ee7b7',
                 fontWeight: 800,
               }}>
-                ✅ محفوظ في قاعدة البيانات
+                ✅ Enregistré
               </span>
             )}
           </div>
@@ -466,7 +466,7 @@ export default function DevoirPrimeTemplate({
                 gap: '0.4rem',
               }}
             >
-              {showSolutions ? <><Eye size={15} /> الأجوبة ظاهرة (التصحيح)</> : <><EyeOff size={15} /> نسخة التلميذ (نقط فقط)</>}
+              {showSolutions ? <><Eye size={15} /> Corrigés visibles</> : <><EyeOff size={15} /> Copie élève (pointillés)</>}
             </button>
 
             {/* Print Student Copy (Dotted lines ONLY) */}
@@ -486,9 +486,9 @@ export default function DevoirPrimeTemplate({
                 alignItems: 'center',
                 gap: '0.4rem',
               }}
-              title="طباعة الفرض بدون أجوبة مع إبقاء سطور النقط فقط"
+              title="Imprimer le sujet vierge avec lignes pointillées uniquement"
             >
-              <Printer size={15} /> طباعة بدون حل (نقط فقط)
+              <Printer size={15} /> Imprimer sans corrigé
             </button>
 
             {/* Print Teacher Corrigé Copy */}
@@ -508,9 +508,9 @@ export default function DevoirPrimeTemplate({
                 alignItems: 'center',
                 gap: '0.4rem',
               }}
-              title="طباعة الفرض مع الحل المختصر بأسلوب الأستاذ المغربي"
+              title="Imprimer le sujet avec corrigé détaillé concis"
             >
-              <Printer size={15} /> طباعة بالحل المختصر
+              <Printer size={15} /> Imprimer avec corrigé
             </button>
 
             {editable && (
@@ -534,7 +534,7 @@ export default function DevoirPrimeTemplate({
                   }}
                 >
                   {solvingAll ? <Loader2 size={15} className="spin" /> : <Sparkles size={15} />}
-                  {solvingAll ? 'جاري الحل...' : 'حل الفرض كاملاً (مختصر)'}
+                  {solvingAll ? 'Résolution en cours...' : 'Tout résoudre (IA)'}
                 </button>
 
                 <button
@@ -554,7 +554,7 @@ export default function DevoirPrimeTemplate({
                     gap: '0.35rem',
                   }}
                 >
-                  <Settings size={15} /> إعدادات الرأس
+                  <Settings size={15} /> Paramètres d&apos;en-tête
                 </button>
 
                 {typeof onSave === 'function' && (
@@ -577,7 +577,7 @@ export default function DevoirPrimeTemplate({
                     }}
                   >
                     {saving ? <Loader2 size={15} className="spin" /> : <Save size={15} />}
-                    {isConvertedPreview ? 'حفظ كـ DEVOIR PRIME' : 'حفظ التعديلات'}
+                    {isConvertedPreview ? 'Enregistrer en DEVOIR PRIME' : 'Enregistrer'}
                   </button>
                 )}
               </>
@@ -612,64 +612,64 @@ export default function DevoirPrimeTemplate({
             fontSize: '0.8rem',
           }}>
             <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-              <span>عنوان الفرض (الصفحة 1 والمتكرر)</span>
+              <span>Titre du document (Page 1 &amp; en-tête)</span>
               <input className="input-control" value={meta.title} onChange={e => updateMetaField('title', e.target.value)} style={{ color: '#0f172a', background: '#fff', padding: '0.4rem 0.6rem', borderRadius: '6px' }} />
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-              <span>الدورة</span>
+              <span>Semestre / Session</span>
               <input className="input-control" value={meta.semester} onChange={e => updateMetaField('semester', e.target.value)} style={{ color: '#0f172a', background: '#fff', padding: '0.4rem 0.6rem', borderRadius: '6px' }} />
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-              <span>السنة الدراسية</span>
+              <span>Année scolaire</span>
               <input className="input-control" value={meta.academicYear} onChange={e => updateMetaField('academicYear', e.target.value)} style={{ color: '#0f172a', background: '#fff', padding: '0.4rem 0.6rem', borderRadius: '6px' }} />
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-              <span>الأستاذ (Réalisé par)</span>
+              <span>Professeur (Réalisé par)</span>
               <input className="input-control" value={meta.teacher} onChange={e => updateMetaField('teacher', e.target.value)} style={{ color: '#0f172a', background: '#fff', padding: '0.4rem 0.6rem', borderRadius: '6px' }} />
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-              <span>العلامة / الشعار النصي (يمين)</span>
+              <span>Marque / Label (droite)</span>
               <input className="input-control" value={meta.brandName} onChange={e => updateMetaField('brandName', e.target.value)} style={{ color: '#0f172a', background: '#fff', padding: '0.4rem 0.6rem', borderRadius: '6px' }} />
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-              <span>الحساب / الهاتف (يسار)</span>
+              <span>Téléphone / Compte (gauche)</span>
               <input className="input-control" value={meta.handle} onChange={e => updateMetaField('handle', e.target.value)} style={{ color: '#0f172a', background: '#fff', padding: '0.4rem 0.6rem', borderRadius: '6px' }} />
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-              <span>المادة</span>
+              <span>Matière</span>
               <input className="input-control" value={meta.subject} onChange={e => updateMetaField('subject', e.target.value)} style={{ color: '#0f172a', background: '#fff', padding: '0.4rem 0.6rem', borderRadius: '6px' }} />
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-              <span>مدة الإنجاز</span>
+              <span>Durée</span>
               <input className="input-control" value={meta.duration} onChange={e => updateMetaField('duration', e.target.value)} style={{ color: '#0f172a', background: '#fff', padding: '0.4rem 0.6rem', borderRadius: '6px' }} />
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-              <span>المعامل</span>
+              <span>Coefficient</span>
               <input className="input-control" value={meta.coefficient} onChange={e => updateMetaField('coefficient', e.target.value)} style={{ color: '#0f172a', background: '#fff', padding: '0.4rem 0.6rem', borderRadius: '6px' }} />
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', gridColumn: 'span 2' }}>
-              <span>الشعبة والمسلك</span>
+              <span>Filière / Niveau</span>
               <input className="input-control" value={meta.branch} onChange={e => updateMetaField('branch', e.target.value)} style={{ color: '#0f172a', background: '#fff', padding: '0.4rem 0.6rem', borderRadius: '6px' }} />
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-              <span>نمط خط الحل</span>
+              <span>Style d&apos;écriture du corrigé</span>
               <select
                 value={meta.solutionStyle}
                 onChange={e => updateMetaField('solutionStyle', e.target.value)}
                 style={{ color: '#0f172a', background: '#fff', padding: '0.4rem 0.6rem', borderRadius: '6px' }}
               >
-                <option value="clean_math">خط رياضي نظيف (أزرق) — موصى به</option>
-                <option value="handwritten">نمط خط القلم المائل</option>
+                <option value="clean_math">Police mathématique nette (bleu) — Recommandé</option>
+                <option value="handwritten">Style manuscrit italique</option>
               </select>
             </label>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', gridColumn: '1 / -1', paddingTop: '0.25rem' }}>
               <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}>
                 <input type="checkbox" checked={meta.showQR} onChange={e => updateMetaField('showQR', e.target.checked)} />
-                <span>إظهار QR Code لكل سؤال</span>
+                <span>Afficher un QR Code par question</span>
               </label>
               <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}>
                 <input type="checkbox" checked={meta.showStudentStrip} onChange={e => updateMetaField('showStudentStrip', e.target.checked)} />
-                <span>إظهار شريط (Nom et prénom / Classe / N°) في الصفحة الأولى</span>
+                <span>Afficher le bandeau élève (Nom et prénom / Classe / N°) en page 1</span>
               </label>
             </div>
           </div>
@@ -830,8 +830,8 @@ export default function DevoirPrimeTemplate({
           background: '#f8fafc',
           border: '1px dashed #94a3b8',
         }}>
-          <div style={{ fontSize: '11px', fontFamily: 'Tajawal, sans-serif', color: '#64748b', fontWeight: 700, marginBottom: '6px', textAlign: 'right' }}>
-            معاينة الرأس المتكرر تلقائياً في الصفحة 2 وما بعدها عند الطباعة:
+          <div style={{ fontSize: '11px', fontFamily: 'Inter, sans-serif', color: '#64748b', fontWeight: 700, marginBottom: '6px', textAlign: 'left' }}>
+            Aperçu de l’en-tête répété automatiquement à partir de la page 2 lors de l’impression :
           </div>
           <div style={{ display: 'flex', alignItems: 'stretch', gap: '6px', height: '50px' }}>
             <div style={{ width: '92px', border: '1.4px solid #000', borderRadius: '7px', background: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'Tajawal, sans-serif' }}>
@@ -851,8 +851,8 @@ export default function DevoirPrimeTemplate({
 
         {/* ── 3. EXERCISES & QUESTION CARDS ── */}
         {exercises.length === 0 ? (
-          <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b', fontFamily: 'Tajawal, sans-serif' }}>
-            لا توجد تمارين في هذا الملف بعد.
+          <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b', fontFamily: 'Inter, sans-serif' }}>
+            Aucun exercice dans ce document pour le moment.
           </div>
         ) : (
           exercises.map((ex, eIdx) => (
@@ -881,7 +881,7 @@ export default function DevoirPrimeTemplate({
                       gap: '4px',
                     }}
                   >
-                    <Plus size={12} /> إضافة سؤال
+                    <Plus size={12} /> Ajouter une question
                   </button>
                 )}
               </div>
@@ -924,18 +924,18 @@ export default function DevoirPrimeTemplate({
                               type="button"
                               onClick={() => toggleQuestionStem(eIdx, qIdx)}
                               style={{ padding: '2px 7px', borderRadius: '5px', border: '1px solid #cbd5e1', background: '#fff', color: '#334155', fontWeight: 700, cursor: 'pointer' }}
-                              title="تحويل إلى بطاقة سؤال بصندوق نقط ونقطة"
+                              title="Convertir en carte de question avec barème et pointillés"
                             >
-                              ↩️ تحويل لسؤال
+                              ↩️ Convertir en question
                             </button>
                             {qIdx < (ex.questions?.length || 0) - 1 && (
                               <button
                                 type="button"
                                 onClick={() => mergeWithNextQuestion(eIdx, qIdx)}
                                 style={{ padding: '2px 7px', borderRadius: '5px', border: '1px solid #cbd5e1', background: '#fff', color: '#0369a1', fontWeight: 700, cursor: 'pointer' }}
-                                title="دمج رأس السؤال مع السؤال الفرعي الموالي داخل بطاقة واحدة"
+                                title="Fusionner l'énoncé introductif avec la sous-question suivante"
                               >
-                                🔗 دمج مع الموالي
+                                🔗 Fusionner avec suivante
                               </button>
                             )}
                             <button
@@ -1152,7 +1152,7 @@ export default function DevoirPrimeTemplate({
                         fontSize: '12px',
                       }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ color: '#475569', fontWeight: 700 }}>عدد سطور النقط:</span>
+                          <span style={{ color: '#475569', fontWeight: 700 }}>Lignes pointillées :</span>
                           <button
                             type="button"
                             onClick={() => updateQuestion(eIdx, qIdx, { linesCount: Math.max(3, linesCount - 1) })}
@@ -1189,7 +1189,7 @@ export default function DevoirPrimeTemplate({
                             }}
                           >
                             {isSolving ? <Loader2 size={12} className="spin" /> : <Sparkles size={12} />}
-                            {isSolving ? 'جاري الحل...' : 'حل مختصر (IA)'}
+                            {isSolving ? 'Résolution...' : 'Corrigé concis (IA)'}
                           </button>
 
                           <button
@@ -1207,9 +1207,9 @@ export default function DevoirPrimeTemplate({
                               alignItems: 'center',
                               gap: '4px',
                             }}
-                            title="تحويل إلى رأس سؤال/تعليمة بدون نقطة ولا صندوق نقط (مثلاً قبل a و b)"
+                            title="Convertir en consigne / en-tête sans barème ni pointillés"
                           >
-                            📌 رأس سؤال (بدون نقط)
+                            📌 En-tête (sans barème)
                           </button>
 
                           {qIdx < (ex.questions?.length || 0) - 1 && (
@@ -1228,9 +1228,9 @@ export default function DevoirPrimeTemplate({
                                 alignItems: 'center',
                                 gap: '4px',
                               }}
-                              title="دمج هذا السؤال مع السؤال الموالي داخل بطاقة واحدة"
+                              title="Fusionner cette question avec la suivante dans une seule carte"
                             >
-                              🔗 دمج مع الموالي
+                              🔗 Fusionner avec suivante
                             </button>
                           )}
 
@@ -1249,9 +1249,9 @@ export default function DevoirPrimeTemplate({
                               alignItems: 'center',
                               gap: '4px',
                             }}
-                            title="تبديل بين عمود واحد أو عمودين (يمين / يسار)"
+                            title="Basculer entre 1 colonne et 2 colonnes"
                           >
-                            <Columns size={12} /> {q.layout === 'two_columns' ? 'عمودان' : 'عمود واحد'}
+                            <Columns size={12} /> {q.layout === 'two_columns' ? '2 colonnes' : '1 colonne'}
                           </button>
 
                           <button
@@ -1270,7 +1270,7 @@ export default function DevoirPrimeTemplate({
                               gap: '4px',
                             }}
                           >
-                            {isEditing ? <><Check size={12} /> إنهاء</> : <><Edit3 size={12} /> تعديل</>}
+                            {isEditing ? <><Check size={12} /> Terminer</> : <><Edit3 size={12} /> Modifier</>}
                           </button>
 
                           <button
@@ -1286,7 +1286,7 @@ export default function DevoirPrimeTemplate({
                               display: 'inline-flex',
                               alignItems: 'center',
                             }}
-                            title="حذف السؤال"
+                            title="Supprimer la question"
                           >
                             <Trash2 size={12} />
                           </button>
@@ -1303,12 +1303,12 @@ export default function DevoirPrimeTemplate({
                         display: 'flex',
                         flexDirection: 'column',
                         gap: '8px',
-                        fontFamily: 'Tajawal, sans-serif',
+                        fontFamily: 'Inter, sans-serif',
                         fontSize: '12.5px',
                       }}>
                         <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 140px', gap: '8px' }}>
                           <label>
-                            <span style={{ fontWeight: 700 }}>الرقم</span>
+                            <span style={{ fontWeight: 700 }}>N°</span>
                             <input
                               value={q.number || ''}
                               onChange={e => updateQuestion(eIdx, qIdx, { number: e.target.value })}
@@ -1316,7 +1316,7 @@ export default function DevoirPrimeTemplate({
                             />
                           </label>
                           <label>
-                            <span style={{ fontWeight: 700 }}>نص السؤال (LaTeX مدعوم)</span>
+                            <span style={{ fontWeight: 700 }}>Énoncé (LaTeX supporté)</span>
                             <textarea
                               rows={2}
                               value={q.text || ''}
@@ -1325,11 +1325,11 @@ export default function DevoirPrimeTemplate({
                             />
                           </label>
                           <label>
-                            <span style={{ fontWeight: 700 }}>رابط QR (اختياري)</span>
+                            <span style={{ fontWeight: 700 }}>Lien QR (optionnel)</span>
                             <input
                               value={q.qrUrl || ''}
                               onChange={e => updateQuestion(eIdx, qIdx, { qrUrl: e.target.value })}
-                              placeholder="تلقائي (السؤال + النقطة)"
+                              placeholder="Auto (Question + Barème)"
                               style={{ width: '100%', padding: '5px', borderRadius: '6px', border: '1px solid #94a3b8', fontSize: '11.5px' }}
                             />
                           </label>
@@ -1338,7 +1338,7 @@ export default function DevoirPrimeTemplate({
                         {q.layout === 'two_columns' ? (
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                             <div>
-                              <span style={{ fontWeight: 700 }}>خطوات العمود الأيسر (كل سطر خطوة):</span>
+                              <span style={{ fontWeight: 700 }}>Étapes colonne gauche (1 ligne par étape) :</span>
                               <textarea
                                 rows={4}
                                 value={(q.leftSteps || []).join('\n')}
@@ -1348,12 +1348,12 @@ export default function DevoirPrimeTemplate({
                               <input
                                 value={q.leftConclusion || ''}
                                 onChange={e => updateQuestion(eIdx, qIdx, { leftConclusion: e.target.value })}
-                                placeholder="الاستنتاج الأيسر (يُبرز بالأصفر)"
+                                placeholder="Conclusion gauche (surlignée en jaune)"
                                 style={{ width: '100%', marginTop: '4px', padding: '5px', borderRadius: '6px', border: '1px solid #eab308', background: '#fefce8' }}
                               />
                             </div>
                             <div>
-                              <span style={{ fontWeight: 700 }}>خطوات العمود الأيمن (كل سطر خطوة):</span>
+                              <span style={{ fontWeight: 700 }}>Étapes colonne droite (1 ligne par étape) :</span>
                               <textarea
                                 rows={4}
                                 value={(q.rightSteps || []).join('\n')}
@@ -1363,14 +1363,14 @@ export default function DevoirPrimeTemplate({
                               <input
                                 value={q.rightConclusion || ''}
                                 onChange={e => updateQuestion(eIdx, qIdx, { rightConclusion: e.target.value })}
-                                placeholder="الاستنتاج الأيمن (يُبرز بالأصفر)"
+                                placeholder="Conclusion droite (surlignée en jaune)"
                                 style={{ width: '100%', marginTop: '4px', padding: '5px', borderRadius: '6px', border: '1px solid #eab308', background: '#fefce8' }}
                               />
                             </div>
                           </div>
                         ) : (
                           <label>
-                            <span style={{ fontWeight: 700 }}>خطوات الحل المختصر (سطر لكل مرحلة — LaTeX مدعوم):</span>
+                            <span style={{ fontWeight: 700 }}>Étapes du corrigé concis (1 ligne par étape — LaTeX supporté) :</span>
                             <textarea
                               rows={4}
                               value={(q.steps || []).join('\n')}
@@ -1382,11 +1382,11 @@ export default function DevoirPrimeTemplate({
                         )}
 
                         <label>
-                          <span style={{ fontWeight: 700 }}>النتيجة النهائية / الاستنتاج المؤطّر بالأصفر (Final Box):</span>
+                          <span style={{ fontWeight: 700 }}>Résultat final / Conclusion encadrée (jaune) :</span>
                           <input
                             value={q.finalBox || ''}
                             onChange={e => updateQuestion(eIdx, qIdx, { finalBox: e.target.value })}
-                            placeholder="مثال: $= 1$ أو D'où la fonction $f$ est continue en $-1$."
+                            placeholder="Ex: $= 1$ ou D'où la fonction $f$ est continue en $-1$."
                             style={{ width: '100%', padding: '6px', borderRadius: '6px', border: '1.5px solid #2563eb', background: '#fef9c3', fontWeight: 700 }}
                           />
                         </label>

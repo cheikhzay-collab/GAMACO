@@ -9,17 +9,17 @@ import {
 import { validateExercisePoints } from '../../utils/scoreBalancingValidator';
 
 const TYPE_META = {
-  definition: { label: 'تعريف', color: '#4338ca', bg: 'rgba(67, 56, 202, 0.12)' },
-  theorem: { label: 'مبرهنة', color: '#b91c1c', bg: 'rgba(185, 28, 28, 0.12)' },
-  property: { label: 'خاصية', color: '#0369a1', bg: 'rgba(3, 105, 161, 0.12)' },
-  corollary: { label: 'نتيجة', color: '#0f766e', bg: 'rgba(15, 118, 110, 0.12)' },
-  methode: { label: 'منهجية', color: '#b45309', bg: 'rgba(180, 83, 9, 0.12)' },
-  demonstration: { label: 'برهان', color: '#475569', bg: 'rgba(71, 85, 105, 0.14)' },
-  example: { label: 'مثال', color: '#047857', bg: 'rgba(4, 120, 87, 0.12)' },
-  remark: { label: 'ملاحظة', color: '#d97706', bg: 'rgba(217, 119, 6, 0.12)' },
-  activity: { label: 'نشاط', color: '#0d9488', bg: 'rgba(13, 148, 136, 0.12)' },
-  exercise: { label: 'تمرين', color: '#dc2626', bg: 'rgba(220, 38, 38, 0.12)' },
-  content: { label: 'فقرة', color: '#2563eb', bg: 'rgba(37, 99, 235, 0.12)' },
+  definition: { label: 'Définition', color: '#4338ca', bg: 'rgba(67, 56, 202, 0.12)' },
+  theorem: { label: 'Théorème', color: '#b91c1c', bg: 'rgba(185, 28, 28, 0.12)' },
+  property: { label: 'Propriété', color: '#0369a1', bg: 'rgba(3, 105, 161, 0.12)' },
+  corollary: { label: 'Corollaire', color: '#0f766e', bg: 'rgba(15, 118, 110, 0.12)' },
+  methode: { label: 'Méthode', color: '#b45309', bg: 'rgba(180, 83, 9, 0.12)' },
+  demonstration: { label: 'Démonstration', color: '#475569', bg: 'rgba(71, 85, 105, 0.14)' },
+  example: { label: 'Exemple', color: '#047857', bg: 'rgba(4, 120, 87, 0.12)' },
+  remark: { label: 'Remarque', color: '#d97706', bg: 'rgba(217, 119, 6, 0.12)' },
+  activity: { label: 'Activité', color: '#0d9488', bg: 'rgba(13, 148, 136, 0.12)' },
+  exercise: { label: 'Exercice', color: '#dc2626', bg: 'rgba(220, 38, 38, 0.12)' },
+  content: { label: 'Paragraphe', color: '#2563eb', bg: 'rgba(37, 99, 235, 0.12)' },
 };
 
 export default function LessonEditorOutline({
@@ -74,7 +74,7 @@ export default function LessonEditorOutline({
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem' }}>
           <span style={{ fontWeight: 800, fontSize: '0.84rem', color: 'var(--text-main)', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
             <Layers size={15} style={{ color: 'var(--violet)' }} />
-            فهرس الوثيقة ({sections.length})
+            Plan du document ({sections.length})
           </span>
           {totalPoints > 0 && (
             <span style={{
@@ -117,9 +117,9 @@ export default function LessonEditorOutline({
               justifyContent: 'center',
               gap: '0.25rem',
             }}
-            title="تحرير عنصر واحد بتركيز وسرعة عالية"
+            title="Éditer un seul élément à la fois (mode focus)"
           >
-            <Target size={12} /> تركيز (1)
+            <Target size={12} /> Focus (1)
           </button>
           <button
             type="button"
@@ -138,9 +138,9 @@ export default function LessonEditorOutline({
               justifyContent: 'center',
               gap: '0.25rem',
             }}
-            title="عرض جميع الفقرات والتمارين متتالية"
+            title="Afficher toutes les sections et exercices à la suite"
           >
-            <BookOpen size={12} /> عرض الكل
+            <BookOpen size={12} /> Tout voir
           </button>
         </div>
       </div>
@@ -156,7 +156,7 @@ export default function LessonEditorOutline({
       }}>
         {sections.length === 0 ? (
           <div style={{ padding: '1.5rem 0.75rem', textAlign: 'center', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-            لا توجد فقرات بعد. أضف فقرة أو تمريناً من الأسفل.
+            Aucune section pour le moment. Ajoutez un paragraphe ou un exercice ci-dessous.
           </div>
         ) : (
           sections.map((sec, idx) => {
@@ -214,7 +214,7 @@ export default function LessonEditorOutline({
                     ) : null}
                     {hasSol && (
                       <span style={{ fontSize: '0.67rem', color: '#10b981', display: 'inline-flex', alignItems: 'center', gap: '2px', fontWeight: 700 }}>
-                        <CheckCircle2 size={10} /> محلول
+                        <CheckCircle2 size={10} /> Corrigé
                       </span>
                     )}
                     {imgCount > 0 && (
@@ -232,7 +232,7 @@ export default function LessonEditorOutline({
                     disabled={idx === 0}
                     onClick={() => onMoveSection(idx, 'up')}
                     style={{ background: 'none', border: 'none', padding: 0, cursor: idx === 0 ? 'default' : 'pointer', color: 'var(--text-muted)', opacity: idx === 0 ? 0.25 : 1, lineHeight: 1 }}
-                    title="تحريك للأعلى"
+                    title="Monter"
                   >
                     <ChevronUp size={12} />
                   </button>
@@ -241,7 +241,7 @@ export default function LessonEditorOutline({
                     disabled={idx === sections.length - 1}
                     onClick={() => onMoveSection(idx, 'down')}
                     style={{ background: 'none', border: 'none', padding: 0, cursor: idx === sections.length - 1 ? 'default' : 'pointer', color: 'var(--text-muted)', opacity: idx === sections.length - 1 ? 0.25 : 1, lineHeight: 1 }}
-                    title="تحريك للأسفل"
+                    title="Descendre"
                   >
                     <ChevronDown size={12} />
                   </button>
@@ -268,7 +268,7 @@ export default function LessonEditorOutline({
             className="btn-outline"
             style={{ padding: '0.4rem 0.5rem', fontSize: '0.75rem', fontWeight: 800, justifyContent: 'center', borderRadius: '8px', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
           >
-            <Plus size={13} /> فقرة درس
+            <Plus size={13} /> Paragraphe
           </button>
           <button
             type="button"
@@ -276,7 +276,7 @@ export default function LessonEditorOutline({
             className="btn-outline"
             style={{ padding: '0.4rem 0.5rem', fontSize: '0.75rem', fontWeight: 800, justifyContent: 'center', borderRadius: '8px', color: '#dc2626', borderColor: 'rgba(220, 38, 38, 0.35)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
           >
-            <Plus size={13} /> تمرين
+            <Plus size={13} /> Exercice
           </button>
         </div>
 
@@ -304,12 +304,12 @@ export default function LessonEditorOutline({
             {solvingAll ? (
               <>
                 <Loader2 size={13} className="animate-spin" />
-                <span>جاري الحل ({solveAllProgress?.current || 0}/{solveAllProgress?.total || exerciseCount})...</span>
+                <span>Résolution ({solveAllProgress?.current || 0}/{solveAllProgress?.total || exerciseCount})...</span>
               </>
             ) : (
               <>
                 <Sparkles size={13} style={{ color: '#f59e0b' }} />
-                <span>حل الكل (IA) • {solvedCount}/{exerciseCount}</span>
+                <span>Tout résoudre (IA) • {solvedCount}/{exerciseCount}</span>
               </>
             )}
           </button>

@@ -3089,9 +3089,9 @@ export default function LessonViewerPage() {
                 transition: 'all 0.15s ease',
                 cursor: 'pointer'
               }}
-              title="عرض أو تحويل الفرض / الامتحان إلى نظام DEVOIR PRIME (نقط + أسطر كتابة + حل مختصر + طباعة ملكية)"
+              title="Afficher ou convertir le devoir / examen au format DEVOIR PRIME (barème + lignes d'écriture + corrigé synthétique + impression officielle)"
             >
-              {viewDevoirPrimeMode ? '📄 Vue Classique' : (isNat || lesson?.docType === 'national' ? '⭐ قالب DEVOIR PRIME للوطني' : '⭐ DEVOIR PRIME')}
+              {viewDevoirPrimeMode ? '📄 Vue Classique' : (isNat || lesson?.docType === 'national' ? '⭐ Modèle DEVOIR PRIME National' : '⭐ DEVOIR PRIME')}
             </button>
           )}
 
@@ -3117,7 +3117,7 @@ export default function LessonViewerPage() {
               }}
               title="Afficher la grille et le barème des points"
             >
-              📊 سلم النقط ({activePointsTable.reduce((s, r) => s + (parseFloat(r.points) || 0), 0).toFixed(1)} / {header?.total_points || 20} pts)
+              📊 Barème des points ({activePointsTable.reduce((s, r) => s + (parseFloat(r.points) || 0), 0).toFixed(1)} / {header?.total_points || 20} pts)
             </button>
           )}
 
@@ -3687,7 +3687,7 @@ export default function LessonViewerPage() {
                   <span style={{ fontSize: '1.25rem' }}>📊</span>
                   <div>
                     <strong style={{ fontSize: '0.95rem', color: '#005086' }}>
-                      جدول النقط وسلّم التنقيط (Grille & Barème des Points)
+                      Grille &amp; Barème des Points
                     </strong>
                     <span style={{
                       marginRight: '0.6rem',
@@ -3699,7 +3699,7 @@ export default function LessonViewerPage() {
                       background: 'rgba(0, 80, 134, 0.1)',
                       color: '#005086'
                     }}>
-                      المجموع : {activePointsTable.reduce((s, r) => s + (parseFloat(r.points) || 0), 0).toFixed(2)} / {header?.total_points || 20} pts
+                      Total : {activePointsTable.reduce((s, r) => s + (parseFloat(r.points) || 0), 0).toFixed(2)} / {header?.total_points || 20} pts
                     </span>
                   </div>
                 </div>
@@ -3714,7 +3714,7 @@ export default function LessonViewerPage() {
                     cursor: 'pointer'
                   }}
                 >
-                  {showGradesTable ? 'إخفاء الجدول ▲' : 'عرض سلم النقط ▼'}
+                  {showGradesTable ? 'Masquer la grille ▲' : 'Afficher le barème ▼'}
                 </button>
               </div>
 
@@ -3731,10 +3731,10 @@ export default function LessonViewerPage() {
                   }}>
                     <thead>
                       <tr style={{ background: 'rgba(0, 80, 134, 0.08)', color: '#005086' }}>
-                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 800 }}>التمرين</th>
-                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 800 }}>الموضوع</th>
-                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'center', fontWeight: 800 }}>النقط</th>
-                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 800 }}>تفاصيل الأسئلة</th>
+                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 800 }}>Exercice</th>
+                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 800 }}>Thème</th>
+                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'center', fontWeight: 800 }}>Points</th>
+                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 800 }}>Détail des questions</th>
                       </tr>
                     </thead>
                     <tbody>

@@ -163,9 +163,9 @@ export const addLogbookEntry = async (entryData) => {
   } catch (err) {
     console.error('[logbookService] addLogbookEntry MySQL save failed:', err);
     if (err?.status === 401 || err?.status === 403) {
-      throw new Error('انتهت صلاحية الجلسة — يرجى تسجيل الدخول مرة أخرى لحفظ دفتر النصوص في قاعدة البيانات.');
+      throw new Error('Session expirée — veuillez vous reconnecter pour enregistrer le cahier de textes.');
     }
-    throw new Error(err?.message || 'تعذر حفظ الحصة في قاعدة البيانات.');
+    throw new Error(err?.message || 'Impossible d\'enregistrer la séance dans la base de données.');
   }
 };
 
@@ -196,9 +196,9 @@ export const updateLogbookEntry = async (entryId, updates) => {
   } catch (err) {
     console.error('[logbookService] updateLogbookEntry MySQL save failed:', err);
     if (err?.status === 401 || err?.status === 403) {
-      throw new Error('انتهت صلاحية الجلسة — يرجى تسجيل الدخول مرة أخرى لحفظ التعديل في قاعدة البيانات.');
+      throw new Error('Session expirée — veuillez vous reconnecter pour enregistrer la modification.');
     }
-    throw new Error(err?.message || 'تعذر تحديث الحصة في قاعدة البيانات.');
+    throw new Error(err?.message || 'Impossible de mettre à jour la séance dans la base de données.');
   }
 };
 
@@ -217,8 +217,8 @@ export const deleteLogbookEntry = async (entryId) => {
   } catch (err) {
     console.error('[logbookService] deleteLogbookEntry MySQL delete failed:', err);
     if (err?.status === 401 || err?.status === 403) {
-      throw new Error('انتهت صلاحية الجلسة — يرجى تسجيل الدخول مرة أخرى لحذف الحصة من قاعدة البيانات.');
+      throw new Error('Session expirée — veuillez vous reconnecter pour supprimer la séance.');
     }
-    throw new Error(err?.message || 'تعذر حذف الحصة من قاعدة البيانات.');
+    throw new Error(err?.message || 'Impossible de supprimer la séance de la base de données.');
   }
 };

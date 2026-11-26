@@ -87,7 +87,7 @@ export default function LessonEditorSettingsDrawer({
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 800, fontSize: '1rem', color: 'var(--text-main)' }}>
             <Settings2 size={18} style={{ color: 'var(--violet)' }} />
-            <span>إعدادات الوثيقة والتنسيق العام</span>
+            <span>Paramètres du document &amp; mise en page</span>
           </div>
           <button
             type="button"
@@ -104,11 +104,11 @@ export default function LessonEditorSettingsDrawer({
           {/* 1. Core Identity */}
           <section style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>
             <h3 style={{ margin: 0, fontSize: '0.82rem', fontWeight: 800, color: 'var(--violet)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-              <BookOpen size={14} /> الهوية والتصنيف
+              <BookOpen size={14} /> Identité et classification
             </h3>
 
             <div>
-              <label style={{ fontSize: '0.73rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>عنوان الوثيقة</label>
+              <label style={{ fontSize: '0.73rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>Titre du document</label>
               <input
                 type="text"
                 className="input-control"
@@ -120,7 +120,7 @@ export default function LessonEditorSettingsDrawer({
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem' }}>
               <div>
-                <label style={{ fontSize: '0.73rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>نوع الوثيقة</label>
+                <label style={{ fontSize: '0.73rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>Type de document</label>
                 <select
                   className="input-control"
                   value={docType}
@@ -128,13 +128,13 @@ export default function LessonEditorSettingsDrawer({
                   style={{ width: '100%', padding: '0.45rem 0.55rem', fontSize: '0.82rem', fontWeight: 700 }}
                 >
                   {DOC_TYPES.map(dt => (
-                    <option key={dt.id} value={dt.id}>{dt.labelFr} — {dt.labelAr}</option>
+                    <option key={dt.id} value={dt.id}>{dt.labelFr}</option>
                   ))}
                 </select>
               </div>
 
               <div>
-                <label style={{ fontSize: '0.73rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>المستوى الدراسي</label>
+                <label style={{ fontSize: '0.73rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>Niveau scolaire</label>
                 <select
                   className="input-control"
                   value={selectedLevel}
@@ -150,7 +150,7 @@ export default function LessonEditorSettingsDrawer({
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.6rem' }}>
               <div>
-                <label style={{ fontSize: '0.73rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>اللغة</label>
+                <label style={{ fontSize: '0.73rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>Langue</label>
                 <select
                   className="input-control"
                   value={docLanguage}
@@ -158,12 +158,12 @@ export default function LessonEditorSettingsDrawer({
                   style={{ width: '100%', padding: '0.42rem 0.5rem', fontSize: '0.8rem' }}
                 >
                   <option value="fr">Français</option>
-                  <option value="ar">العربية</option>
+                  <option value="ar">Arabe (العربية)</option>
                 </select>
               </div>
 
               <div>
-                <label style={{ fontSize: '0.73rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>عدد الأعمدة</label>
+                <label style={{ fontSize: '0.73rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>Colonnes</label>
                 <select
                   className="input-control"
                   value={columnsCount}
@@ -177,7 +177,7 @@ export default function LessonEditorSettingsDrawer({
               </div>
 
               <div>
-                <label style={{ fontSize: '0.73rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>الحالة</label>
+                <label style={{ fontSize: '0.73rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>Statut</label>
                 <button
                   type="button"
                   onClick={() => onChangeField('isActiveStatus', !isActiveStatus)}
@@ -193,7 +193,7 @@ export default function LessonEditorSettingsDrawer({
                     cursor: 'pointer',
                   }}
                 >
-                  {isActiveStatus ? '● منشور' : '○ مخفي'}
+                  {isActiveStatus ? '● Publié' : '○ Masqué'}
                 </button>
               </div>
             </div>
@@ -202,35 +202,35 @@ export default function LessonEditorSettingsDrawer({
           {/* 2. Teacher & Header Info */}
           <section style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', paddingTop: '0.9rem', borderTop: '1px solid var(--border)' }}>
             <h3 style={{ margin: 0, fontSize: '0.82rem', fontWeight: 800, color: 'var(--violet)' }}>
-              معلومات الأستاذ والترويسة
+              Informations enseignant &amp; en-tête
             </h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
               <div>
-                <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>المادة</label>
+                <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>Matière</label>
                 <input className="input-control" value={subject} onChange={e => onChangeField('subject', e.target.value)} style={{ width: '100%', padding: '0.42rem 0.6rem', fontSize: '0.82rem' }} />
               </div>
               <div>
-                <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>رقم الدرس / الفصل</label>
+                <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>N° du chapitre / leçon</label>
                 <input className="input-control" value={chapterNumber} onChange={e => onChangeField('chapterNumber', e.target.value)} placeholder="Ex: 01" style={{ width: '100%', padding: '0.42rem 0.6rem', fontSize: '0.82rem' }} />
               </div>
               <div>
-                <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>الأستاذ</label>
+                <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>Professeur</label>
                 <input className="input-control" value={teacher} onChange={e => onChangeField('teacher', e.target.value)} placeholder="Pr. ..." style={{ width: '100%', padding: '0.42rem 0.6rem', fontSize: '0.82rem' }} />
               </div>
               <div>
-                <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>الهاتف / الموقع</label>
+                <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>Téléphone / Site</label>
                 <input className="input-control" value={phone} onChange={e => onChangeField('phone', e.target.value)} placeholder="06XXXXXXXX" style={{ width: '100%', padding: '0.42rem 0.6rem', fontSize: '0.82rem' }} />
               </div>
             </div>
             <div>
-              <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>عنوان الترويسة الفرعية</label>
+              <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>Sous-titre d&apos;en-tête</label>
               <input className="input-control" value={prepTitle} onChange={e => onChangeField('prepTitle', e.target.value)} style={{ width: '100%', padding: '0.42rem 0.6rem', fontSize: '0.82rem' }} />
             </div>
 
             {availableClasses.length > 0 && (
               <div>
                 <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem', marginBottom: '0.35rem' }}>
-                  <Users size={12} /> الأقسام المرتبطة
+                  <Users size={12} /> Classes associées
                 </label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
                   {availableClasses.map(cls => {
@@ -264,18 +264,18 @@ export default function LessonEditorSettingsDrawer({
           {/* 3. Pedagogical Objectives (Optional) */}
           <section style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', paddingTop: '0.9rem', borderTop: '1px solid var(--border)' }}>
             <h3 style={{ margin: 0, fontSize: '0.82rem', fontWeight: 800, color: 'var(--violet)' }}>
-              التأطير البيداغوجي (اختياري)
+              Cadrage pédagogique (optionnel)
             </h3>
             <div>
-              <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>القدرات المنتظرة (Capacités attendues)</label>
+              <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>Capacités attendues</label>
               <textarea rows={2} className="input-control" value={capacitesAttendues} onChange={e => onChangeField('capacitesAttendues', e.target.value)} style={{ width: '100%', padding: '0.45rem 0.6rem', fontSize: '0.8rem' }} />
             </div>
             <div>
-              <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>المحتويات (Contenus)</label>
+              <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>Contenus</label>
               <textarea rows={2} className="input-control" value={contenus} onChange={e => onChangeField('contenus', e.target.value)} style={{ width: '100%', padding: '0.45rem 0.6rem', fontSize: '0.8rem' }} />
             </div>
             <div>
-              <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>ملاحظات / توجيهات (Remarques)</label>
+              <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>Remarques &amp; orientations</label>
               <textarea rows={2} className="input-control" value={leContenu} onChange={e => onChangeField('leContenu', e.target.value)} style={{ width: '100%', padding: '0.45rem 0.6rem', fontSize: '0.8rem' }} />
             </div>
           </section>
@@ -283,16 +283,16 @@ export default function LessonEditorSettingsDrawer({
           {/* 4. Global Document Styling */}
           <section style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', paddingTop: '0.9rem', borderTop: '1px solid var(--border)' }}>
             <h3 style={{ margin: 0, fontSize: '0.82rem', fontWeight: 800, color: 'var(--violet)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-              <Palette size={14} /> التنسيق العام للوثيقة
+              <Palette size={14} /> Mise en forme globale
             </h3>
             <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontWeight: 700 }}>الخلفية:</span>
+              <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontWeight: 700 }}>Arrière-plan :</span>
               {[
-                { label: 'شفاف', val: 'transparent', color: '#ffffff', border: '#cbd5e1' },
-                { label: 'أزرق ناعم', val: '#f0f9ff', color: '#f0f9ff', border: '#bae6fd' },
-                { label: 'أصفر ناعم', val: '#fefce8', color: '#fefce8', border: '#fef08a' },
-                { label: 'أخضر نعناعي', val: '#f0fdf4', color: '#f0fdf4', border: '#bbf7d0' },
-                { label: 'رمادي أنيق', val: '#f8fafc', color: '#f8fafc', border: '#e2e8f0' },
+                { label: 'Transparent', val: 'transparent', color: '#ffffff', border: '#cbd5e1' },
+                { label: 'Bleu doux', val: '#f0f9ff', color: '#f0f9ff', border: '#bae6fd' },
+                { label: 'Jaune doux', val: '#fefce8', color: '#fefce8', border: '#fef08a' },
+                { label: 'Vert menthe', val: '#f0fdf4', color: '#f0fdf4', border: '#bbf7d0' },
+                { label: 'Gris clair', val: '#f8fafc', color: '#f8fafc', border: '#e2e8f0' },
               ].map(c => (
                 <button
                   key={c.val}
@@ -313,23 +313,23 @@ export default function LessonEditorSettingsDrawer({
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
               <select className="input-control" value={globalStyle.fontSize} onChange={e => onChangeGlobalStyle('fontSize', e.target.value)} style={{ padding: '0.4rem', fontSize: '0.76rem' }}>
-                <option value="">حجم عادي</option>
+                <option value="">Taille normale</option>
                 <option value="8.5pt">8.5pt</option>
                 <option value="9.2pt">9.2pt</option>
                 <option value="10pt">10pt</option>
                 <option value="11pt">11pt</option>
               </select>
               <select className="input-control" value={globalStyle.lineHeight} onChange={e => onChangeGlobalStyle('lineHeight', e.target.value)} style={{ padding: '0.4rem', fontSize: '0.76rem' }}>
-                <option value="">تباعد عادي</option>
-                <option value="1.3">1.3 ضيق</option>
-                <option value="1.55">1.55 قياسي</option>
-                <option value="1.75">1.75 مريح</option>
-                <option value="2.0">2.0 واسع</option>
+                <option value="">Interligne normal</option>
+                <option value="1.3">1.3 Compact</option>
+                <option value="1.55">1.55 Standard</option>
+                <option value="1.75">1.75 Aéré</option>
+                <option value="2.0">2.0 Large</option>
               </select>
               <select className="input-control" value={globalStyle.scope} onChange={e => onChangeGlobalStyle('scope', e.target.value)} style={{ padding: '0.4rem', fontSize: '0.76rem' }}>
-                <option value="all">كامل الملف</option>
-                <option value="exercises">التمارين فقط</option>
-                <option value="course">الدرس فقط</option>
+                <option value="all">Tout le document</option>
+                <option value="exercises">Exercices uniquement</option>
+                <option value="course">Cours uniquement</option>
               </select>
             </div>
 
@@ -339,7 +339,7 @@ export default function LessonEditorSettingsDrawer({
               className="btn"
               style={{ width: '100%', padding: '0.55rem', fontSize: '0.82rem', fontWeight: 800, justifyContent: 'center', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', borderRadius: '9px' }}
             >
-              <CheckCheck size={15} /> تطبيق التنسيق العام على الفقرات
+              <CheckCheck size={15} /> Appliquer le style aux sections
             </button>
           </section>
         </div>
@@ -347,7 +347,7 @@ export default function LessonEditorSettingsDrawer({
         {/* Drawer Footer */}
         <div style={{ padding: '0.85rem 1.25rem', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end' }}>
           <button type="button" onClick={onClose} className="btn" style={{ padding: '0.5rem 1.25rem', borderRadius: '9px', fontSize: '0.84rem', fontWeight: 800 }}>
-            تم
+            Terminer
           </button>
         </div>
       </div>

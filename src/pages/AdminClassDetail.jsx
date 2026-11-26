@@ -2447,7 +2447,7 @@ export default function AdminClassDetail() {
                       return (
                         <>
                           {devoirPrimes.length > 0 && (
-                            <optgroup label="⭐ DEVOIR PRIME (فروض مصححة ومقترحة)">
+                            <optgroup label="⭐ DEVOIR PRIME (Devoirs corrigés & modèles)">
                               {devoirPrimes.map(l => (
                                 <option key={l.id} value={l.id}>⭐ {l.title} {l.subject ? `(${l.subject})` : ''}</option>
                               ))}
@@ -2482,14 +2482,14 @@ export default function AdminClassDetail() {
                             </optgroup>
                           )}
                           {otherSeries.length > 0 && (
-                            <optgroup label="📝 Autres Séries d'exercices (مستويات أخرى / عامة)">
+                            <optgroup label="📝 Autres Séries d'exercices (Autres niveaux)">
                               {otherSeries.map(l => (
                                 <option key={l.id} value={l.id}>📝 {l.title} {l.level ? `[${l.level}]` : ''}</option>
                               ))}
                             </optgroup>
                           )}
                           {otherDevoirPrimes.length > 0 && (
-                            <optgroup label="⭐ Autres DEVOIR PRIME (مستويات أخرى / عامة)">
+                            <optgroup label="⭐ Autres DEVOIR PRIME (Autres niveaux)">
                               {otherDevoirPrimes.map(l => (
                                 <option key={l.id} value={l.id}>⭐ {l.title} {l.level ? `[${l.level}]` : ''}</option>
                               ))}

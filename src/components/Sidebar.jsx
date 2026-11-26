@@ -10,25 +10,25 @@ import { useAuth } from '../context/AuthContext';
 import LconqLogo from './LconqLogo';
 
 function getMobileRouteMeta(pathname) {
-  if (pathname === '/admin/dashboard') return { title: 'لوحة التحكم', isRoot: true };
-  if (pathname === '/dashboard') return { title: 'الرئيسية', isRoot: true };
-  if (pathname === '/admin/lessons') return { title: 'الوثائق والدروس', isRoot: true };
-  if (pathname === '/admin/national-exams' || pathname === '/national-exams') return { title: 'الامتحانات الوطنية', isRoot: true };
-  if (pathname.startsWith('/admin/lessons/') || pathname.startsWith('/lessons/')) return { title: 'عرض الوثيقة', isRoot: false };
-  if (pathname === '/admin/logbook') return { title: 'دفتر النصوص', isRoot: true };
-  if (pathname === '/admin/classes') return { title: 'الأقسام والتلاميذ', isRoot: true };
-  if (pathname.startsWith('/admin/classes/')) return { title: 'تفاصيل القسم', isRoot: false };
-  if (pathname.startsWith('/admin/users/')) return { title: 'ملف التلميذ', isRoot: false };
-  if (pathname.startsWith('/admin/ai-')) return { title: 'المولّد الذكي IA', isRoot: false };
-  if (pathname === '/admin/exams') return { title: 'بنك التمارين وQCM', isRoot: false };
-  if (pathname.startsWith('/admin/exams/')) return { title: 'تعديل الامتحان', isRoot: false };
-  if (pathname === '/admin/ebooks') return { title: 'الكتب الإلكترونية', isRoot: false };
-  if (pathname === '/admin/upload') return { title: 'رفع QCM', isRoot: false };
-  if (pathname === '/admin/self-learning') return { title: 'التكوين الذاتي', isRoot: false };
-  if (pathname === '/admin/settings') return { title: 'الإعدادات', isRoot: false };
-  if (pathname === '/levels') return { title: 'المستويات والدروس', isRoot: true };
-  if (pathname === '/scanner' || pathname === '/scan') return { title: 'الماسح الذكي OMR', isRoot: true };
-  if (pathname === '/ranking') return { title: 'الترتيب العام', isRoot: false };
+  if (pathname === '/admin/dashboard') return { title: 'Tableau de bord', isRoot: true };
+  if (pathname === '/dashboard') return { title: 'Accueil', isRoot: true };
+  if (pathname === '/admin/lessons') return { title: 'Fiches & Cours', isRoot: true };
+  if (pathname === '/admin/national-exams' || pathname === '/national-exams') return { title: 'Examens Nationaux', isRoot: true };
+  if (pathname.startsWith('/admin/lessons/') || pathname.startsWith('/lessons/')) return { title: 'Document', isRoot: false };
+  if (pathname === '/admin/logbook') return { title: 'Cahier de textes', isRoot: true };
+  if (pathname === '/admin/classes') return { title: 'Classes & Élèves', isRoot: true };
+  if (pathname.startsWith('/admin/classes/')) return { title: 'Détails de la classe', isRoot: false };
+  if (pathname.startsWith('/admin/users/')) return { title: 'Dossier élève', isRoot: false };
+  if (pathname.startsWith('/admin/ai-')) return { title: 'Générateur IA', isRoot: false };
+  if (pathname === '/admin/exams') return { title: 'Banque QCM', isRoot: false };
+  if (pathname.startsWith('/admin/exams/')) return { title: 'Édition examen', isRoot: false };
+  if (pathname === '/admin/ebooks') return { title: 'E-Books', isRoot: false };
+  if (pathname === '/admin/upload') return { title: 'Upload QCM', isRoot: false };
+  if (pathname === '/admin/self-learning') return { title: 'Auto-Formation', isRoot: false };
+  if (pathname === '/admin/settings') return { title: 'Paramètres', isRoot: false };
+  if (pathname === '/levels') return { title: 'Niveaux & Cours', isRoot: true };
+  if (pathname === '/scanner' || pathname === '/scan') return { title: 'Scanner OMR', isRoot: true };
+  if (pathname === '/ranking') return { title: 'Classement général', isRoot: false };
   return { title: 'GAMACO', isRoot: true };
 }
 
@@ -119,7 +119,7 @@ export default function Sidebar() {
           <button
             className="mobile-header__toggle"
             onClick={() => navigate(-1)}
-            aria-label="رجوع"
+            aria-label="Retour"
           >
             <ArrowLeft size={20} />
           </button>
@@ -127,7 +127,7 @@ export default function Sidebar() {
           <button
             className="mobile-header__toggle"
             onClick={() => setMobileOpen(v => !v)}
-            aria-label="القائمة"
+            aria-label="Menu"
           >
             {mobileOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
@@ -141,7 +141,7 @@ export default function Sidebar() {
           <span className="mobile-header__subtitle">GAMACO</span>
         </div>
 
-        <button className="mobile-header__icon-btn" onClick={toggleTheme} aria-label="تبديل المظهر">
+        <button className="mobile-header__icon-btn" onClick={toggleTheme} aria-label="Changer de thème">
           {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
         </button>
       </div>

@@ -309,9 +309,9 @@ export const addClass = async (classData) => {
   } catch (err) {
     console.error('[classService] addClass MySQL save failed:', err);
     if (err?.status === 401 || err?.status === 403) {
-      throw new Error('انتهت صلاحية الجلسة — يرجى تسجيل الدخول مرة أخرى لإنشاء القسم في قاعدة البيانات.');
+      throw new Error('Session expirée — veuillez vous reconnecter pour créer la classe dans la base de données.');
     }
-    throw new Error(err?.message || 'تعذر حفظ القسم في قاعدة البيانات.');
+    throw new Error(err?.message || 'Impossible d\'enregistrer la classe dans la base de données.');
   }
 
   // 4. Supabase
@@ -426,9 +426,9 @@ export const updateClass = async (classId, updates) => {
   } catch (err) {
     console.error('[classService] updateClass MySQL save failed:', err);
     if (err?.status === 401 || err?.status === 403) {
-      throw new Error('انتهت صلاحية الجلسة — يرجى تسجيل الدخول مرة أخرى لحفظ تعديلات القسم في قاعدة البيانات.');
+      throw new Error('Session expirée — veuillez vous reconnecter pour enregistrer les modifications de la classe.');
     }
-    throw new Error(err?.message || 'تعذر حفظ بيانات القسم في قاعدة البيانات.');
+    throw new Error(err?.message || 'Impossible d\'enregistrer les données de la classe dans la base de données.');
   }
 
   // 4. Update caches cleanly with server-confirmed record
@@ -467,9 +467,9 @@ export const deleteClass = async (classId) => {
   } catch (err) {
     console.error('[classService] deleteClass MySQL delete failed:', err);
     if (err?.status === 401 || err?.status === 403) {
-      throw new Error('انتهت صلاحية الجلسة — يرجى تسجيل الدخول مرة أخرى لحذف القسم من قاعدة البيانات.');
+      throw new Error('Session expirée — veuillez vous reconnecter pour supprimer la classe de la base de données.');
     }
-    throw new Error(err?.message || 'تعذر حذف القسم من قاعدة البيانات.');
+    throw new Error(err?.message || 'Impossible de supprimer la classe de la base de données.');
   }
 
   queryCache.invalidate('classes_all');

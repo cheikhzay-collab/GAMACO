@@ -23,40 +23,40 @@ import {
 import SmartTableRenderer from '../SmartTableRenderer';
 
 const SECTION_TYPES = [
-  { id: 'content', label: 'فقرة درس', labelFr: 'Paragraphe', color: '#2563eb', bg: 'rgba(37, 99, 235, 0.1)' },
-  { id: 'definition', label: 'تعريف', labelFr: 'Définition', color: '#4338ca', bg: 'rgba(67, 56, 202, 0.1)' },
-  { id: 'theorem', label: 'مبرهنة', labelFr: 'Théorème', color: '#b91c1c', bg: 'rgba(185, 28, 28, 0.1)' },
-  { id: 'property', label: 'خاصية', labelFr: 'Propriété', color: '#0369a1', bg: 'rgba(3, 105, 161, 0.1)' },
-  { id: 'corollary', label: 'نتيجة', labelFr: 'Corollaire', color: '#0f766e', bg: 'rgba(15, 118, 110, 0.1)' },
-  { id: 'methode', label: 'منهجية', labelFr: 'Méthode', color: '#b45309', bg: 'rgba(180, 83, 9, 0.1)' },
-  { id: 'demonstration', label: 'برهان', labelFr: 'Démonstration', color: '#475569', bg: 'rgba(71, 85, 105, 0.12)' },
-  { id: 'example', label: 'مثال', labelFr: 'Exemple', color: '#047857', bg: 'rgba(4, 120, 87, 0.1)' },
-  { id: 'remark', label: 'ملاحظة', labelFr: 'Remarque', color: '#d97706', bg: 'rgba(217, 119, 6, 0.1)' },
-  { id: 'activity', label: 'نشاط', labelFr: 'Activité', color: '#0d9488', bg: 'rgba(13, 148, 136, 0.1)' },
-  { id: 'exercise', label: 'تمرين', labelFr: 'Exercice', color: '#dc2626', bg: 'rgba(220, 38, 38, 0.1)' },
+  { id: 'content', label: 'Paragraphe', labelFr: 'Paragraphe', color: '#2563eb', bg: 'rgba(37, 99, 235, 0.1)' },
+  { id: 'definition', label: 'Définition', labelFr: 'Définition', color: '#4338ca', bg: 'rgba(67, 56, 202, 0.1)' },
+  { id: 'theorem', label: 'Théorème', labelFr: 'Théorème', color: '#b91c1c', bg: 'rgba(185, 28, 28, 0.1)' },
+  { id: 'property', label: 'Propriété', labelFr: 'Propriété', color: '#0369a1', bg: 'rgba(3, 105, 161, 0.1)' },
+  { id: 'corollary', label: 'Corollaire', labelFr: 'Corollaire', color: '#0f766e', bg: 'rgba(15, 118, 110, 0.1)' },
+  { id: 'methode', label: 'Méthode', labelFr: 'Méthode', color: '#b45309', bg: 'rgba(180, 83, 9, 0.1)' },
+  { id: 'demonstration', label: 'Démonstration', labelFr: 'Démonstration', color: '#475569', bg: 'rgba(71, 85, 105, 0.12)' },
+  { id: 'example', label: 'Exemple', labelFr: 'Exemple', color: '#047857', bg: 'rgba(4, 120, 87, 0.1)' },
+  { id: 'remark', label: 'Remarque', labelFr: 'Remarque', color: '#d97706', bg: 'rgba(217, 119, 6, 0.1)' },
+  { id: 'activity', label: 'Activité', labelFr: 'Activité', color: '#0d9488', bg: 'rgba(13, 148, 136, 0.1)' },
+  { id: 'exercise', label: 'Exercice', labelFr: 'Exercice', color: '#dc2626', bg: 'rgba(220, 38, 38, 0.1)' },
 ];
 
 const QUICK_CHIPS = [
-  { label: 'a/b', latex: '\\dfrac{a}{b}', title: 'كسر' },
-  { label: '√x', latex: '\\sqrt{x}', title: 'جذر مربع' },
-  { label: 'lim', latex: '\\lim_{x \\to x_0}', title: 'نهاية' },
-  { label: 'x²', latex: 'x^{2}', title: 'قوة / أس' },
-  { label: 'uₙ', latex: 'u_{n}', title: 'دليل سفلي' },
-  { label: '→', latex: '\\to', title: 'يؤول إلى' },
-  { label: '∈', latex: '\\in', title: 'ينتمي' },
-  { label: 'ℝ', latex: '\\mathbb{R}', title: 'مجموعة الأعداد الحقيقية' },
-  { label: '∫', latex: '\\int_{a}^{b} f(x)\\,dx', title: 'تكامل' },
-  { label: '⇔', latex: '\\Leftrightarrow', title: 'تكافؤ' },
-  { label: 'vec', latex: '\\overrightarrow{AB}', title: 'متجهة' },
-  { label: '{...}', latex: '\\begin{cases} a \\\\ b \\end{cases}', title: 'نظمة' },
+  { label: 'a/b', latex: '\\dfrac{a}{b}', title: 'Fraction' },
+  { label: '√x', latex: '\\sqrt{x}', title: 'Racine carrée' },
+  { label: 'lim', latex: '\\lim_{x \\to x_0}', title: 'Limite' },
+  { label: 'x²', latex: 'x^{2}', title: 'Puissance / Exposant' },
+  { label: 'uₙ', latex: 'u_{n}', title: 'Indice' },
+  { label: '→', latex: '\\to', title: 'Tend vers' },
+  { label: '∈', latex: '\\in', title: 'Appartient à' },
+  { label: 'ℝ', latex: '\\mathbb{R}', title: 'Ensemble des réels' },
+  { label: '∫', latex: '\\int_{a}^{b} f(x)\\,dx', title: 'Intégrale' },
+  { label: '⇔', latex: '\\Leftrightarrow', title: 'Équivalence' },
+  { label: 'vec', latex: '\\overrightarrow{AB}', title: 'Vecteur' },
+  { label: '{...}', latex: '\\begin{cases} a \\\\ b \\end{cases}', title: 'Système' },
 ];
 
 const BG_PRESETS = [
-  { label: 'شفاف', val: 'transparent', swatch: '#ffffff', border: '#cbd5e1' },
-  { label: 'أزرق ناعم', val: '#f0f9ff', swatch: '#f0f9ff', border: '#bae6fd' },
-  { label: 'أصفر ناعم', val: '#fefce8', swatch: '#fefce8', border: '#fde047' },
-  { label: 'أخضر نعناعي', val: '#f0fdf4', swatch: '#f0fdf4', border: '#86efac' },
-  { label: 'رمادي هادئ', val: '#f8fafc', swatch: '#f8fafc', border: '#cbd5e1' },
+  { label: 'Transparent', val: 'transparent', swatch: '#ffffff', border: '#cbd5e1' },
+  { label: 'Bleu doux', val: '#f0f9ff', swatch: '#f0f9ff', border: '#bae6fd' },
+  { label: 'Jaune doux', val: '#fefce8', swatch: '#fefce8', border: '#fde047' },
+  { label: 'Vert menthe', val: '#f0fdf4', swatch: '#f0fdf4', border: '#86efac' },
+  { label: 'Gris clair', val: '#f8fafc', swatch: '#f8fafc', border: '#cbd5e1' },
 ];
 
 function renderPreviewFigureCard(imgItem, key) {
@@ -111,7 +111,7 @@ function renderPreviewParagraphs(rawText, isAr, imageMap = null) {
               display: 'inline-block',
             }}
           >
-            ⚠️ {seg.rawToken} (صورة غير موجودة في هذا التمرين)
+            ⚠️ {seg.rawToken} (image introuvable dans cet exercice)
           </div>
         );
       }
@@ -403,7 +403,7 @@ export default function LessonSectionSplitEditor({
           type="text"
           value={section.title || ''}
           onChange={e => onUpdateSection(secIdx, 'title', e.target.value)}
-          placeholder={section.type === 'exercise' ? 'Ex: Exercice 1 — Limites...' : 'عنوان الفقرة...'}
+          placeholder={section.type === 'exercise' ? 'Ex: Exercice 1 — Limites...' : 'Titre du paragraphe...'}
           style={{
             flex: 1,
             minWidth: '170px',
@@ -427,7 +427,7 @@ export default function LessonSectionSplitEditor({
               value={section.points ?? ''}
               onChange={e => onUpdateSection(secIdx, 'points', e.target.value)}
               placeholder="pts"
-              title="نقطة التمرين"
+              title="Barème de l'exercice"
               style={{
                 width: '58px',
                 padding: '0.32rem 0.45rem',
@@ -444,7 +444,7 @@ export default function LessonSectionSplitEditor({
             <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)' }}>pts</span>
             {pointsCheck && !pointsCheck.isValid && pointsCheck.calculatedSum > 0 && (
               <span
-                title={`مجموع نقط الأسئلة الفرعية (${pointsCheck.calculatedSum}) لا يطابق نقطة التمرين`}
+                title={`La somme des sous-questions (${pointsCheck.calculatedSum}) diffère du barème total`}
                 style={{
                   fontSize: '0.7rem',
                   fontWeight: 800,
@@ -471,7 +471,7 @@ export default function LessonSectionSplitEditor({
             onClick={() => onMoveSection(secIdx, 'up')}
             className="btn-outline"
             style={{ padding: '0.3rem', borderRadius: '7px', opacity: secIdx === 0 ? 0.3 : 1 }}
-            title="تحريك للأعلى"
+            title="Monter"
           >
             <ChevronUp size={14} />
           </button>
@@ -481,7 +481,7 @@ export default function LessonSectionSplitEditor({
             onClick={() => onMoveSection(secIdx, 'down')}
             className="btn-outline"
             style={{ padding: '0.3rem', borderRadius: '7px', opacity: secIdx === totalSections - 1 ? 0.3 : 1 }}
-            title="تحريك للأسفل"
+            title="Descendre"
           >
             <ChevronDown size={14} />
           </button>
@@ -497,7 +497,7 @@ export default function LessonSectionSplitEditor({
                 borderRadius: '7px',
                 background: menuOpen ? 'rgba(99, 102, 241, 0.14)' : 'transparent',
               }}
-              title="خيارات التنسيق والحذف"
+              title="Options de mise en forme & actions"
             >
               <MoreHorizontal size={15} />
             </button>
@@ -541,13 +541,13 @@ export default function LessonSectionSplitEditor({
                   }}
                 >
                   <Heading size={13} style={{ color: 'var(--violet)' }} />
-                  {showHeaderField ? 'إخفاء العنوان الكبير (I. / II.)' : 'إضافة عنوان كبير (I. / II.)'}
+                  {showHeaderField ? 'Masquer le grand titre (I. / II.)' : 'Ajouter un grand titre (I. / II.)'}
                 </button>
 
                 {/* Background Color */}
                 <div>
                   <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.3rem' }}>
-                    لون الخلفية
+                    Couleur de fond
                   </div>
                   <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
                     {BG_PRESETS.map(p => (
@@ -583,7 +583,7 @@ export default function LessonSectionSplitEditor({
                     }}
                     style={{ padding: '0.32rem', fontSize: '0.74rem' }}
                   >
-                    <option value="">حجم عادي</option>
+                    <option value="">Taille normale</option>
                     <option value="8.5pt">8.5pt</option>
                     <option value="9.5pt">9.5pt</option>
                     <option value="10.5pt">10.5pt</option>
@@ -598,7 +598,7 @@ export default function LessonSectionSplitEditor({
                     }}
                     style={{ padding: '0.32rem', fontSize: '0.74rem' }}
                   >
-                    <option value="">تباعد عادي</option>
+                    <option value="">Interligne normal</option>
                     <option value="1.35">1.35</option>
                     <option value="1.55">1.55</option>
                     <option value="1.75">1.75</option>
@@ -628,7 +628,7 @@ export default function LessonSectionSplitEditor({
                       gap: '0.3rem',
                     }}
                   >
-                    <Copy size={12} /> نسخ
+                    <Copy size={12} /> Dupliquer
                   </button>
                   <button
                     type="button"
@@ -648,7 +648,7 @@ export default function LessonSectionSplitEditor({
                       gap: '0.3rem',
                     }}
                   >
-                    <Trash2 size={12} /> حذف
+                    <Trash2 size={12} /> Supprimer
                   </button>
                 </div>
               </div>
@@ -660,7 +660,7 @@ export default function LessonSectionSplitEditor({
       {/* Optional Grand Section Header Input */}
       {showHeaderField && (
         <div style={{ padding: '0.5rem 0.9rem', borderBottom: '1px solid var(--border)', background: 'rgba(99, 102, 241, 0.05)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span style={{ fontSize: '0.73rem', fontWeight: 800, color: 'var(--violet)', whiteSpace: 'nowrap' }}>عنوان كبير:</span>
+          <span style={{ fontSize: '0.73rem', fontWeight: 800, color: 'var(--violet)', whiteSpace: 'nowrap' }}>Grand titre :</span>
           <input
             type="text"
             value={section.section_header || ''}
@@ -747,9 +747,9 @@ export default function LessonSectionSplitEditor({
                   alignItems: 'center',
                   gap: '3px',
                 }}
-                title="فتح لوحة الرموز الرياضية الكاملة"
+                title="Ouvrir la palette complète de symboles mathématiques"
               >
-                <Sigma size={12} /> رموز +
+                <Sigma size={12} /> Symboles +
               </button>
 
               <button
@@ -769,9 +769,9 @@ export default function LessonSectionSplitEditor({
                   alignItems: 'center',
                   gap: '3px',
                 }}
-                title="إصلاح تلقائي لصيغ LaTeX والكسور والجذور"
+                title="Réparation automatique des formules LaTeX, fractions et racines"
               >
-                <Wand2 size={11} /> إصلاح LaTeX
+                <Wand2 size={11} /> Corriger LaTeX
               </button>
             </div>
 
@@ -785,8 +785,8 @@ export default function LessonSectionSplitEditor({
                 rows={Math.min(18, Math.max(6, (section.content || '').split('\n').length + 2))}
                 placeholder={
                   section.type === 'exercise'
-                    ? 'اكتب نص التمرين هنا... مثال: Calculer $\\lim_{x \\to 0} \\dfrac{\\sin x}{x}$'
-                    : 'اكتب نص الفقرة هنا مع صيغ LaTeX بين $...$ ...'
+                    ? 'Saisissez l’énoncé ici... Ex: Calculer $\\lim_{x \\to 0} \\dfrac{\\sin x}{x}$'
+                    : 'Saisissez le contenu ici avec formules LaTeX entre $...$'
                 }
                 style={{
                   width: '100%',
@@ -834,10 +834,10 @@ export default function LessonSectionSplitEditor({
                     }}
                   />
                   <CheckCircle2 size={14} style={{ color: hasSolution ? '#10b981' : 'var(--text-muted)' }} />
-                  <span>الحل (Corrigé)</span>
+                  <span>Corrigé</span>
                   {hasSolution && (
                     <span style={{ fontSize: '0.68rem', padding: '0.08rem 0.4rem', borderRadius: '99px', background: 'rgba(16, 185, 129, 0.15)', color: '#059669' }}>
-                      جاهز ✓
+                      Prêt ✓
                     </span>
                   )}
                 </div>
@@ -865,9 +865,9 @@ export default function LessonSectionSplitEditor({
                   }}
                 >
                   {isSolving ? (
-                    <><Loader2 size={12} className="animate-spin" /> جاري الحل...</>
+                    <><Loader2 size={12} className="animate-spin" /> Résolution...</>
                   ) : (
-                    <><Sparkles size={12} style={{ color: '#f59e0b' }} /> حل بالذكاء الاصطناعي (IA)</>
+                    <><Sparkles size={12} style={{ color: '#f59e0b' }} /> Résoudre avec l&apos;IA</>
                   )}
                 </button>
               </div>
@@ -880,7 +880,7 @@ export default function LessonSectionSplitEditor({
                     onFocus={e => onRegisterActiveTextarea?.(secIdx, 'solution', e.target)}
                     onChange={e => onUpdateSection(secIdx, 'solution', e.target.value)}
                     rows={Math.min(16, Math.max(4, (section.solution || '').split('\n').length + 1))}
-                    placeholder="اكتب الحل النموذجي أو اضغط على زر الحل بالذكاء الاصطناعي..."
+                    placeholder="Saisissez le corrigé détaillé ou cliquez sur Résoudre avec l’IA..."
                     style={{
                       width: '100%',
                       padding: '0.65rem 0.75rem',
@@ -914,7 +914,7 @@ export default function LessonSectionSplitEditor({
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.4rem' }}>
                 <span style={{ fontSize: '0.76rem', fontWeight: 800, color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <ImageIcon size={13} /> الأشكال والصور ({imageItems.length})
+                  <ImageIcon size={13} /> Figures &amp; images ({imageItems.length})
                 </span>
                 <div style={{ display: 'inline-flex', gap: '0.35rem', flexWrap: 'wrap' }}>
                   <input
@@ -932,7 +932,7 @@ export default function LessonSectionSplitEditor({
                     style={{ padding: '0.25rem 0.55rem', fontSize: '0.73rem', fontWeight: 700, borderRadius: '7px', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
                   >
                     {uploadingImg ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
-                    رفع صورة
+                    Importer une image
                   </button>
                   <button
                     type="button"
@@ -940,7 +940,7 @@ export default function LessonSectionSplitEditor({
                     className="btn-outline"
                     style={{ padding: '0.25rem 0.55rem', fontSize: '0.73rem', fontWeight: 700, borderRadius: '7px', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
                   >
-                    <Crop size={12} /> قص من PDF
+                    <Crop size={12} /> Recadrer PDF
                   </button>
                 </div>
               </div>
@@ -973,7 +973,7 @@ export default function LessonSectionSplitEditor({
                             type="text"
                             value={item.alt || ''}
                             onChange={e => onUpdateItem(secIdx, idx, 'alt', e.target.value)}
-                            placeholder="وصف الشكل (اختياري)"
+                            placeholder="Légende de la figure (optionnel)"
                             style={{
                               width: '100%',
                               padding: '0.22rem 0.45rem',
@@ -1020,7 +1020,7 @@ export default function LessonSectionSplitEditor({
                             </div>
                             {isPlacedViaCode ? (
                               <span
-                                title="تظهر الصورة تلقائياً في المكان الذي وُضع فيه الكود"
+                                title="La figure s’affiche automatiquement à l’emplacement du shortcode"
                                 style={{
                                   padding: '1px 6px',
                                   borderRadius: '99px',
@@ -1031,7 +1031,7 @@ export default function LessonSectionSplitEditor({
                                   fontWeight: 800,
                                 }}
                               >
-                                ✓ مُدرجة بالكود
+                                ✓ Insérée par code
                               </span>
                             ) : (
                               <select
@@ -1046,8 +1046,8 @@ export default function LessonSectionSplitEditor({
                                   fontSize: '0.69rem',
                                 }}
                               >
-                                <option value="before">قبل النص</option>
-                                <option value="after">بعد النص</option>
+                                <option value="before">Avant le texte</option>
+                                <option value="after">Après le texte</option>
                               </select>
                             )}
                           </div>
@@ -1057,7 +1057,7 @@ export default function LessonSectionSplitEditor({
                           <button
                             type="button"
                             onClick={() => onOpenAiEnhancer?.(secIdx, idx, item)}
-                            title="تحسين جودة الشكل بالذكاء الاصطناعي HD"
+                            title="Améliorer la qualité de la figure par IA (HD)"
                             style={{
                               padding: '0.28rem 0.45rem',
                               borderRadius: '6px',
@@ -1077,7 +1077,7 @@ export default function LessonSectionSplitEditor({
                           <button
                             type="button"
                             onClick={() => onRemoveItem(secIdx, idx)}
-                            title="حذف الصورة"
+                            title="Supprimer l'image"
                             style={{
                               padding: '0.28rem',
                               borderRadius: '6px',
@@ -1107,7 +1107,7 @@ export default function LessonSectionSplitEditor({
                         <button
                           type="button"
                           onClick={() => handleCopyFigureToken(item, idx, figId, token)}
-                          title="انقر لنسخ كود الصورة ولصقه أينما تريد"
+                          title="Cliquer pour copier le code de l’image"
                           style={{
                             display: 'inline-flex',
                             alignItems: 'center',
@@ -1125,14 +1125,14 @@ export default function LessonSectionSplitEditor({
                           }}
                         >
                           <Copy size={11} />
-                          <span>{copiedToken === token ? 'تم النسخ ✓' : token}</span>
+                          <span>{copiedToken === token ? 'Copié ✓' : token}</span>
                         </button>
 
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', flexWrap: 'wrap' }}>
                           <button
                             type="button"
                             onClick={() => handleInsertFigureToken('content', item, idx, figId, token)}
-                            title="إدراج كود الصورة في موضع المؤشر داخل نص التمرين"
+                            title="Insérer le code de l’image au curseur dans l’énoncé"
                             style={{
                               padding: '0.18rem 0.5rem',
                               borderRadius: '6px',
@@ -1144,12 +1144,12 @@ export default function LessonSectionSplitEditor({
                               cursor: 'pointer',
                             }}
                           >
-                            + إدراج في النص
+                            + Insérer (Énoncé)
                           </button>
                           <button
                             type="button"
                             onClick={() => handleInsertFigureToken('solution', item, idx, figId, token)}
-                            title="إدراج كود الصورة في موضع المؤشر داخل الحل النموذجي"
+                            title="Insérer le code de l’image au curseur dans le corrigé"
                             style={{
                               padding: '0.18rem 0.5rem',
                               borderRadius: '6px',
@@ -1161,7 +1161,7 @@ export default function LessonSectionSplitEditor({
                               cursor: 'pointer',
                             }}
                           >
-                            + إدراج في الحل
+                            + Insérer (Corrigé)
                           </button>
                         </div>
                       </div>
@@ -1203,7 +1203,7 @@ export default function LessonSectionSplitEditor({
               {/* Preview label */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.45rem' }}>
                 <span style={{ fontSize: '0.67rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#94a3b8' }}>
-                  معاينة فورية (KaTeX)
+                  Aperçu en direct (KaTeX)
                 </span>
                 {section.points && section.type === 'exercise' && (
                   <span style={{ fontSize: '0.75rem', fontWeight: 900, color: '#0369a1', background: '#e0f2fe', padding: '0.1rem 0.5rem', borderRadius: '99px' }}>
@@ -1258,7 +1258,7 @@ export default function LessonSectionSplitEditor({
                 </div>
               ) : (
                 <div style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '0.84rem', padding: '0.6rem 0' }}>
-                  اكتب نص الفقرة أو التمرين في المحرر لرؤية الصيغ الرياضية هنا مباشرة...
+                  Saisissez le texte de la section ou de l’exercice dans l’éditeur pour prévisualiser les formules ici...
                 </div>
               )}
 
@@ -1285,7 +1285,7 @@ export default function LessonSectionSplitEditor({
                   }}
                 >
                   <div style={{ fontSize: '0.76rem', fontWeight: 900, color: '#15803d', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                    <CheckCircle2 size={13} /> Corrigé / الحل النموذجي
+                    <CheckCircle2 size={13} /> Corrigé détaillé
                   </div>
                   <div style={{ fontSize: '0.88rem', color: '#0f172a' }}>
                     {renderPreviewParagraphs(section.solution, secIsAr, imageMap)}

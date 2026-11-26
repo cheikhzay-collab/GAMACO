@@ -169,7 +169,7 @@ export default function AdminAIGenerator() {
             Série d'Exercices IA
           </h2>
           <span style={{ fontSize: '0.85rem', color: '#EC4899', fontWeight: 700, marginBottom: '0.75rem' }}>
-            مولد وصانع التمارين
+            Générateur de séries d&apos;exercices
           </span>
           
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: '1.55', marginBottom: '2.25rem', flexGrow: 1 }}>
@@ -252,7 +252,7 @@ export default function AdminAIGenerator() {
             Fiche de Cours IA
           </h2>
           <span style={{ fontSize: '0.85rem', color: 'var(--violet)', fontWeight: 700, marginBottom: '0.75rem' }}>
-            مستخرج الدروس والملخصات
+            Extracteur de cours &amp; résumés
           </span>
           
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: '1.55', marginBottom: '2.25rem', flexGrow: 1 }}>
@@ -335,7 +335,7 @@ export default function AdminAIGenerator() {
             Examen & QCM IA
           </h2>
           <span style={{ fontSize: '0.85rem', color: 'var(--emerald)', fontWeight: 700, marginBottom: '0.75rem' }}>
-            مستخرج المباريات والامتحانات
+            Extracteur de concours &amp; examens
           </span>
           
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: '1.55', marginBottom: '2.25rem', flexGrow: 1 }}>

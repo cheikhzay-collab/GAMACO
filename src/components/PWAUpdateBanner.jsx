@@ -90,7 +90,7 @@ export default function PWAUpdateBanner() {
           color: '#fff',
           lineHeight: 1.3,
         }}>
-          تحديث جديد متوفر — اضغط «تحديث الآن» لتفادي مسح الكاش يدوياً
+          Nouvelle mise à jour disponible — cliquez sur « Mettre à jour » pour actualiser
         </span>
       </div>
 
@@ -114,12 +114,12 @@ export default function PWAUpdateBanner() {
           }}
         >
           <RefreshCw size={13} />
-          تحديث الآن
+          Mettre à jour
         </button>
         <button
           type="button"
           onClick={() => setDismissed(true)}
-          aria-label="إغلاق"
+          aria-label="Fermer"
           style={{
             width: 28,
             height: 28,

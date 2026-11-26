@@ -73,7 +73,7 @@ async function saveConfig(key, value) {
   } catch (err) {
     console.error(`[schoolService] saveConfig('${key}') MySQL save failed:`, err);
     if (err?.status === 401 || err?.status === 403) {
-      throw new Error('انتهت صلاحية الجلسة — يرجى تسجيل الدخول مرة أخرى لحفظ الإعدادات في قاعدة البيانات.');
+      throw new Error('Session expirée — veuillez vous reconnecter pour enregistrer les paramètres dans la base de données.');
     }
     throw err;
   }
@@ -364,91 +364,91 @@ export const getOfficialMoroccanHolidays = (academicYear = '2026-2027') => {
   return [
     {
       id: `hol-mowlid-${startYear}`,
-      label: 'عيد المولد النبوي الشريف',
+      label: 'Aïd Al Mawlid Annabaoui',
       startDate: `${startYear}-09-15`,
       endDate: `${startYear}-09-16`
     },
     {
       id: `hol-bainiya-1-${startYear}`,
-      label: 'عطلة الفترة البينية الأولى',
+      label: '1ères vacances inter-trimestrielles',
       startDate: `${startYear}-10-20`,
       endDate: `${startYear}-10-27`
     },
     {
       id: `hol-marche-verte-${startYear}`,
-      label: 'ذكرى المسيرة الخضراء',
+      label: 'Anniversaire de la Marche Verte',
       startDate: `${startYear}-11-06`,
       endDate: `${startYear}-11-06`
     },
     {
       id: `hol-independance-${startYear}`,
-      label: 'عيد الاستقلال',
+      label: 'Fête de l\'Indépendance',
       startDate: `${startYear}-11-18`,
       endDate: `${startYear}-11-18`
     },
     {
       id: `hol-bainiya-2-${startYear}`,
-      label: 'عطلة الفترة البينية الثانية',
+      label: '2èmes vacances inter-trimestrielles',
       startDate: `${startYear}-12-08`,
       endDate: `${startYear}-12-15`
     },
     {
       id: `hol-nouvel-an-${nextYear}`,
-      label: 'رأس السنة الميلادية',
+      label: 'Jour de l\'an',
       startDate: `${nextYear}-01-01`,
       endDate: `${nextYear}-01-01`
     },
     {
       id: `hol-manifeste-${nextYear}`,
-      label: 'ذكرى تقديم وثيقة الاستقلال',
+      label: 'Manifeste de l\'Indépendance',
       startDate: `${nextYear}-01-11`,
       endDate: `${nextYear}-01-11`
     },
     {
       id: `hol-yennayer-${nextYear}`,
-      label: 'رأس السنة الأمازيغية',
+      label: 'Nouvel An Amazigh (Yennayer)',
       startDate: `${nextYear}-01-14`,
       endDate: `${nextYear}-01-14`
     },
     {
       id: `hol-mi-semestre-${nextYear}`,
-      label: 'عطلة منتصف السنة الدراسية',
+      label: 'Vacances de mi-année scolaire',
       startDate: `${nextYear}-01-26`,
       endDate: `${nextYear}-02-02`
     },
     {
       id: `hol-bainiya-3-${nextYear}`,
-      label: 'عطلة الفترة البينية الثالثة',
+      label: '3èmes vacances inter-trimestrielles',
       startDate: `${nextYear}-03-16`,
       endDate: `${nextYear}-03-23`
     },
     {
       id: `hol-aid-fitr-${nextYear}`,
-      label: 'عطلة عيد الفطر السعيد',
+      label: 'Vacances de l\'Aïd Al Fitr',
       startDate: `${nextYear}-03-30`,
       endDate: `${nextYear}-04-02`
     },
     {
       id: `hol-travail-${nextYear}`,
-      label: 'عيد الشغل',
+      label: 'Fête du Travail',
       startDate: `${nextYear}-05-01`,
       endDate: `${nextYear}-05-01`
     },
     {
       id: `hol-bainiya-4-${nextYear}`,
-      label: 'عطلة الفترة البينية الرابعة',
+      label: '4èmes vacances inter-trimestrielles',
       startDate: `${nextYear}-05-04`,
       endDate: `${nextYear}-05-11`
     },
     {
       id: `hol-aid-adha-${nextYear}`,
-      label: 'عطلة عيد الأضحى المبارك',
+      label: 'Vacances de l\'Aïd Al Adha',
       startDate: `${nextYear}-06-06`,
       endDate: `${nextYear}-06-10`
     },
     {
       id: `hol-1er-moharram-${nextYear}`,
-      label: 'فاتح محرم - رأس السنة الهجرية',
+      label: '1er Moharram — Nouvel An Hégirien',
       startDate: `${nextYear}-06-26`,
       endDate: `${nextYear}-06-26`
     }

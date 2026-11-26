@@ -517,7 +517,7 @@ export default function AdminExamEdit() {
 
   const handleGenerateModelBVariant = async () => {
     if (!localQuestions || localQuestions.length === 0) {
-      alert("لا توجد أسئلة لتوليد النموذج B");
+      alert("Aucune question disponible pour générer le Modèle B.");
       return;
     }
 
@@ -572,10 +572,10 @@ export default function AdminExamEdit() {
 
     try {
       await addExam(modelBExam);
-      alert(`✅ تم إنشاء وتخزين النموذج البداغوجي الموازي (Modèle B) بنجاح!\nتم خلط ${shuffledQuestions.length} سؤالاً وتحديث إجابات الماسح الضوئي OMR تلقائياً.`);
+      alert(`✅ Modèle B (Variante anti-triche) généré et enregistré avec succès !\n${shuffledQuestions.length} questions mélangées et corrigé OMR mis à jour automatiquement.`);
       navigate('/admin/exams');
     } catch (err) {
-      alert("خطأ أثناء إنشاء النموذج B: " + err.message);
+      alert("Erreur lors de la génération du Modèle B : " + err.message);
     }
   };
 
@@ -914,7 +914,7 @@ Tu dois analyser la question et :
                 alignItems: 'center',
                 gap: '0.35rem'
               }}>
-                🏛️ وضع تعديل الامتحانات
+                🏛️ Édition de l&apos;examen
               </span>
               {hasUnsaved && (
                 <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--warning)', background: 'rgba(245,158,11,0.12)', padding: '0.15rem 0.45rem', borderRadius: 6, border: '1px solid rgba(245,158,11,0.25)' }}>
@@ -1746,15 +1746,15 @@ Tu dois analyser la question et :
           {hasUnsaved ? (
             <span style={{ fontSize: '0.78rem', color: '#fbbf24', display: 'flex', alignItems: 'center', gap: '0.3rem', fontWeight: 700 }}>
               <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#fbbf24', display: 'inline-block' }} />
-              تعديلات غير محفوظة
+              Modifications non sauvegardées
             </span>
           ) : saved ? (
             <span style={{ fontSize: '0.78rem', color: '#34d399', display: 'flex', alignItems: 'center', gap: '0.3rem', fontWeight: 700 }}>
-              <CheckCircle2 size={14} /> تم الحفظ بنجاح
+              <CheckCircle2 size={14} /> Enregistré avec succès
             </span>
           ) : (
             <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-              {localQuestions.length} سؤال جاهز
+              {localQuestions.length} questions prêtes
             </span>
           )}
         </div>
@@ -1779,7 +1779,7 @@ Tu dois analyser la question et :
             }}
           >
             <Save size={15} />
-            <span>حفظ الامتحان</span>
+            <span>Enregistrer l&apos;examen</span>
           </button>
         </div>
       </div>

@@ -456,14 +456,14 @@ export default function LevelsPage() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                   <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)' }}>
-                    الامتحانات الوطنية الموحدة — 2ème Baccalauréat
+                    Examens Nationaux Unifiés — 2ème Baccalauréat
                   </h3>
                   <span style={{ fontSize: '0.7rem', fontWeight: 800, padding: '2px 8px', borderRadius: '6px', background: '#d97706', color: '#fff' }}>
-                    جديد • متاح الآن
+                    Nouveau • Disponible
                   </span>
                 </div>
                 <p style={{ margin: '0.2rem 0 0', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                  تصفح جميع مواضيع الامتحانات الوطنية مع عناصر الإجابة، التصنيف حسب المجالات، وطباعة الكتاب الشامل بالغلاف والفهرس.
+                  Parcourez tous les sujets des examens nationaux avec corrigés, classement par domaines et impression du recueil complet avec couverture et sommaire.
                 </p>
               </div>
             </div>
@@ -482,7 +482,7 @@ export default function LevelsPage() {
                 flexShrink: 0
               }}
             >
-              عرض الامتحانات &larr;
+              Voir les examens &rarr;
             </button>
           </div>
 
