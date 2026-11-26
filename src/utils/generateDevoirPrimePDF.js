@@ -75,7 +75,7 @@ function buildPage1CoverHeaderHtml(meta) {
             ${meta.teacher && !meta.teacher.includes('Professeur') ? `<div class="dp-cover-teacher">${escapeHtml(meta.teacher)}</div>` : (!meta.isNational && meta.teacher ? `<div class="dp-cover-teacher">Réalisé par : ${escapeHtml(meta.teacher)}</div>` : '')}
           </td>
           <td class="dp-cover-ministry-cell">
-            <div class="dp-emblem">${MOROCCO_EMBLEM_SVG}</div>
+            <div class="dp-emblem">${meta.ministryLogo ? `<img src="${escapeHtml(meta.ministryLogo)}" alt="Logo du Ministère" style="max-height:46px;max-width:165px;width:auto;height:auto;object-fit:contain;display:block;margin:0 auto;" />` : MOROCCO_EMBLEM_SVG}</div>
             <div class="dp-ministry-text">
               <div class="dp-m-bold">${escapeHtml(meta.ministryLine1)}</div>
               <div>${escapeHtml(meta.ministryLine2)}</div>

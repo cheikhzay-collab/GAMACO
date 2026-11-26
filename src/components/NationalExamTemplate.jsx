@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import QRCode from 'qrcode';
+import { useAuth } from '../context/AuthContext';
+import { getGlobalPrimeSettings } from '../utils/devoirPrimeHelpers';
 import { renderWithMath } from '../utils/mathRenderer';
 import { parseNationalExamExercise, extractNationalExamMeta } from '../utils/nationalExamHelpers';
 
@@ -57,6 +59,8 @@ const renderGridTable = (blk, key) => {
 };
 
 export default function NationalExamTemplate({ examData, solutionMode = false }) {
+  const { ministryLogo: authMinistryLogo } = useAuth();
+  const activeMinistryLogo = authMinistryLogo || getGlobalPrimeSettings().ministryLogo || '';
   const [qrCodeUrls, setQrCodeUrls] = useState({});
 
   const {
@@ -198,7 +202,15 @@ export default function NationalExamTemplate({ examData, solutionMode = false })
               <text x="6" y="15" fill="#ffffff" fontFamily="STIX Two Text, Tajawal, sans-serif" fontSize="11" fontWeight="800">{subjectNumber}</text>
             </svg>
 
-            <MoroccanEmblemSVG />
+            {activeMinistryLogo ? (
+              <img
+                src={activeMinistryLogo}
+                alt="Logo du Ministère"
+                style={{ maxHeight: '46px', maxWidth: '175px', width: 'auto', height: 'auto', objectFit: 'contain', display: 'block', margin: '0 auto' }}
+              />
+            ) : (
+              <MoroccanEmblemSVG />
+            )}
             <div style={{ fontSize: '7.5pt', fontWeight: 700, lineHeight: 1.3, marginTop: '4px', fontFamily: "'Tajawal', sans-serif" }} dir="rtl">
               المملكة المغربية<br />
               وزارة التربية الوطنية والتعليم الأولي والرياضة<br />

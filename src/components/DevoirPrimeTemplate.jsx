@@ -7,9 +7,11 @@ import {
   Printer, Sparkles, Settings, Save, Eye, EyeOff,
   Plus, Minus, Trash2, Edit3, Check, Loader2, Columns, FileText
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import { renderWithMath } from '../utils/mathRenderer';
 import {
   getDefaultDevoirPrimeMeta,
+  getGlobalPrimeSettings,
   normalizeToDevoirPrimeExercises,
   buildQuestionQrPayload,
   parseNumericPoints,
@@ -38,6 +40,7 @@ export default function DevoirPrimeTemplate({
   onSave = null,
   isConvertedPreview = false,
 }) {
+  const { ministryLogo: authMinistryLogo } = useAuth();
   const [meta, setMeta] = useState(() => getDefaultDevoirPrimeMeta(lesson));
   const [exercises, setExercises] = useState(() => normalizeToDevoirPrimeExercises(lesson));
   const [showSolutions, setShowSolutions] = useState(true);
@@ -731,15 +734,28 @@ export default function DevoirPrimeTemplate({
                   ))}
                 </td>
 
-                {/* Right: Ministry Emblem */}
-                <td style={{ width: '185px', border: '1.5px solid #000', textAlign: 'center', padding: '5px 6px', verticalAlign: 'middle' }}>
-                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '2px' }}>{MOROCCO_EMBLEM}</div>
-                  <div style={{ fontFamily: 'Tajawal, sans-serif', fontSize: '9.5px', lineHeight: 1.25 }}>
-                    <div style={{ fontWeight: 800, fontSize: '10.5px' }}>{meta.ministryLine1}</div>
-                    <div>{meta.ministryLine2}</div>
-                    <div style={{ fontWeight: 700, fontSize: '9px', marginTop: '2px' }}>{meta.ministryLine3}</div>
-                  </div>
-                </td>
+                {/* Right: Ministry Emblem / Uploaded Logo */}
+                {(() => {
+                  const activeMinistryLogo = authMinistryLogo || getGlobalPrimeSettings().ministryLogo || meta.ministryLogo || '';
+                  return (
+                    <td style={{ width: '185px', border: '1.5px solid #000', textAlign: 'center', padding: '5px 6px', verticalAlign: 'middle' }}>
+                      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: '2px', minHeight: '38px' }}>
+                        {activeMinistryLogo ? (
+                          <img
+                            src={activeMinistryLogo}
+                            alt="Logo du Ministère"
+                            style={{ maxHeight: '46px', maxWidth: '165px', width: 'auto', height: 'auto', objectFit: 'contain', display: 'block', margin: '0 auto' }}
+                          />
+                        ) : MOROCCO_EMBLEM}
+                      </div>
+                      <div style={{ fontFamily: 'Tajawal, sans-serif', fontSize: '9.5px', lineHeight: 1.25 }}>
+                        <div style={{ fontWeight: 800, fontSize: '10.5px' }}>{meta.ministryLine1}</div>
+                        <div>{meta.ministryLine2}</div>
+                        <div style={{ fontWeight: 700, fontSize: '9px', marginTop: '2px' }}>{meta.ministryLine3}</div>
+                      </div>
+                    </td>
+                  );
+                })()}
               </tr>
             </tbody>
           </table>

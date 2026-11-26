@@ -73,6 +73,7 @@ export default function AdminSettings() {
     bankRIB: initialBankRIB,
     bankBeneficiary: initialBankBeneficiary,
     facebookPixelId: initialFacebookPixelId,
+    ministryLogo: initialMinistryLogo,
     updateBrandingConfig,
     updateFlashcardSettingsConfig,
     updatePdfSettingsConfig,
@@ -693,6 +694,8 @@ export default function AdminSettings() {
   const [bankRIB, setBankRIB] = useState(() => decodeHtmlEntities(initialBankRIB || '230 780 4567890123 0001 89'));
   const [bankBeneficiary, setBankBeneficiary] = useState(() => decodeHtmlEntities(initialBankBeneficiary || "L'CONQ SARL"));
   const [fbPixelId, setFbPixelId] = useState(() => decodeHtmlEntities(initialFacebookPixelId || ''));
+  const [ministryLogo, setMinistryLogo] = useState(() => initialMinistryLogo || localStorage.getItem('ministryLogo') || '');
+  const [ministryLogoSaved, setMinistryLogoSaved] = useState(false);
   const [brandSaved, setBrandSaved] = useState(false);
 
   // OMR Scanner Settings
@@ -740,6 +743,7 @@ export default function AdminSettings() {
         if (cfg.bankRIB !== undefined) setBankRIB(decodeHtmlEntities(cfg.bankRIB));
         if (cfg.bankBeneficiary !== undefined) setBankBeneficiary(decodeHtmlEntities(cfg.bankBeneficiary));
         if (cfg.fbPixelId !== undefined) setFbPixelId(decodeHtmlEntities(cfg.fbPixelId));
+        if (cfg.ministryLogo !== undefined) setMinistryLogo(cfg.ministryLogo || '');
       }
     }).catch(() => {});
 
@@ -802,27 +806,95 @@ export default function AdminSettings() {
       if (initialBankRIB !== undefined && initialBankRIB !== '') setBankRIB(decodeHtmlEntities(initialBankRIB));
       if (initialBankBeneficiary !== undefined && initialBankBeneficiary !== '') setBankBeneficiary(decodeHtmlEntities(initialBankBeneficiary));
       if (initialFacebookPixelId !== undefined && initialFacebookPixelId !== '') setFbPixelId(decodeHtmlEntities(initialFacebookPixelId));
+      if (initialMinistryLogo !== undefined && initialMinistryLogo !== '') setMinistryLogo(initialMinistryLogo);
     });
-  }, [initialProfName, initialProfPhone, initialProfSchool, initialProfDirection, initialProfAcademy, initialProfSubject, initialProfSOM, initialProfEmail, initialProfAcademicYear, initialProfCity, initialProfSite, initialBankName, initialBankRIB, initialBankBeneficiary, initialFacebookPixelId]);
+  }, [initialProfName, initialProfPhone, initialProfSchool, initialProfDirection, initialProfAcademy, initialProfSubject, initialProfSOM, initialProfEmail, initialProfAcademicYear, initialProfCity, initialProfSite, initialBankName, initialBankRIB, initialBankBeneficiary, initialFacebookPixelId, initialMinistryLogo]);
+
+  const buildCurrentBrandingPayload = (overrideLogo = undefined) => ({
+    profName: profName.trim(),
+    profPhone: profPhone.trim(),
+    profSchool: profSchool.trim(),
+    profDirection: profDirection.trim(),
+    profAcademy: profAcademy.trim(),
+    profSubject: profSubject.trim(),
+    profSOM: profSOM.trim(),
+    profEmail: profEmail.trim(),
+    profAcademicYear: profAcademicYear.trim(),
+    profCity: profCity.trim(),
+    profSite: profSite.trim() || 'www.lconq.ma',
+    bankName: bankName.trim(),
+    bankRIB: bankRIB.trim(),
+    bankBeneficiary: bankBeneficiary.trim(),
+    fbPixelId: fbPixelId.trim(),
+    ministryLogo: overrideLogo !== undefined ? overrideLogo : ministryLogo
+  });
+
+  const handleMinistryLogoUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      alert('Veuillez sélectionner un fichier image valide (PNG, JPG, WebP ou SVG).');
+      e.target.value = '';
+      return;
+    }
+
+    const persistLogo = async (dataUrl) => {
+      setMinistryLogo(dataUrl);
+      await updateBrandingConfig(buildCurrentBrandingPayload(dataUrl));
+      setMinistryLogoSaved(true);
+      setTimeout(() => setMinistryLogoSaved(false), 3000);
+    };
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const rawDataUrl = reader.result;
+      if (typeof rawDataUrl !== 'string') return;
+
+      // Keep crisp vector SVGs directly if compact
+      if (file.type === 'image/svg+xml') {
+        if (rawDataUrl.length > 260000) {
+          alert('Le fichier SVG est trop volumineux (max 250 Ko).');
+          return;
+        }
+        persistLogo(rawDataUrl);
+        return;
+      }
+
+      // Downscale raster images proportionally for crisp print & fast storage
+      const img = new Image();
+      img.onload = () => {
+        const maxW = 360;
+        const maxH = 140;
+        const scale = Math.min(1, maxW / (img.width || maxW), maxH / (img.height || maxH));
+        const targetW = Math.max(1, Math.round((img.width || maxW) * scale));
+        const targetH = Math.max(1, Math.round((img.height || maxH) * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = targetW;
+        canvas.height = targetH;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, targetW, targetH);
+        ctx.drawImage(img, 0, 0, targetW, targetH);
+        const compressedPng = canvas.toDataURL('image/png');
+        persistLogo(compressedPng);
+      };
+      img.onerror = () => {
+        alert('Impossible de lire cette image.');
+      };
+      img.src = rawDataUrl;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleResetMinistryLogo = async () => {
+    setMinistryLogo('');
+    await updateBrandingConfig(buildCurrentBrandingPayload(''));
+    setMinistryLogoSaved(true);
+    setTimeout(() => setMinistryLogoSaved(false), 2500);
+  };
 
   const saveBranding = async () => {
-    await updateBrandingConfig({
-      profName: profName.trim(),
-      profPhone: profPhone.trim(),
-      profSchool: profSchool.trim(),
-      profDirection: profDirection.trim(),
-      profAcademy: profAcademy.trim(),
-      profSubject: profSubject.trim(),
-      profSOM: profSOM.trim(),
-      profEmail: profEmail.trim(),
-      profAcademicYear: profAcademicYear.trim(),
-      profCity: profCity.trim(),
-      profSite: profSite.trim() || 'www.lconq.ma',
-      bankName: bankName.trim(),
-      bankRIB: bankRIB.trim(),
-      bankBeneficiary: bankBeneficiary.trim(),
-      fbPixelId: fbPixelId.trim()
-    });
+    await updateBrandingConfig(buildCurrentBrandingPayload());
     setBrandSaved(true);
     setTimeout(() => setBrandSaved(false), 2500);
   };
@@ -3765,6 +3837,109 @@ export default function AdminSettings() {
                   {/* Sub-Tab 2: Établissement & Ministère */}
                   {profileSubTab === 'school' && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Ministry Logo Upload Card */}
+                      <div
+                        className="settings-field"
+                        style={{
+                          gridColumn: '1 / -1',
+                          padding: '1rem',
+                          borderRadius: '14px',
+                          background: 'var(--bg-glass)',
+                          border: '1px solid var(--border)',
+                          display: 'flex',
+                          flexWrap: 'wrap',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '1rem'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', minWidth: '240px', flex: 1 }}>
+                          <div
+                            style={{
+                              width: '132px',
+                              height: '62px',
+                              borderRadius: '10px',
+                              background: '#ffffff',
+                              border: '1.5px solid #cbd5e1',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: '6px',
+                              flexShrink: 0,
+                              overflow: 'hidden'
+                            }}
+                          >
+                            {ministryLogo ? (
+                              <img
+                                src={ministryLogo}
+                                alt="Logo du Ministère"
+                                style={{ maxHeight: '48px', maxWidth: '118px', width: 'auto', height: 'auto', objectFit: 'contain' }}
+                              />
+                            ) : (
+                              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textAlign: 'center', lineHeight: 1.25 }}>
+                                Emblème par défaut
+                              </span>
+                            )}
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--text-main)' }}>
+                              Logo officiel du Ministère (شعار الوزارة)
+                            </div>
+                            <div style={{ fontSize: '0.74rem', color: 'var(--text-subtle)', marginTop: '0.15rem', lineHeight: 1.4 }}>
+                              S&apos;affiche automatiquement dans l&apos;en-tête des Examens Nationaux, DEVOIR PRIME et PDF.
+                            </div>
+                            {ministryLogoSaved && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.74rem', fontWeight: 700, color: 'var(--emerald)', marginTop: '0.3rem' }}>
+                                <CheckCircle2 size={13} /> Logo appliqué et enregistré !
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <label
+                            className="btn-primary-gradient"
+                            style={{
+                              padding: '0.55rem 1rem',
+                              fontSize: '0.78rem',
+                              borderRadius: '10px',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.4rem'
+                            }}
+                          >
+                            <Upload size={14} />
+                            {ministryLogo ? 'Changer le logo' : 'Importer le logo'}
+                            <input
+                              type="file"
+                              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                              onChange={handleMinistryLogoUpload}
+                              style={{ display: 'none' }}
+                            />
+                          </label>
+                          {ministryLogo && (
+                            <button
+                              type="button"
+                              onClick={handleResetMinistryLogo}
+                              className="btn-secondary-outline"
+                              style={{
+                                padding: '0.55rem 0.85rem',
+                                fontSize: '0.76rem',
+                                borderRadius: '10px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem'
+                              }}
+                              title="Revenir à l'emblème par défaut"
+                            >
+                              <RotateCcw size={13} />
+                              Réinitialiser
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
                       <div className="settings-field" style={{ gridColumn: '1 / -1' }}>
                         <label className="settings-label" style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)', textTransform: 'none' }}>
                           Nom de l&apos;Établissement / École *

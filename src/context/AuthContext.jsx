@@ -467,6 +467,7 @@ export function AuthProvider({ children }) {
   const [bankRIB, setBankRIB] = useState(() => localStorage.getItem('bankRIB') || '230 780 4567890123 0001 89');
   const [bankBeneficiary, setBankBeneficiary] = useState(() => localStorage.getItem('bankBeneficiary') || "L'CONQ SARL");
   const [facebookPixelId, setFacebookPixelId] = useState(() => localStorage.getItem('facebook_pixel_id') || '');
+  const [ministryLogo, setMinistryLogo] = useState(() => localStorage.getItem('ministryLogo') || '');
 
   const updateBrandingConfig = async (branding) => {
     const name = sanitizeInputString(branding.profName || '').trim();
@@ -484,6 +485,9 @@ export function AuthProvider({ children }) {
     const bRIB = sanitizeInputString(branding.bankRIB || '230 780 4567890123 0001 89').trim();
     const bBeneficiary = sanitizeInputString(branding.bankBeneficiary || "L'CONQ SARL").trim();
     const pixelId = sanitizeInputString(branding.fbPixelId || '').trim();
+    const logoVal = branding.ministryLogo !== undefined
+      ? String(branding.ministryLogo || '').trim()
+      : ministryLogo;
 
     if (phone && !validatePhoneNumber(phone)) {
       console.warn('[Security] Invalid phone format in updateBrandingConfig.');
@@ -504,6 +508,7 @@ export function AuthProvider({ children }) {
     setBankRIB(bRIB);
     setBankBeneficiary(bBeneficiary);
     setFacebookPixelId(pixelId);
+    setMinistryLogo(logoVal);
 
     localStorage.setItem('profName', name);
     localStorage.setItem('profPhone', phone);
@@ -520,6 +525,7 @@ export function AuthProvider({ children }) {
     localStorage.setItem('bankRIB', bRIB);
     localStorage.setItem('bankBeneficiary', bBeneficiary);
     localStorage.setItem('facebook_pixel_id', pixelId);
+    safeSetItem('ministryLogo', logoVal);
 
     // Dynamic Pixel re-init on settings update
     if (pixelId && window.fbq) {
@@ -544,7 +550,8 @@ export function AuthProvider({ children }) {
         bankName: bName,
         bankRIB: bRIB,
         bankBeneficiary: bBeneficiary,
-        fbPixelId: pixelId
+        fbPixelId: pixelId,
+        ministryLogo: logoVal
       });
     } catch (e) {
       console.error('[Config] Failed to save branding config:', e);
@@ -1715,6 +1722,10 @@ export function AuthProvider({ children }) {
           setBankRIB(brandConfig.bankRIB || '230 780 4567890123 0001 89');
           setBankBeneficiary(brandConfig.bankBeneficiary || "L'CONQ SARL");
           setFacebookPixelId(brandConfig.fbPixelId || '');
+          if (brandConfig.ministryLogo !== undefined) {
+            setMinistryLogo(brandConfig.ministryLogo || '');
+            safeSetItem('ministryLogo', brandConfig.ministryLogo || '');
+          }
 
           localStorage.setItem('profName', brandConfig.profName || '');
           localStorage.setItem('profPhone', brandConfig.profPhone || '');
@@ -2053,7 +2064,7 @@ export function AuthProvider({ children }) {
       syncStudentsList,
       trackDownload,
       loading,
-      profName, profPhone, profSchool, profDirection, profAcademy, profSubject, profSOM, profEmail, profAcademicYear, profCity, profSite, bankName, bankRIB, bankBeneficiary, facebookPixelId, updateBrandingConfig, updateFlashcardSettingsConfig, updatePdfSettingsConfig, updateOmrScannerSettingsConfig,
+      profName, profPhone, profSchool, profDirection, profAcademy, profSubject, profSOM, profEmail, profAcademicYear, profCity, profSite, bankName, bankRIB, bankBeneficiary, facebookPixelId, ministryLogo, updateBrandingConfig, updateFlashcardSettingsConfig, updatePdfSettingsConfig, updateOmrScannerSettingsConfig,
       whatsappSettings, updateWhatsAppSettingsConfig,
       upgradedPlan, setUpgradedPlan,
       isOnline,

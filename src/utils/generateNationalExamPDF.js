@@ -1,5 +1,6 @@
 import QRCode from 'qrcode';
 import { parseNationalExamExercise, extractNationalExamMeta } from './nationalExamHelpers.js';
+import { getGlobalPrimeSettings } from './devoirPrimeHelpers.js';
 
 const escapeHtml = (str) => String(str || '')
   .replace(/&/g, '&amp;')
@@ -31,6 +32,7 @@ const isArabicStr = (s) => /[\u0600-\u06FF]/.test(String(s || ''));
 export const generateNationalExamHTML = async (examData, settings = {}) => {
   const showSolutions = Boolean(settings.showSolutions);
   const showQR = settings.showQR !== false;
+  const ministryLogo = settings.ministryLogo || getGlobalPrimeSettings().ministryLogo || '';
 
   const {
     session,
@@ -402,13 +404,13 @@ export const generateNationalExamHTML = async (examData, settings = {}) => {
           <text x="6" y="15" fill="#ffffff" font-family="STIX Two Text, Tajawal, sans-serif" font-size="11" font-weight="800">${escapeHtml(subjectNumber)}</text>
         </svg>
 
-        <svg width="42" height="42" viewBox="0 0 100 100" fill="none">
+        ${ministryLogo ? `<img src="${escapeHtml(ministryLogo)}" alt="Logo du Ministère" style="max-height:46px;max-width:175px;width:auto;height:auto;object-fit:contain;display:block;margin:0 auto;" />` : `<svg width="42" height="42" viewBox="0 0 100 100" fill="none">
           <circle cx="50" cy="50" r="46" stroke="#0f172a" stroke-width="2" fill="none" />
           <path d="M40 22 Q50 14 60 22 L57 26 Q50 19 43 26 Z" fill="#0f172a" />
           <circle cx="50" cy="15" r="2.5" fill="#0f172a" />
           <path d="M34 30 Q50 32 66 30 Q66 58 50 68 Q34 58 34 30 Z" stroke="#0f172a" stroke-width="2" fill="#fff" />
           <path d="M50 36 L53 44 L61 44 L55 49 L57 57 L50 52 L43 57 L45 49 L39 44 L47 44 Z" stroke="#0f172a" stroke-width="1.5" fill="#0f172a" fill-opacity="0.12" />
-        </svg>
+        </svg>`}
         <div style="font-weight: 700; font-size: 7.5pt; line-height: 1.3; font-family: 'Tajawal', sans-serif; margin-top: 4px;" dir="rtl">
           المملكة المغربية<br/>
           وزارة التربية الوطنية والتعليم الأولي والرياضة<br/>

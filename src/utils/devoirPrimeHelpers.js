@@ -35,6 +35,7 @@ export function getGlobalPrimeSettings() {
       handle: '',
       academy: '',
       school: '',
+      ministryLogo: '',
     };
   }
 
@@ -45,6 +46,7 @@ export function getGlobalPrimeSettings() {
   let handle = localStorage.getItem('devoirPrimeHandle') || '';
   let academy = localStorage.getItem('profAcademy') || '';
   let school = localStorage.getItem('profSchool') || '';
+  let ministryLogo = localStorage.getItem('ministryLogo') || '';
 
   try {
     const cached = localStorage.getItem('branding_config') || localStorage.getItem('config_branding');
@@ -56,6 +58,7 @@ export function getGlobalPrimeSettings() {
       if (!brandName) brandName = parsed.brandName || parsed.platformName || '';
       if (!academy) academy = parsed.academy || parsed.profAcademy || '';
       if (!school) school = parsed.school || parsed.profSchool || '';
+      if (!ministryLogo) ministryLogo = parsed.ministryLogo || '';
     }
   } catch (_) {}
 
@@ -72,6 +75,7 @@ export function getGlobalPrimeSettings() {
     handle: handle || profPhone || '@prof_maths',
     academy,
     school,
+    ministryLogo,
   };
 }
 
@@ -141,6 +145,7 @@ export function getDefaultDevoirPrimeMeta(lesson = {}, settings = {}) {
     ministryLine1: savedMeta.ministryLine1 || 'المملكة المغربية',
     ministryLine2: savedMeta.ministryLine2 || 'وزارة التربية الوطنية والتعليم الأولي والرياضة',
     ministryLine3: savedMeta.ministryLine3 || (isNational ? 'المركز الوطني للامتحانات المدرسية وتقييم التعلمات' : (globalCfg.school || globalCfg.academy || 'المركز الوطني للامتحانات المدرسية وتقييم التعلمات')),
+    ministryLogo: globalCfg.ministryLogo || settings?.ministryLogo || savedMeta.ministryLogo || '',
     showQR: savedMeta.showQR !== undefined ? Boolean(savedMeta.showQR) : true,
     showStudentStrip: savedMeta.showStudentStrip !== undefined ? Boolean(savedMeta.showStudentStrip) : true,
     solutionStyle: savedMeta.solutionStyle || 'clean_math', // 'clean_math' | 'handwritten'

@@ -11,6 +11,7 @@
 
 import QRCode from 'qrcode';
 import { detectExerciseDomain, NATIONAL_EXAM_DOMAINS, normalizeNationalExam } from './nationalExamHelpers.js';
+import { getGlobalPrimeSettings } from './devoirPrimeHelpers.js';
 
 // Helper to escape HTML safely
 const esc = (str) => String(str || '')
@@ -44,7 +45,9 @@ export async function generateNationalExamsBookHTML(rawExams, options = {}) {
     includeCover = true,
     includeIndex = true,
     layoutMode = 'official', // 'official' or 'devoir_prime'
+    ministryLogo: optionMinistryLogo = '',
   } = options;
+  const ministryLogo = optionMinistryLogo || getGlobalPrimeSettings().ministryLogo || '';
 
   // Filter exercises if domainFilter is specific
   const selectedDomainObj = NATIONAL_EXAM_DOMAINS.find(d => d.id === domainFilter) || NATIONAL_EXAM_DOMAINS[0];
@@ -548,7 +551,7 @@ export async function generateNationalExamsBookHTML(rawExams, options = {}) {
         Royaume du Maroc
       </div>
       <div class="cover-ministry-block">
-        <svg width="52" height="52" viewBox="0 0 100 100" fill="none" style="margin-bottom:4px;">
+        ${ministryLogo ? `<img src="${esc(ministryLogo)}" alt="Logo du Ministère" style="max-height:56px;max-width:200px;width:auto;height:auto;object-fit:contain;margin-bottom:4px;" />` : `<svg width="52" height="52" viewBox="0 0 100 100" fill="none" style="margin-bottom:4px;">
           <circle cx="50" cy="50" r="46" stroke="#005086" stroke-width="2.5" fill="none" />
           <path d="M40 22 Q50 14 60 22 L57 26 Q50 19 43 26 Z" fill="#005086" />
           <circle cx="50" cy="15" r="3" fill="#005086" />
@@ -556,7 +559,7 @@ export async function generateNationalExamsBookHTML(rawExams, options = {}) {
           <path d="M50 36 L53 44 L61 44 L55 49 L57 57 L50 52 L43 57 L45 49 L39 44 L47 44 Z" stroke="#005086" stroke-width="1.5" fill="#005086" fill-opacity="0.15" />
           <circle cx="50" cy="30" r="3.5" fill="#005086" />
           <path d="M30 74 Q50 80 70 74 Q60 84 50 82 Q40 84 30 74 Z" stroke="#005086" stroke-width="1.5" fill="#005086" />
-        </svg>
+        </svg>`}
         <h2 class="cover-ministry-title">وزارة التربية الوطنية والتعليم الأولي والرياضة</h2>
         <span style="font-size:0.8rem; color:#475569;">المركز الوطني للتقويم والامتحانات والتوجيه</span>
       </div>
@@ -708,13 +711,13 @@ export async function generateNationalExamsBookHTML(rawExams, options = {}) {
           </div>
 
           <div class="exam-header-col-right">
-            <svg width="36" height="36" viewBox="0 0 100 100" fill="none">
+            ${ministryLogo ? `<img src="${esc(ministryLogo)}" alt="Logo du Ministère" style="max-height:42px;max-width:155px;width:auto;height:auto;object-fit:contain;display:block;margin:0 auto;" />` : `<svg width="36" height="36" viewBox="0 0 100 100" fill="none">
               <circle cx="50" cy="50" r="46" stroke="#000" stroke-width="2" fill="none" />
               <path d="M40 22 Q50 14 60 22 L57 26 Q50 19 43 26 Z" fill="#000" />
               <circle cx="50" cy="15" r="2.5" fill="#000" />
               <path d="M34 30 Q50 32 66 30 Q66 58 50 68 Q34 58 34 30 Z" stroke="#000" stroke-width="2" fill="#fff" />
               <path d="M50 36 L53 44 L61 44 L55 49 L57 57 L50 52 L43 57 L45 49 L39 44 L47 44 Z" stroke="#000" stroke-width="1.5" fill="#000" fill-opacity="0.1" />
-            </svg>
+            </svg>`}
             <div style="font-weight:bold; font-size:0.62rem; line-height:1.2; font-family:'Tajawal',sans-serif; margin-top:3px;">
               المملكة المغربية<br/>
               وزارة التربية الوطنية
