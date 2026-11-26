@@ -2,9 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Award, Search, Filter, BookOpen, Calendar, Eye, Printer,
-  Layers, ChevronDown, Check, Sparkles, ArrowUpDown, FileText,
-  CheckCircle2, X, BookOpenCheck, SlidersHorizontal, BookMarked, ExternalLink,
-  Edit, ArrowRight
+  Layers, Sparkles, ArrowUpDown, X, BookOpenCheck,
+  SlidersHorizontal, ExternalLink, Edit, LayoutGrid, List, RotateCcw
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getAllLessons } from '../services/lessonService';
@@ -24,19 +23,35 @@ import DevoirPrimeTemplate from '../components/DevoirPrimeTemplate';
 export default function NationalExamsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === 'admin' || user?.role === 'prof' || user?.role === 'teacher';
 
   const [exams, setExams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Filters & Search
+  // Filters, Search & View Mode
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedYear, setSelectedYear] = useState('all');
   const [selectedSession, setSelectedSession] = useState('all'); // all, normale, rattrapage
   const [selectedBranch, setSelectedBranch] = useState('all');
   const [selectedDomain, setSelectedDomain] = useState('all');
-  const [sortMode, setSortMode] = useState('year_desc'); // year_desc, year_asc, session
+  const [sortMode, setSortMode] = useState('year_desc'); // year_desc, year_asc, session, title
+  const [viewMode, setViewMode] = useState(() => {
+    try {
+      return localStorage.getItem('national_exams_view_mode') || 'grid';
+    } catch {
+      return 'grid';
+    }
+  });
+
+  const handleSetViewMode = (mode) => {
+    setViewMode(mode);
+    try {
+      localStorage.setItem('national_exams_view_mode', mode);
+    } catch {
+      // ignore storage quota errors
+    }
+  };
 
   // Quick Preview Modal
   const [previewExam, setPreviewExam] = useState(null);
@@ -45,10 +60,10 @@ export default function NationalExamsPage() {
   // Book Printing Modal State
   const [showBookModal, setShowBookModal] = useState(false);
   const [bookDomain, setBookDomain] = useState('all');
-  const [bookTitle, setBookTitle] = useState('الموسوعة الشاملة في الرياضيات — الامتحانات الوطنية الموحدة');
-  const [bookSubtitle, setBookSubtitle] = useState('الدورة العادية والاستدراكية — خيار فرنسية BIOF');
+  const [bookTitle, setBookTitle] = useState('Annales des Examens Nationaux — Mathématiques');
+  const [bookSubtitle, setBookSubtitle] = useState('Sessions Normales & de Rattrapage — Option Française (BIOF)');
   const [bookBranch, setBookBranch] = useState('2ème Baccalauréat — Sciences Mathématiques & Expérimentales');
-  const [bookProfName, setBookProfName] = useState(user?.name ? `الأستاذ(ة): ${user.name}` : 'الأستاذ: ذ. بنك الرياضيات');
+  const [bookProfName, setBookProfName] = useState(user?.name ? `Prof. ${user.name}` : "Prof. L'CONQ");
   const [bookAcademicYear, setBookAcademicYear] = useState('2025 - 2026');
   const [bookShowSolutions, setBookShowSolutions] = useState(true);
   const [bookIncludeCover, setBookIncludeCover] = useState(true);
@@ -89,14 +104,14 @@ export default function NationalExamsPage() {
 
   // Filtered & Sorted Exams
   const filteredExams = useMemo(() => {
-    let result = exams.filter(exam => {
-      // Search
+    const result = exams.filter(exam => {
+      // Search across both French & original fields
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const matchesTitle = (exam.title || '').toLowerCase().includes(q);
-        const matchesSession = (exam.session || '').toLowerCase().includes(q);
+        const matchesTitle = (exam.title || '').toLowerCase().includes(q) || (exam.titleFr || '').toLowerCase().includes(q);
+        const matchesSession = (exam.session || '').toLowerCase().includes(q) || (exam.sessionFr || '').toLowerCase().includes(q);
         const matchesYear = String(exam.year).includes(q);
-        const matchesBranch = (exam.branch || '').toLowerCase().includes(q);
+        const matchesBranch = (exam.branch || '').toLowerCase().includes(q) || (exam.branchFr || '').toLowerCase().includes(q);
         const matchesSections = exam.sections.some(s => (s.title || '').toLowerCase().includes(q) || (s.content || '').toLowerCase().includes(q));
         if (!matchesTitle && !matchesSession && !matchesYear && !matchesBranch && !matchesSections) {
           return false;
@@ -113,10 +128,8 @@ export default function NationalExamsPage() {
       if (selectedSession === 'rattrapage' && !exam.isRattrapage) return false;
 
       // Branch Filter
-      if (selectedBranch !== 'all') {
-        const b = (exam.branch || '').toLowerCase();
-        if (selectedBranch === 'sm' && !b.includes('رياضية') && !b.includes('math')) return false;
-        if (selectedBranch === 'pc_svt' && (b.includes('رياضية') || b.includes('math'))) return false;
+      if (selectedBranch !== 'all' && exam.branchKey !== selectedBranch) {
+        return false;
       }
 
       // Domain Filter
@@ -131,18 +144,38 @@ export default function NationalExamsPage() {
     return sortNationalExams(result, sortMode);
   }, [exams, searchQuery, selectedYear, selectedSession, selectedBranch, selectedDomain, sortMode]);
 
+  const hasActiveFilters = Boolean(
+    searchQuery.trim() ||
+    selectedYear !== 'all' ||
+    selectedSession !== 'all' ||
+    selectedBranch !== 'all' ||
+    selectedDomain !== 'all'
+  );
+
+  const resetFilters = () => {
+    setSearchQuery('');
+    setSelectedYear('all');
+    setSelectedSession('all');
+    setSelectedBranch('all');
+    setSelectedDomain('all');
+  };
+
   // Handler for Single Exam Print (Official or DEVOIR PRIME)
-  const handlePrintSingleExam = (exam, format = 'official', withSolutions = false) => {
-    if (format === 'prime') {
-      openDevoirPrimePrintWindow(exam, {
-        showSolutions: withSolutions,
-        academicYear: bookAcademicYear,
-        profName: user?.name || ''
-      });
-    } else {
-      openNationalExamPrintWindow(exam.content || exam, {
-        showSolutions: withSolutions
-      });
+  const handlePrintSingleExam = async (exam, format = 'official', withSolutions = false) => {
+    try {
+      if (format === 'prime') {
+        await openDevoirPrimePrintWindow(exam, {
+          showSolutions: withSolutions,
+          academicYear: bookAcademicYear,
+          profName: user?.name || ''
+        });
+      } else {
+        await openNationalExamPrintWindow(exam.content || exam, {
+          showSolutions: withSolutions
+        });
+      }
+    } catch (err) {
+      alert(`Erreur lors de l'impression : ${err.message}`);
     }
   };
 
@@ -164,15 +197,21 @@ export default function NationalExamsPage() {
       });
       setShowBookModal(false);
     } catch (err) {
-      alert(`Erreur lors de la génération du livre: ${err.message}`);
+      alert(`Erreur lors de la génération du recueil : ${err.message}`);
     } finally {
       setBookGenerating(false);
     }
   };
 
   return (
-    <div className="national-exams-container" style={{ padding: '0 0.5rem 3rem' }}>
-      
+    <div
+      className="national-exams-container"
+      dir="ltr"
+      style={{
+        padding: '0 0.5rem 3rem',
+        fontFamily: "'Plus Jakarta Sans', 'Inter', sans-serif"
+      }}
+    >
       {/* ── 1. HERO HEADER BANNER ────────────────────────────────────────── */}
       <div style={{
         background: 'linear-gradient(135deg, #005086 0%, #0369a1 60%, #0284c7 100%)',
@@ -191,81 +230,91 @@ export default function NationalExamsPage() {
 
         <div style={{ position: 'relative', zIndex: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1.5rem' }}>
           <div>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', padding: '0.25rem 0.85rem', background: 'rgba(255,255,255,0.18)', borderRadius: '99px', fontSize: '0.78rem', fontWeight: 800, marginBottom: '0.75rem', backdropFilter: 'blur(8px)' }}>
-              <span>🇲🇦</span> المملكة المغربية — وزارة التربية الوطنية والتعليم الأولي والرياضة
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', padding: '0.28rem 0.9rem', background: 'rgba(255,255,255,0.18)', borderRadius: '99px', fontSize: '0.78rem', fontWeight: 700, marginBottom: '0.75rem', backdropFilter: 'blur(8px)' }}>
+              <span>🇲🇦</span> Royaume du Maroc — Ministère de l&apos;Éducation Nationale, du Préscolaire et des Sports
             </div>
-            
-            <h1 style={{ fontSize: '1.85rem', fontWeight: 900, margin: '0 0 0.5rem 0', fontFamily: "'Cairo', 'Plus Jakarta Sans', sans-serif", letterSpacing: '-0.02em' }}>
-              الامتحانات الوطنية الموحدة للبكالوريا (2 Bac)
+
+            <h1 style={{ fontSize: '1.85rem', fontWeight: 900, margin: '0 0 0.5rem 0', letterSpacing: '-0.02em' }}>
+              Examens Nationaux du Baccalauréat (2ème Bac)
             </h1>
-            
-            <p style={{ margin: 0, opacity: 0.9, fontSize: '0.92rem', maxWidth: '650px', lineHeight: 1.6, fontFamily: "'Cairo', sans-serif" }}>
-              مستودع رسمي ذكي لجميع الامتحانات الوطنية الموحدة لمادة الرياضيات. تصفح، حلل حسب المجالات (متتاليات، أعداد عقدية، دوال، احتمالات)، واطبع كتباً ومصنفات شاملة بالغلاف الملكي والفهرس والتصحيح النموذجي.
+
+            <p style={{ margin: 0, opacity: 0.92, fontSize: '0.92rem', maxWidth: '660px', lineHeight: 1.6 }}>
+              Référentiel officiel intelligent de tous les examens nationaux de Mathématiques. Filtrez par domaines (Suites, Nombres Complexes, Analyse, Probabilités...) et imprimez des recueils complets avec couverture royale, sommaire et corrigés détaillés.
             </p>
 
             {/* Quick KPI stats */}
-            <div style={{ display: 'flex', gap: '1.25rem', marginTop: '1.25rem', flexWrap: 'wrap' }}>
-              <div style={{ background: 'rgba(255,255,255,0.12)', padding: '0.4rem 0.85rem', borderRadius: '10px', fontSize: '0.82rem', fontWeight: 700 }}>
-                📑 <strong>{exams.length}</strong> امتحان وطني مسجل
+            <div style={{ display: 'flex', gap: '0.85rem', marginTop: '1.25rem', flexWrap: 'wrap' }}>
+              <div style={{ background: 'rgba(255,255,255,0.14)', padding: '0.42rem 0.9rem', borderRadius: '10px', fontSize: '0.82rem', fontWeight: 700 }}>
+                📑 <strong>{exams.length}</strong> {exams.length > 1 ? 'examens nationaux' : 'examen national'}
               </div>
-              <div style={{ background: 'rgba(255,255,255,0.12)', padding: '0.4rem 0.85rem', borderRadius: '10px', fontSize: '0.82rem', fontWeight: 700 }}>
-                📅 من <strong>{availableYears[availableYears.length - 1] || 2008}</strong> إلى <strong>{availableYears[0] || 2026}</strong>
+              <div style={{ background: 'rgba(255,255,255,0.14)', padding: '0.42rem 0.9rem', borderRadius: '10px', fontSize: '0.82rem', fontWeight: 700 }}>
+                📅 De <strong>{availableYears[availableYears.length - 1] || 2008}</strong> à <strong>{availableYears[0] || 2026}</strong>
               </div>
-              <div style={{ background: 'rgba(255,255,255,0.12)', padding: '0.4rem 0.85rem', borderRadius: '10px', fontSize: '0.82rem', fontWeight: 700 }}>
-                🎯 <strong>{NATIONAL_EXAM_DOMAINS.length - 1}</strong> مجالات مبوبة
+              <div style={{ background: 'rgba(255,255,255,0.14)', padding: '0.42rem 0.9rem', borderRadius: '10px', fontSize: '0.82rem', fontWeight: 700 }}>
+                🎯 <strong>{NATIONAL_EXAM_DOMAINS.length - 1}</strong> domaines indexés
               </div>
             </div>
           </div>
 
           {/* Master Actions Buttons */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', minWidth: 'min(100%, 310px)' }}>
             <button
               type="button"
-              onClick={() => { setBookDomain('all'); setShowBookModal(true); }}
+              onClick={() => {
+                setBookDomain('all');
+                setBookTitle('Annales des Examens Nationaux — Mathématiques');
+                setShowBookModal(true);
+              }}
               style={{
                 background: '#ffffff',
                 color: '#005086',
                 border: 'none',
-                padding: '0.75rem 1.4rem',
+                padding: '0.75rem 1.35rem',
                 borderRadius: '12px',
-                fontWeight: 900,
-                fontSize: '0.92rem',
+                fontWeight: 800,
+                fontSize: '0.9rem',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
+                justifyContent: 'center',
                 gap: '0.6rem',
                 boxShadow: '0 4px 15px rgba(0,0,0,0.15)',
-                transition: 'transform 0.15s ease',
-                fontFamily: "'Cairo', sans-serif"
+                transition: 'transform 0.15s ease'
               }}
-              onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
-              onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; }}
             >
-              <BookOpenCheck size={20} color="#005086" />
-              <span>طبع كتاب الامتحانات الشامل (بالغلاف والفهرس)</span>
+              <BookOpenCheck size={19} color="#005086" />
+              <span>Imprimer le Livre Complet (Couverture &amp; Index)</span>
             </button>
 
             <button
               type="button"
-              onClick={() => { setBookDomain(selectedDomain !== 'all' ? selectedDomain : 'suites'); setShowBookModal(true); }}
+              onClick={() => {
+                const targetDom = selectedDomain !== 'all' ? selectedDomain : 'suites';
+                const dObj = NATIONAL_EXAM_DOMAINS.find(d => d.id === targetDom);
+                setBookDomain(targetDom);
+                setBookTitle(`Cahier Thématique — ${dObj?.labelFr || 'Mathématiques'}`);
+                setShowBookModal(true);
+              }}
               style={{
                 background: 'rgba(255, 255, 255, 0.15)',
                 color: '#ffffff',
                 border: '1.5px solid rgba(255, 255, 255, 0.4)',
                 padding: '0.65rem 1.25rem',
                 borderRadius: '12px',
-                fontWeight: 800,
-                fontSize: '0.85rem',
+                fontWeight: 700,
+                fontSize: '0.84rem',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
+                justifyContent: 'center',
                 gap: '0.5rem',
-                backdropFilter: 'blur(10px)',
-                fontFamily: "'Cairo', sans-serif"
+                backdropFilter: 'blur(10px)'
               }}
             >
               <SlidersHorizontal size={17} />
-              <span>تصدير مصنف موضوعاتي حسب المجال (Cahier Thématique)</span>
+              <span>Exporter un Cahier Thématique par Domaine</span>
             </button>
 
             {isAdmin && (
@@ -278,17 +327,17 @@ export default function NationalExamsPage() {
                   border: 'none',
                   padding: '0.65rem 1.25rem',
                   borderRadius: '12px',
-                  fontWeight: 800,
-                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  fontSize: '0.84rem',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '0.5rem',
-                  fontFamily: "'Cairo', sans-serif"
+                  justifyContent: 'center',
+                  gap: '0.5rem'
                 }}
               >
                 <Sparkles size={17} />
-                <span>استيراد امتحان وطني جديد بالذكاء الاصطناعي</span>
+                <span>Importer un Examen National par IA</span>
               </button>
             )}
           </div>
@@ -311,32 +360,31 @@ export default function NationalExamsPage() {
                   border: `1.5px solid ${isActive ? dom.color : 'var(--border)'}`,
                   background: isActive ? dom.color : 'var(--bg-card)',
                   color: isActive ? '#ffffff' : 'var(--text-main)',
-                  fontWeight: 800,
+                  fontWeight: 700,
                   fontSize: '0.82rem',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.45rem',
                   cursor: 'pointer',
                   transition: 'all 0.15s ease',
-                  boxShadow: isActive ? `0 4px 12px ${dom.color}40` : 'none',
-                  fontFamily: "'Cairo', sans-serif"
+                  boxShadow: isActive ? `0 4px 12px ${dom.color}40` : 'none'
                 }}
               >
                 <span>{dom.icon}</span>
-                <span>{dom.labelAr}</span>
+                <span>{dom.labelFr}</span>
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* ── 3. SEARCH & CONTROLS TOOLBAR ─────────────────────────────────── */}
+      {/* ── 3. SEARCH, FILTERS & VIEW MODE TOOLBAR ────────────────────────── */}
       <div style={{
         background: 'var(--bg-card)',
         border: '1px solid var(--border)',
         borderRadius: '16px',
         padding: '1rem 1.25rem',
-        marginBottom: '1.5rem',
+        marginBottom: '1.25rem',
         display: 'flex',
         flexWrap: 'wrap',
         gap: '0.85rem',
@@ -344,15 +392,15 @@ export default function NationalExamsPage() {
         justifyContent: 'space-between'
       }}>
         {/* Search Input */}
-        <div style={{ position: 'relative', flex: '1 1 260px' }}>
-          <Search size={18} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+        <div style={{ position: 'relative', flex: '1 1 250px' }}>
+          <Search size={17} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
           <input
             type="text"
-            placeholder="ابحث بالسنة، الدورة، الموضوع أو نص المسألة..."
+            placeholder="Rechercher par année, session, thème ou énoncé..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             className="input-control"
-            style={{ paddingRight: '2.4rem', paddingLeft: '0.85rem', height: '42px', fontSize: '0.88rem', width: '100%', direction: 'rtl', fontFamily: "'Cairo', sans-serif" }}
+            style={{ paddingLeft: '2.4rem', paddingRight: '0.85rem', height: '42px', fontSize: '0.86rem', width: '100%', direction: 'ltr' }}
           />
         </div>
 
@@ -363,9 +411,9 @@ export default function NationalExamsPage() {
             value={selectedYear}
             onChange={e => setSelectedYear(e.target.value)}
             className="input-control"
-            style={{ height: '42px', padding: '0 0.85rem', fontSize: '0.85rem', fontWeight: 700 }}
+            style={{ height: '42px', padding: '0 0.85rem', fontSize: '0.84rem', fontWeight: 700 }}
           >
-            <option value="all">جميع السنوات</option>
+            <option value="all">Toutes les années</option>
             {availableYears.map(yr => (
               <option key={yr} value={yr}>{yr}</option>
             ))}
@@ -379,11 +427,11 @@ export default function NationalExamsPage() {
             value={selectedSession}
             onChange={e => setSelectedSession(e.target.value)}
             className="input-control"
-            style={{ height: '42px', padding: '0 0.85rem', fontSize: '0.85rem', fontWeight: 700 }}
+            style={{ height: '42px', padding: '0 0.85rem', fontSize: '0.84rem', fontWeight: 700 }}
           >
-            <option value="all">جميع الدورات</option>
-            <option value="normale">الدورة العادية فقط</option>
-            <option value="rattrapage">الدورة الاستدراكية فقط</option>
+            <option value="all">Toutes les sessions</option>
+            <option value="normale">Session Normale uniquement</option>
+            <option value="rattrapage">Session de Rattrapage uniquement</option>
           </select>
         </div>
 
@@ -394,11 +442,13 @@ export default function NationalExamsPage() {
             value={selectedBranch}
             onChange={e => setSelectedBranch(e.target.value)}
             className="input-control"
-            style={{ height: '42px', padding: '0 0.85rem', fontSize: '0.85rem', fontWeight: 700 }}
+            style={{ height: '42px', padding: '0 0.85rem', fontSize: '0.84rem', fontWeight: 700 }}
           >
-            <option value="all">جميع المسالك والشعب</option>
-            <option value="pc_svt">علوم تجريبية (PC / SVT / Agri)</option>
-            <option value="sm">علوم رياضية (A &amp; B)</option>
+            <option value="all">Toutes les filières</option>
+            <option value="pc_svt">Sciences Expérimentales (PC / SVT / Agri)</option>
+            <option value="sm">Sciences Mathématiques (A &amp; B)</option>
+            <option value="tech">Sciences &amp; Technologies (STE / STM)</option>
+            <option value="eco">Sciences Économiques &amp; Gestion</option>
           </select>
         </div>
 
@@ -409,21 +459,125 @@ export default function NationalExamsPage() {
             value={sortMode}
             onChange={e => setSortMode(e.target.value)}
             className="input-control"
-            style={{ height: '42px', padding: '0 0.85rem', fontSize: '0.85rem', fontWeight: 700 }}
+            style={{ height: '42px', padding: '0 0.85rem', fontSize: '0.84rem', fontWeight: 700 }}
           >
-            <option value="year_desc">من الأحدث إلى الأقدم (2026 ← 2008)</option>
-            <option value="year_asc">من الأقدم إلى الأحدث (2008 ← 2026)</option>
-            <option value="session">حسب الدورة (العادية أولاً)</option>
-            <option value="title">أبجدياً حسب العنوان</option>
+            <option value="year_desc">Plus récents d&apos;abord (2026 → 2008)</option>
+            <option value="year_asc">Plus anciens d&apos;abord (2008 → 2026)</option>
+            <option value="session">Par session (Normale d&apos;abord)</option>
+            <option value="title">Alphabétique (A → Z)</option>
           </select>
+        </div>
+
+        {/* View Mode Switcher (Grille / Liste) */}
+        <div
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            background: 'var(--bg-glass)',
+            border: '1px solid var(--border)',
+            borderRadius: '10px',
+            padding: '3px',
+            gap: '2px',
+            height: '42px'
+          }}
+          role="group"
+          aria-label="Mode d'affichage"
+        >
+          <button
+            type="button"
+            onClick={() => handleSetViewMode('grid')}
+            title="Affichage en cartes"
+            style={{
+              height: '34px',
+              padding: '0 0.75rem',
+              borderRadius: '8px',
+              border: 'none',
+              background: viewMode === 'grid' ? '#005086' : 'transparent',
+              color: viewMode === 'grid' ? '#ffffff' : 'var(--text-muted)',
+              fontWeight: 700,
+              fontSize: '0.8rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <LayoutGrid size={15} />
+            <span>Grille</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSetViewMode('list')}
+            title="Affichage en liste"
+            style={{
+              height: '34px',
+              padding: '0 0.75rem',
+              borderRadius: '8px',
+              border: 'none',
+              background: viewMode === 'list' ? '#005086' : 'transparent',
+              color: viewMode === 'list' ? '#ffffff' : 'var(--text-muted)',
+              fontWeight: 700,
+              fontSize: '0.8rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <List size={15} />
+            <span>Liste</span>
+          </button>
         </div>
       </div>
 
-      {/* ── 4. EXAMS CARDS GRID ──────────────────────────────────────────── */}
+      {/* Results Summary Bar */}
+      {!loading && !error && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '0.5rem',
+          marginBottom: '1rem',
+          padding: '0 0.25rem',
+          fontSize: '0.84rem',
+          color: 'var(--text-muted)'
+        }}>
+          <span>
+            <strong style={{ color: 'var(--text-main)' }}>{filteredExams.length}</strong>{' '}
+            {filteredExams.length > 1 ? 'examens nationaux trouvés' : 'examen national trouvé'}
+          </span>
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={resetFilters}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#005086',
+                fontWeight: 700,
+                fontSize: '0.82rem',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.3rem',
+                padding: 0
+              }}
+            >
+              <RotateCcw size={13} />
+              <span>Réinitialiser les filtres</span>
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ── 4. EXAMS VIEW (GRID OR LIST) ─────────────────────────────────── */}
       {loading ? (
         <div style={{ textAlign: 'center', padding: '4rem 1rem', color: 'var(--text-muted)' }}>
           <div className="spinner" style={{ margin: '0 auto 1rem', width: '40px', height: '40px', border: '3px solid rgba(0,80,134,0.1)', borderTopColor: '#005086', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-          <p style={{ fontWeight: 700, fontFamily: "'Cairo', sans-serif" }}>جاري تحميل وفهرسة الامتحانات الوطنية...</p>
+          <p style={{ fontWeight: 700 }}>Chargement et indexation des examens nationaux...</p>
         </div>
       ) : error ? (
         <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#ef4444' }}>
@@ -439,23 +593,215 @@ export default function NationalExamsPage() {
           color: 'var(--text-muted)'
         }}>
           <Award size={48} style={{ margin: '0 auto 1rem', opacity: 0.4 }} />
-          <h3 style={{ fontWeight: 800, color: 'var(--text-main)', marginBottom: '0.5rem', fontFamily: "'Cairo', sans-serif" }}>
-            لم يتم العثور على أي امتحان وطني مطابق لخيارات البحث
+          <h3 style={{ fontWeight: 800, color: 'var(--text-main)', marginBottom: '0.5rem' }}>
+            Aucun examen national ne correspond à vos critères
           </h3>
           <p style={{ fontSize: '0.88rem', marginBottom: '1.25rem' }}>
-            جرب إعادة ضبط الفلاتر أو إزالة شروط البحث للعثور على النتائج.
+            Essayez de réinitialiser les filtres ou de modifier votre recherche.
           </p>
           <button
             type="button"
             className="btn"
-            onClick={() => { setSearchQuery(''); setSelectedYear('all'); setSelectedSession('all'); setSelectedBranch('all'); setSelectedDomain('all'); }}
+            onClick={resetFilters}
           >
-            إعادة ضبط جميع الفلاتر
+            Réinitialiser tous les filtres
           </button>
         </div>
+      ) : viewMode === 'list' ? (
+        /* ── LIST / TABLE VIEW ───────────────────────────────────────────── */
+        <div
+          className="glass-panel"
+          style={{
+            background: 'var(--bg-card)',
+            border: '1.5px solid var(--border)',
+            borderRadius: '16px',
+            overflow: 'hidden',
+            padding: 0,
+            boxShadow: '0 4px 16px rgba(0,0,0,0.03)'
+          }}
+        >
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '780px' }}>
+              <thead>
+                <tr style={{ background: 'rgba(0, 80, 134, 0.04)', borderBottom: '1px solid var(--border)' }}>
+                  <th style={{ padding: '0.9rem 1.15rem', fontWeight: 800, fontSize: '0.73rem', color: 'var(--text-subtle)', textTransform: 'uppercase', letterSpacing: '0.06em', width: '160px' }}>
+                    Année &amp; Session
+                  </th>
+                  <th style={{ padding: '0.9rem 1rem', fontWeight: 800, fontSize: '0.73rem', color: 'var(--text-subtle)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    Examen &amp; Filière
+                  </th>
+                  <th style={{ padding: '0.9rem 1rem', fontWeight: 800, fontSize: '0.73rem', color: 'var(--text-subtle)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    Domaines abordés
+                  </th>
+                  <th style={{ padding: '0.9rem 1rem', fontWeight: 800, fontSize: '0.73rem', color: 'var(--text-subtle)', textTransform: 'uppercase', letterSpacing: '0.06em', width: '145px' }}>
+                    Contenu
+                  </th>
+                  <th style={{ padding: '0.9rem 1.15rem', fontWeight: 800, fontSize: '0.73rem', color: 'var(--text-subtle)', textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'right' }}>
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredExams.map((exam) => (
+                  <tr
+                    key={exam.id}
+                    className="table-row-hover"
+                    style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.15s' }}
+                  >
+                    {/* Year & Session */}
+                    <td style={{ padding: '0.95rem 1.15rem', verticalAlign: 'middle' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', alignItems: 'flex-start' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <span style={{
+                            background: '#005086',
+                            color: '#ffffff',
+                            padding: '0.18rem 0.55rem',
+                            borderRadius: '7px',
+                            fontWeight: 900,
+                            fontSize: '0.82rem'
+                          }}>
+                            {exam.year}
+                          </span>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>
+                            {exam.code}
+                          </span>
+                        </div>
+                        <span style={{
+                          background: exam.isRattrapage ? 'rgba(217, 119, 6, 0.1)' : 'rgba(5, 150, 105, 0.1)',
+                          color: exam.isRattrapage ? '#d97706' : '#059669',
+                          border: `1px solid ${exam.isRattrapage ? 'rgba(217, 119, 6, 0.25)' : 'rgba(5, 150, 105, 0.25)'}`,
+                          padding: '0.15rem 0.55rem',
+                          borderRadius: '99px',
+                          fontSize: '0.7rem',
+                          fontWeight: 800,
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {exam.sessionShortFr}
+                        </span>
+                      </div>
+                    </td>
+
+                    {/* Title & Branch */}
+                    <td style={{ padding: '0.95rem 1rem', verticalAlign: 'middle' }}>
+                      <div
+                        onClick={() => navigate(`/lessons/${exam.id}`)}
+                        style={{ fontWeight: 800, fontSize: '0.92rem', color: 'var(--text-main)', cursor: 'pointer', marginBottom: '0.2rem', lineHeight: 1.35 }}
+                      >
+                        {exam.titleFr}
+                      </div>
+                      <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                        {exam.branchFr}
+                      </div>
+                    </td>
+
+                    {/* Domains */}
+                    <td style={{ padding: '0.95rem 1rem', verticalAlign: 'middle' }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
+                        {exam.domains.map(dId => {
+                          const dObj = NATIONAL_EXAM_DOMAINS.find(d => d.id === dId);
+                          if (!dObj) return null;
+                          return (
+                            <span
+                              key={dId}
+                              style={{
+                                fontSize: '0.7rem',
+                                padding: '0.15rem 0.45rem',
+                                borderRadius: '6px',
+                                background: `${dObj.color}12`,
+                                color: dObj.color,
+                                border: `1px solid ${dObj.color}25`,
+                                fontWeight: 700,
+                                whiteSpace: 'nowrap'
+                              }}
+                            >
+                              {dObj.icon} {dObj.labelFr}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </td>
+
+                    {/* Structure & Points */}
+                    <td style={{ padding: '0.95rem 1rem', verticalAlign: 'middle' }}>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                        {exam.sections.length} {exam.sections.length > 1 ? 'exercices' : 'exercice'}
+                      </div>
+                      <div style={{ fontSize: '0.74rem', color: '#005086', fontWeight: 800, marginTop: '0.15rem' }}>
+                        Barème : {exam.totalPoints} pts • {exam.durationFr}
+                      </div>
+                    </td>
+
+                    {/* Actions */}
+                    <td style={{ padding: '0.95rem 1.15rem', verticalAlign: 'middle', textAlign: 'right' }}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                        <button
+                          type="button"
+                          onClick={() => { setPreviewExam(exam); setPreviewTemplateMode('official'); }}
+                          className="btn-outline"
+                          title="Aperçu officiel"
+                          style={{ padding: '0.38rem 0.6rem', fontSize: '0.74rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.3rem', minHeight: '32px' }}
+                        >
+                          <Eye size={13} /> <span>Officiel</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setPreviewExam(exam); setPreviewTemplateMode('prime'); }}
+                          className="btn-outline"
+                          title="Aperçu DEVOIR PRIME"
+                          style={{ padding: '0.38rem 0.6rem', fontSize: '0.74rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.3rem', color: '#d97706', borderColor: '#f59e0b', minHeight: '32px' }}
+                        >
+                          <Sparkles size={13} /> <span>PRIME</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handlePrintSingleExam(exam, 'official', false)}
+                          className="btn"
+                          title="Imprimer le sujet (PDF)"
+                          style={{ padding: '0.38rem 0.65rem', fontSize: '0.74rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.3rem', minHeight: '32px' }}
+                        >
+                          <Printer size={13} /> <span>Sujet</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handlePrintSingleExam(exam, 'official', true)}
+                          className="btn"
+                          title="Imprimer avec corrigé (PDF)"
+                          style={{ padding: '0.38rem 0.65rem', fontSize: '0.74rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.3rem', background: '#059669', borderColor: '#059669', minHeight: '32px' }}
+                        >
+                          <BookOpen size={13} /> <span>Corrigé</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/lessons/${exam.id}`)}
+                          className="btn-outline"
+                          title="Ouvrir dans le lecteur"
+                          style={{ padding: '0.38rem 0.55rem', fontSize: '0.74rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.25rem', color: '#005086', minHeight: '32px' }}
+                        >
+                          <ExternalLink size={13} />
+                        </button>
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/admin/lessons/${exam.id}/edit`)}
+                            className="btn-outline"
+                            title="Modifier l'examen"
+                            style={{ padding: '0.38rem 0.55rem', fontSize: '0.74rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.25rem', minHeight: '32px' }}
+                          >
+                            <Edit size={13} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '1.25rem' }}>
-          {filteredExams.map((exam, idx) => {
+        /* ── CARDS GRID VIEW ─────────────────────────────────────────────── */
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 330px), 1fr))', gap: '1.25rem' }}>
+          {filteredExams.map((exam) => {
             return (
               <div
                 key={exam.id}
@@ -496,10 +842,9 @@ export default function NationalExamsPage() {
                         padding: '0.2rem 0.65rem',
                         borderRadius: '99px',
                         fontSize: '0.75rem',
-                        fontWeight: 800,
-                        fontFamily: "'Cairo', sans-serif"
+                        fontWeight: 800
                       }}>
-                        {exam.session}
+                        {exam.sessionFr}
                       </span>
                     </div>
 
@@ -509,18 +854,17 @@ export default function NationalExamsPage() {
                   </div>
 
                   <h3 style={{
-                    fontSize: '1.05rem',
-                    fontWeight: 900,
+                    fontSize: '1.02rem',
+                    fontWeight: 800,
                     color: 'var(--text-main)',
                     margin: '0 0 0.4rem 0',
-                    lineHeight: 1.4,
-                    fontFamily: "'Cairo', sans-serif"
+                    lineHeight: 1.4
                   }}>
-                    {exam.title}
+                    {exam.titleFr}
                   </h3>
 
                   <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '0.75rem', lineHeight: 1.4 }}>
-                    {exam.branch}
+                    {exam.branchFr}
                   </div>
 
                   {/* Domains Tags List */}
@@ -541,7 +885,7 @@ export default function NationalExamsPage() {
                             fontWeight: 700
                           }}
                         >
-                          {dObj.icon} {dObj.labelAr}
+                          {dObj.icon} {dObj.labelFr}
                         </span>
                       );
                     })}
@@ -556,11 +900,10 @@ export default function NationalExamsPage() {
                     fontSize: '0.8rem',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
-                    fontFamily: "'Cairo', sans-serif"
+                    justifyContent: 'space-between'
                   }}>
-                    <span>عدد التمارين والمسائل: <strong>{exam.sections.length}</strong></span>
-                    <span style={{ color: '#005086', fontWeight: 900 }}>المجموع : 20 نقطة</span>
+                    <span>Exercices &amp; problèmes : <strong>{exam.sections.length}</strong></span>
+                    <span style={{ color: '#005086', fontWeight: 800 }}>Barème : {exam.totalPoints} pts</span>
                   </div>
                 </div>
 
@@ -571,15 +914,15 @@ export default function NationalExamsPage() {
                       type="button"
                       onClick={() => { setPreviewExam(exam); setPreviewTemplateMode('official'); }}
                       className="btn-outline"
-                      style={{ padding: '0.45rem', fontSize: '0.78rem', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}
+                      style={{ padding: '0.45rem', fontSize: '0.78rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}
                     >
-                      <Eye size={14} /> <span>معاينة رسمية</span>
+                      <Eye size={14} /> <span>Aperçu officiel</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => { setPreviewExam(exam); setPreviewTemplateMode('prime'); }}
                       className="btn-outline"
-                      style={{ padding: '0.45rem', fontSize: '0.78rem', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', color: '#d97706', borderColor: '#f59e0b' }}
+                      style={{ padding: '0.45rem', fontSize: '0.78rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', color: '#d97706', borderColor: '#f59e0b' }}
                     >
                       <Sparkles size={14} /> <span>DEVOIR PRIME</span>
                     </button>
@@ -590,17 +933,17 @@ export default function NationalExamsPage() {
                       type="button"
                       onClick={() => handlePrintSingleExam(exam, 'official', false)}
                       className="btn"
-                      style={{ padding: '0.45rem', fontSize: '0.78rem', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}
+                      style={{ padding: '0.45rem', fontSize: '0.78rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}
                     >
-                      <Printer size={14} /> <span>طباعة الموضوع</span>
+                      <Printer size={14} /> <span>Imprimer le sujet</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => handlePrintSingleExam(exam, 'official', true)}
                       className="btn"
-                      style={{ padding: '0.45rem', fontSize: '0.78rem', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', background: '#059669', borderColor: '#059669' }}
+                      style={{ padding: '0.45rem', fontSize: '0.78rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', background: '#059669', borderColor: '#059669' }}
                     >
-                      <BookOpen size={14} /> <span>مع التصحيح</span>
+                      <BookOpen size={14} /> <span>Avec corrigé</span>
                     </button>
                   </div>
 
@@ -608,9 +951,9 @@ export default function NationalExamsPage() {
                     <button
                       type="button"
                       onClick={() => navigate(`/lessons/${exam.id}`)}
-                      style={{ background: 'none', border: 'none', color: '#005086', fontWeight: 800, fontSize: '0.78rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem', padding: 0 }}
+                      style={{ background: 'none', border: 'none', color: '#005086', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem', padding: 0 }}
                     >
-                      <span>فتح في العارض التفاعلي</span>
+                      <span>Ouvrir dans le lecteur</span>
                       <ExternalLink size={13} />
                     </button>
 
@@ -621,7 +964,7 @@ export default function NationalExamsPage() {
                         style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem', padding: 0 }}
                       >
                         <Edit size={13} />
-                        <span>تعديل</span>
+                        <span>Modifier</span>
                       </button>
                     )}
                   </div>
@@ -655,19 +998,18 @@ export default function NationalExamsPage() {
             overflowY: 'auto',
             padding: '1.75rem',
             boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
-            direction: 'rtl',
-            fontFamily: "'Cairo', sans-serif"
+            direction: 'ltr'
           }}>
             {/* Modal Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1.5px solid var(--border)', paddingBottom: '0.85rem', marginBottom: '1.25rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                 <span style={{ fontSize: '1.5rem' }}>📘</span>
                 <div>
-                  <h2 style={{ fontSize: '1.25rem', fontWeight: 900, margin: 0, color: '#005086' }}>
-                    إعداد وطباعة كتاب الامتحانات الوطنية الشامل
+                  <h2 style={{ fontSize: '1.2rem', fontWeight: 900, margin: 0, color: '#005086' }}>
+                    Configurer et imprimer le Recueil National
                   </h2>
                   <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                    غلاف ملكي مغربي فاخر + فهرس مبوب + مواضيع رسمية + تصحيح مفصل
+                    Couverture royale + Sommaire indexé + Sujets officiels + Corrigés détaillés
                   </span>
                 </div>
               </div>
@@ -682,11 +1024,11 @@ export default function NationalExamsPage() {
 
             {/* Modal Fields Form */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              
+
               {/* Domain Target Selection */}
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 800, marginBottom: '0.35rem' }}>
-                  🎯 نوع الكتاب والمجال المستهدف:
+                  🎯 Domaine ciblé / Type de recueil :
                 </label>
                 <select
                   value={bookDomain}
@@ -694,18 +1036,18 @@ export default function NationalExamsPage() {
                     const dom = e.target.value;
                     setBookDomain(dom);
                     if (dom === 'all') {
-                      setBookTitle('الموسوعة الشاملة في الرياضيات — الامتحانات الوطنية الموحدة');
+                      setBookTitle('Annales des Examens Nationaux — Mathématiques');
                     } else {
                       const dObj = NATIONAL_EXAM_DOMAINS.find(d => d.id === dom);
-                      setBookTitle(`مصنف الامتحانات الوطنية: ${dObj?.labelAr || ''} (${dObj?.labelFr || ''})`);
+                      setBookTitle(`Cahier Thématique — ${dObj?.labelFr || ''}`);
                     }
                   }}
                   className="input-control"
-                  style={{ width: '100%', height: '42px', fontSize: '0.88rem', fontWeight: 700 }}
+                  style={{ width: '100%', height: '42px', fontSize: '0.86rem', fontWeight: 700 }}
                 >
                   {NATIONAL_EXAM_DOMAINS.map(d => (
                     <option key={d.id} value={d.id}>
-                      {d.icon} {d.labelAr} {d.id !== 'all' ? `(${d.labelFr})` : '— (جميع الامتحانات كاملة)'}
+                      {d.icon} {d.labelFr} {d.id === 'all' ? '— (Tous les examens complets)' : ''}
                     </option>
                   ))}
                 </select>
@@ -714,42 +1056,42 @@ export default function NationalExamsPage() {
               {/* Book Title */}
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 800, marginBottom: '0.35rem' }}>
-                  عنوان الكتاب في الغلاف:
+                  Titre de l&apos;ouvrage (Couverture) :
                 </label>
                 <input
                   type="text"
                   value={bookTitle}
                   onChange={e => setBookTitle(e.target.value)}
                   className="input-control"
-                  style={{ width: '100%', height: '40px', fontSize: '0.88rem', fontWeight: 700 }}
+                  style={{ width: '100%', height: '40px', fontSize: '0.86rem', fontWeight: 700 }}
                 />
               </div>
 
               {/* Book Subtitle */}
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 800, marginBottom: '0.35rem' }}>
-                  العنوان الفرعي:
+                  Sous-titre :
                 </label>
                 <input
                   type="text"
                   value={bookSubtitle}
                   onChange={e => setBookSubtitle(e.target.value)}
                   className="input-control"
-                  style={{ width: '100%', height: '40px', fontSize: '0.88rem' }}
+                  style={{ width: '100%', height: '40px', fontSize: '0.86rem' }}
                 />
               </div>
 
               {/* Branch / Stream */}
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 800, marginBottom: '0.35rem' }}>
-                  الشعبة / المسلك الدراسي:
+                  Filière / Niveau :
                 </label>
                 <input
                   type="text"
                   value={bookBranch}
                   onChange={e => setBookBranch(e.target.value)}
                   className="input-control"
-                  style={{ width: '100%', height: '40px', fontSize: '0.88rem' }}
+                  style={{ width: '100%', height: '40px', fontSize: '0.86rem' }}
                 />
               </div>
 
@@ -757,7 +1099,7 @@ export default function NationalExamsPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 800, marginBottom: '0.35rem' }}>
-                    اسم الأستاذ / المشرف:
+                    Professeur / Auteur :
                   </label>
                   <input
                     type="text"
@@ -769,7 +1111,7 @@ export default function NationalExamsPage() {
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 800, marginBottom: '0.35rem' }}>
-                    الموسم الدراسي:
+                    Année scolaire :
                   </label>
                   <input
                     type="text"
@@ -784,41 +1126,43 @@ export default function NationalExamsPage() {
               {/* Toggles Options */}
               <div style={{ background: 'rgba(0, 80, 134, 0.04)', borderRadius: '12px', padding: '0.85rem 1rem', border: '1px solid rgba(0, 80, 134, 0.12)' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 800 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', fontSize: '0.84rem', fontWeight: 700 }}>
                     <input
                       type="checkbox"
                       checked={bookIncludeCover}
                       onChange={e => setBookIncludeCover(e.target.checked)}
                       style={{ width: '17px', height: '17px' }}
                     />
-                    <span>تضمين صفحة الغلاف الملكي الفاخر (الشعار الرسمي + الإطار المزخرف + QR Code)</span>
+                    <span>Inclure la page de couverture royale (Emblème officiel + Cadre + QR Code)</span>
                   </label>
 
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 800 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', fontSize: '0.84rem', fontWeight: 700 }}>
                     <input
                       type="checkbox"
                       checked={bookIncludeIndex}
                       onChange={e => setBookIncludeIndex(e.target.checked)}
                       style={{ width: '17px', height: '17px' }}
                     />
-                    <span>تضمين الفهرس الشامل المبوب (جدول الامتحانات والمجالات وأرقام الصفحات)</span>
+                    <span>Inclure le sommaire complet (Tableau des examens, domaines et barèmes)</span>
                   </label>
 
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 800, color: '#059669' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', fontSize: '0.84rem', fontWeight: 700, color: '#059669' }}>
                     <input
                       type="checkbox"
                       checked={bookShowSolutions}
                       onChange={e => setBookShowSolutions(e.target.checked)}
                       style={{ width: '17px', height: '17px' }}
                     />
-                    <span>تضمين الحلول النموذجية المفصلة وسلم التنقيط بعد كل تمرين ومسألة</span>
+                    <span>Inclure les corrigés détaillés et le barème officiel après chaque exercice</span>
                   </label>
                 </div>
               </div>
 
               {/* Scope Info Summary */}
               <div style={{ fontSize: '0.8rem', color: '#64748b', background: '#f8fafc', padding: '0.65rem 0.85rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                📌 <strong>معلومة:</strong> سيتم تضمين <strong>{filteredExams.length}</strong> امتحان وطني مطابق لخيارات الفرز الحالية. إذا أردت تضمين سنوات محددة، قم بتحديدها في فلاتر الصفحة قبل الضغط على طباعة.
+                📌 <strong>Information :</strong>{' '}
+                <strong>{filteredExams.length}</strong>{' '}
+                {filteredExams.length > 1 ? 'examens nationaux correspondant' : 'examen national correspondant'} aux filtres actuels seront inclus. Filtrez par année ou session avant de générer si besoin.
               </div>
 
               {/* Action Buttons */}
@@ -828,10 +1172,10 @@ export default function NationalExamsPage() {
                   onClick={handleGenerateBook}
                   disabled={bookGenerating}
                   className="btn"
-                  style={{ flex: 1, height: '46px', fontSize: '0.95rem', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+                  style={{ flex: 1, height: '46px', fontSize: '0.92rem', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
                 >
                   <Printer size={18} />
-                  <span>{bookGenerating ? 'جاري تحضير الكتاب...' : 'طباعة وتصدير الكتاب الكامل (PDF)'}</span>
+                  <span>{bookGenerating ? 'Génération du livre en cours...' : 'Imprimer & Exporter le Livre (PDF)'}</span>
                 </button>
                 <button
                   type="button"
@@ -839,7 +1183,7 @@ export default function NationalExamsPage() {
                   className="btn-outline"
                   style={{ height: '46px', padding: '0 1.25rem' }}
                 >
-                  إلغاء
+                  Annuler
                 </button>
               </div>
             </div>
@@ -869,7 +1213,8 @@ export default function NationalExamsPage() {
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
-            boxShadow: '0 25px 60px rgba(0,0,0,0.35)'
+            boxShadow: '0 25px 60px rgba(0,0,0,0.35)',
+            direction: 'ltr'
           }}>
             {/* Modal Preview Header */}
             <div style={{
@@ -879,18 +1224,19 @@ export default function NationalExamsPage() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              fontFamily: "'Cairo', sans-serif"
+              flexWrap: 'wrap',
+              gap: '0.75rem'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <Award size={22} />
                 <div>
-                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 900 }}>{previewExam.title}</h3>
-                  <span style={{ fontSize: '0.75rem', opacity: 0.85 }}>{previewExam.session} • {previewExam.branch}</span>
+                  <h3 style={{ margin: 0, fontSize: '1.02rem', fontWeight: 800 }}>{previewExam.titleFr}</h3>
+                  <span style={{ fontSize: '0.75rem', opacity: 0.85 }}>{previewExam.sessionFr} • {previewExam.branchFr}</span>
                 </div>
               </div>
 
               {/* Template Switcher & Print Button */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', background: 'rgba(255,255,255,0.15)', borderRadius: '99px', padding: '2px' }}>
                   <button
                     type="button"
@@ -901,12 +1247,12 @@ export default function NationalExamsPage() {
                       border: 'none',
                       background: previewTemplateMode === 'official' ? '#ffffff' : 'transparent',
                       color: previewTemplateMode === 'official' ? '#005086' : '#ffffff',
-                      fontWeight: 800,
+                      fontWeight: 700,
                       fontSize: '0.75rem',
                       cursor: 'pointer'
                     }}
                   >
-                    القالب الوطني الرسمي
+                    Modèle National Officiel
                   </button>
                   <button
                     type="button"
@@ -917,7 +1263,7 @@ export default function NationalExamsPage() {
                       border: 'none',
                       background: previewTemplateMode === 'prime' ? '#ffffff' : 'transparent',
                       color: previewTemplateMode === 'prime' ? '#005086' : '#ffffff',
-                      fontWeight: 800,
+                      fontWeight: 700,
                       fontSize: '0.75rem',
                       cursor: 'pointer'
                     }}
@@ -943,7 +1289,7 @@ export default function NationalExamsPage() {
                     gap: '0.4rem'
                   }}
                 >
-                  <Printer size={15} /> <span>طباعة PDF</span>
+                  <Printer size={15} /> <span>Imprimer PDF</span>
                 </button>
 
                 <button

@@ -98,39 +98,81 @@ export function normalizeNationalExam(exam) {
   if (!session) {
     session = isRattrapage ? `الدورة الاستدراكية ${year}` : `الدورة العادية ${year}`;
   }
+  const sessionFr = isRattrapage ? `Session de Rattrapage ${year}` : `Session Normale ${year}`;
+  const sessionShortFr = isRattrapage ? 'Rattrapage' : 'Session Normale';
 
   // Extract Branch / Filière
+  const rawBranchSource = `${rawMeta.branch || ''} ${header.level || ''} ${exam.level || ''} ${rawTitle}`;
+  let branchKey = 'pc_svt';
+  if (/sciences?\s*math|علوم\s*رياضية|2bac_sm|\bsm\b/i.test(rawBranchSource)) {
+    branchKey = 'sm';
+  } else if (/techno|ste|stm|علوم\s*وتكنولوجيات/i.test(rawBranchSource)) {
+    branchKey = 'tech';
+  } else if (/[ée]co|gestion|اقتصاد/i.test(rawBranchSource)) {
+    branchKey = 'eco';
+  }
+
   let branch = rawMeta.branch || header.level || exam.level || '';
-  if (!branch || branch === '2bac' || branch === 'national') {
-    if (/sciences?\s*math|علوم\s*رياضية/i.test(rawTitle)) {
+  if (!branch || branch === '2bac' || branch === 'national' || branch === '2bac_pc_svt' || branch === '2bac_sm') {
+    if (branchKey === 'sm') {
       branch = 'شعبة العلوم الرياضية (أ) و (ب) خيار فرنسية';
-    } else if (/techno|ste|stm|علوم\s*وتكنولوجيات/i.test(rawTitle)) {
+    } else if (branchKey === 'tech') {
       branch = 'شعبة العلوم والتكنولوجيات (STE / STM)';
-    } else if (/[ée]co|gestion|اقتصاد/i.test(rawTitle)) {
+    } else if (branchKey === 'eco') {
       branch = 'شعبة العلوم الاقتصادية والتدبير';
     } else {
       branch = 'مسلك العلوم الفيزيائية ومسلك علوم الحياة والأرض (خيار فرنسية)';
     }
   }
 
+  const branchFrMap = {
+    sm: 'Sciences Mathématiques (A & B) — BIOF',
+    tech: 'Sciences et Technologies (STE / STM)',
+    eco: 'Sciences Économiques et Gestion',
+    pc_svt: 'Sciences Physiques & SVT — BIOF',
+  };
+  const branchFr = /[\u0600-\u06FF]/.test(branch) || !rawMeta.branch || rawMeta.branch === '2bac_pc_svt' || rawMeta.branch === '2bac_sm'
+    ? branchFrMap[branchKey]
+    : branch;
+
+  const shortBranchFrMap = {
+    sm: 'Sciences Maths A & B',
+    tech: 'STE / STM',
+    eco: 'Éco & Gestion',
+    pc_svt: 'PC / SVT',
+  };
+  const titleHasArabic = /[\u0600-\u06FF]/.test(rawTitle);
+  const titleFr = (!rawTitle || titleHasArabic)
+    ? `Examen National ${year} — ${sessionShortFr} (${shortBranchFrMap[branchKey]})`
+    : rawTitle;
+
   const sections = Array.isArray(content.sections) && content.sections.length > 0
     ? content.sections
     : (Array.isArray(exam.sections) ? exam.sections : (Array.isArray(content.exercises) ? content.exercises : []));
 
   const domains = getExamDomains(exam);
+  const rawSubject = rawMeta.subject || header.subject || 'Mathématiques';
+  const subjectFr = /[\u0600-\u06FF]/.test(rawSubject) ? 'Mathématiques' : rawSubject;
 
   return {
     ...exam,
     id: exam.id,
     title: rawTitle || `الامتحان الوطني الموحد — ${session}`,
+    titleFr,
     year: parseInt(year, 10) || 2026,
     session,
+    sessionFr,
+    sessionShortFr,
     isRattrapage,
     branch,
-    code: rawMeta.code || (branch.includes('الرياضية') ? 'NS 26F' : 'NS 22F'),
-    duration: rawMeta.duration || (branch.includes('الرياضية') ? '4س' : '3س'),
-    coefficient: rawMeta.coefficient || (branch.includes('الرياضية') ? '9' : '7'),
+    branchFr,
+    branchKey,
+    code: rawMeta.code || (branchKey === 'sm' ? 'NS 26F' : 'NS 22F'),
+    duration: rawMeta.duration || (branchKey === 'sm' ? '4س' : '3س'),
+    durationFr: rawMeta.duration ? String(rawMeta.duration).replace('س', 'h') : (branchKey === 'sm' ? '4h' : '3h'),
+    coefficient: rawMeta.coefficient || (branchKey === 'sm' ? '9' : '7'),
     subject: rawMeta.subject || header.subject || 'الرياضيات',
+    subjectFr,
     totalPoints: header.total_points || 20,
     sections,
     domains,
@@ -169,7 +211,7 @@ export function sortNationalExams(exams, sortMode = 'year_desc') {
     case 'session':
       return sorted.sort((a, b) => (a.isRattrapage ? 1 : -1) || b.year - a.year);
     case 'title':
-      return sorted.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+      return sorted.sort((a, b) => (a.titleFr || a.title || '').localeCompare(b.titleFr || b.title || '', 'fr'));
     default:
       return sorted.sort((a, b) => b.year - a.year);
   }
