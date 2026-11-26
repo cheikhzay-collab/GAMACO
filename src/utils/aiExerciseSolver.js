@@ -395,29 +395,42 @@ export async function solveExerciseWithAI(exerciseContent, options = {}) {
   }
 
   // 1. Paramètres des Fournisseurs IA
+  const preferredProvider = (options.solverProvider || localStorage.getItem('ai_solver_provider') || 'auto').trim();
+  const preferredSolverModel = (options.solverModel || localStorage.getItem('ai_solver_model') || '').trim();
+
   const deepseekAllowed = localStorage.getItem('deepseek_solve_solutions') !== 'false';
   const geminiAllowed = localStorage.getItem('gemini_solve_solutions') !== 'false';
   const claudeAllowed = localStorage.getItem('claude_solve_solutions') !== 'false';
+  const openaiAllowed = localStorage.getItem('openai_solve_solutions') !== 'false';
 
   const deepseekKey = (localStorage.getItem('deepseekApiKey') || '').trim();
   const deepseekUrl = (localStorage.getItem('deepseekApiUrl') || 'https://api.deepseek.com').trim().replace(/\/$/, '');
   const geminiKey = (localStorage.getItem('geminiApiKey') || localStorage.getItem('gemini_api_key') || '').trim();
   const claudeKey = (localStorage.getItem('claudeApiKey') || '').trim();
+  const openaiKey = (localStorage.getItem('openaiApiKey') || '').trim();
 
   // Vérifier si tous les moteurs sont désactivés
-  if (!deepseekAllowed && !geminiAllowed && !claudeAllowed) {
+  if (!deepseekAllowed && !geminiAllowed && !claudeAllowed && !openaiAllowed) {
     throw new Error('La résolution des exercices est désactivée dans les Paramètres IA. Veuillez activer la case "Résoudre les exercices" pour au moins un fournisseur.');
   }
 
-  // Déterminer les moteurs candidats
+  // Déterminer les moteurs candidats en respectant le fournisseur prioritaire choisi
   const availableEngines = [];
-  if (deepseekAllowed && deepseekKey) availableEngines.push('deepseek');
-  if (geminiAllowed && geminiKey) availableEngines.push('gemini');
-  if (claudeAllowed && claudeKey) availableEngines.push('claude');
+  const tryPush = (eng, allowed, key) => {
+    if (allowed && key && !availableEngines.includes(eng)) availableEngines.push(eng);
+  };
+  if (preferredProvider === 'deepseek') tryPush('deepseek', true, deepseekKey);
+  if (preferredProvider === 'gemini') tryPush('gemini', true, geminiKey);
+  if (preferredProvider === 'openai') tryPush('openai', true, openaiKey);
+  if (preferredProvider === 'claude') tryPush('claude', true, claudeKey);
+  tryPush('deepseek', deepseekAllowed, deepseekKey);
+  tryPush('gemini', geminiAllowed, geminiKey);
+  tryPush('openai', openaiAllowed, openaiKey);
+  tryPush('claude', claudeAllowed, claudeKey);
 
   if (availableEngines.length === 0) {
-    if (!deepseekKey && !geminiKey && !claudeKey) {
-      throw new Error('Aucune clé API configurée. Veuillez renseigner votre clé DeepSeek, Gemini ou Claude dans les Paramètres (Admin Settings).');
+    if (!deepseekKey && !geminiKey && !claudeKey && !openaiKey) {
+      throw new Error('Aucune clé API configurée. Veuillez renseigner votre clé DeepSeek, Gemini, OpenAI ou Claude dans les Paramètres (Admin Settings).');
     } else {
       throw new Error('La résolution automatique des exercices est décochée pour vos fournisseurs configurés. Activez "Résoudre les exercices" dans les Paramètres IA.');
     }
@@ -476,11 +489,14 @@ ${customInstructions ? `Instructions supplémentaires : ${customInstructions}\n\
         sectionTitle,
         docType,
         customInstructions,
+        provider: preferredProvider,
+        model: preferredSolverModel || undefined,
         userPrompt,
         systemPrompt,
         apiKey: geminiKey || undefined,
         deepseekKey: deepseekKey || undefined,
-        claudeKey: claudeKey || undefined
+        claudeKey: claudeKey || undefined,
+        openaiKey: openaiKey || undefined
       })
     });
 
@@ -504,139 +520,173 @@ ${customInstructions ? `Instructions supplémentaires : ${customInstructions}\n\
 
   let lastError = null;
 
-  // ── 1. Engine 1 : DeepSeek (Excellence pour le raisonnement mathématique) ──
-  if (availableEngines.includes('deepseek')) {
-    try {
-      const endpoint = `${deepseekUrl}/v1/chat/completions`;
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${deepseekKey}`
-        },
-        body: JSON.stringify({
-          model: 'deepseek-chat',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt }
-          ],
-          temperature: 0.15,
-          max_tokens: 8000
-        })
-      });
+  for (const engine of availableEngines) {
+    if (engine === 'deepseek') {
+      const dsModels = Array.from(new Set([
+        ...(preferredSolverModel.startsWith('deepseek') ? [preferredSolverModel] : []),
+        'deepseek-chat'
+      ]));
+      for (const dsModel of dsModels) {
+        try {
+          const isReasoner = dsModel.includes('reasoner') || dsModel.includes('r1');
+          const response = await fetch(`${deepseekUrl}/v1/chat/completions`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${deepseekKey}`
+            },
+            body: JSON.stringify({
+              model: dsModel,
+              messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userPrompt }
+              ],
+              ...(isReasoner ? { max_tokens: 8000 } : { temperature: 0.15, max_tokens: 8000 })
+            })
+          });
 
-      if (!response.ok) {
-        const errJson = await response.json().catch(() => ({}));
-        throw new Error(errJson?.error?.message || `Erreur DeepSeek HTTP ${response.status}`);
+          if (!response.ok) {
+            const errJson = await response.json().catch(() => ({}));
+            throw new Error(errJson?.error?.message || `Erreur DeepSeek HTTP ${response.status}`);
+          }
+
+          const data = await response.json();
+          const content = data?.choices?.[0]?.message?.content;
+          if (content && content.trim()) {
+            return filterBaremeByDocType(content.trim(), docType, docTitle || chapterTitle);
+          }
+        } catch (err) {
+          console.warn(`[AI Solver] DeepSeek ${dsModel} failed, attempting fallback...`, err.message);
+          lastError = err;
+        }
       }
+    }
 
-      const data = await response.json();
-      const content = data?.choices?.[0]?.message?.content;
-      if (content && content.trim()) {
-        return filterBaremeByDocType(content.trim(), docType, docTitle || chapterTitle);
+    if (engine === 'gemini') {
+      const storedModel = (preferredSolverModel.startsWith('gemini') ? preferredSolverModel : (localStorage.getItem('geminiModel') || '')).trim();
+      let preferredModel = storedModel;
+      if (!preferredModel || ['gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-flash-latest', '3.7', '3.5'].includes(preferredModel)) {
+        preferredModel = 'gemini-2.5-flash';
       }
-    } catch (err) {
-      console.warn('[AI Solver] DeepSeek solver failed, attempting fallback...', err.message);
-      lastError = err;
-    }
-  }
+      const uniqueModels = Array.from(new Set([preferredModel, 'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-flash-latest', 'gemini-pro-latest', 'gemini-2.0-flash']));
 
-  // ── 2. Engine 2 : Google Gemini (Haute disponibilité et rapidité) ──
-  if (availableEngines.includes('gemini')) {
-    const storedModel = (localStorage.getItem('geminiModel') || '').trim();
-    let preferredModel = storedModel;
-    if (!preferredModel || ['gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-flash-latest', '3.7', '3.5'].includes(preferredModel)) {
-      preferredModel = 'gemini-2.5-flash';
-    }
-    const uniqueModels = Array.from(new Set([preferredModel, 'gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-pro', 'gemini-flash-latest', 'gemini-pro-latest', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro', 'gemini-1.5-flash']));
-
-    for (const model of uniqueModels) {
-      try {
-        if (geminiKey && geminiKey.trim()) {
-          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey.trim()}`;
-          const response = await fetch(endpoint, {
+      for (const model of uniqueModels) {
+        try {
+          if (geminiKey && geminiKey.trim()) {
+            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey.trim()}`;
+            const response = await fetch(endpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: userPrompt }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                generationConfig: { temperature: 0.15, topK: 40, maxOutputTokens: 8192 }
+              })
+            });
+            if (response.ok) {
+              const data = await response.json();
+              const text = (data.candidates?.[0]?.content?.parts || []).filter(p => !p.thought).map(p => p.text || '').join('');
+              if (text.trim()) return filterBaremeByDocType(text.trim(), docType, docTitle || chapterTitle);
+            }
+          }
+          const proxyRes = await fetch('/api/gemini/generate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+              model,
+              apiKey: geminiKey || undefined,
               contents: [{ parts: [{ text: userPrompt }] }],
               systemInstruction: { parts: [{ text: systemPrompt }] },
-              generationConfig: {
-                temperature: 0.15,
-                topK: 40,
-                maxOutputTokens: 8192
-              }
+              generationConfig: { temperature: 0.15, topK: 40, maxOutputTokens: 8192 }
             })
           });
-          if (response.ok) {
-            const data = await response.json();
-            const text = (data.candidates?.[0]?.content?.parts || []).filter(p => !p.thought).map(p => p.text || '').join('');
+          if (proxyRes.ok) {
+            const proxyData = await proxyRes.json();
+            const text = (proxyData?.data?.candidates?.[0]?.content?.parts || []).filter(p => !p.thought).map(p => p.text || '').join('');
             if (text.trim()) return filterBaremeByDocType(text.trim(), docType, docTitle || chapterTitle);
           }
+        } catch (err) {
+          console.warn(`[ExerciseSolver] Gemini ${model} failed:`, err.message);
+          lastError = err;
         }
-        // Proxy fallback
-        const proxyRes = await fetch('/api/gemini/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model,
-            apiKey: geminiKey || undefined,
-            contents: [{ parts: [{ text: userPrompt }] }],
-            systemInstruction: { parts: [{ text: systemPrompt }] },
-            generationConfig: {
-              temperature: 0.15,
-              topK: 40,
-              maxOutputTokens: 8192
-            }
-          })
-        });
-        if (proxyRes.ok) {
-          const proxyData = await proxyRes.json();
-          const text = (proxyData?.data?.candidates?.[0]?.content?.parts || []).filter(p => !p.thought).map(p => p.text || '').join('');
-          if (text.trim()) {
-            return filterBaremeByDocType(text.trim(), docType, docTitle || chapterTitle);
-          }
-        }
-      } catch (err) {
-        console.warn(`[ExerciseSolver] Gemini ${model} failed:`, err.message);
-        lastError = err;
       }
     }
-  }
 
-  // ── 3. Engine 3 : Anthropic Claude ──
-  if (availableEngines.includes('claude')) {
-    try {
-      const endpoint = 'https://api.anthropic.com/v1/messages';
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': claudeKey,
-          'anthropic-version': '2023-06-01',
-          'dangerously-allow-browser': 'true'
-        },
-        body: JSON.stringify({
-          model: 'claude-3-5-sonnet-20241022',
-          system: systemPrompt,
-          messages: [{ role: 'user', content: userPrompt }],
-          max_tokens: 8000,
-          temperature: 0.15
-        })
-      });
-
-      if (!response.ok) {
-        const errJson = await response.json().catch(() => ({}));
-        throw new Error(errJson?.error?.message || `Erreur Claude HTTP ${response.status}`);
+    if (engine === 'openai') {
+      const openaiModels = Array.from(new Set([
+        ...(preferredProvider === 'openai' && preferredSolverModel ? [preferredSolverModel] : []),
+        'o3-mini',
+        'gpt-4o',
+        'gpt-4o-mini'
+      ]));
+      for (const oModel of openaiModels) {
+        try {
+          const isReasoning = /^o[134]/.test(oModel);
+          const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${openaiKey}`
+            },
+            body: JSON.stringify({
+              model: oModel,
+              messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userPrompt }
+              ],
+              ...(isReasoning ? { max_completion_tokens: 12000 } : { temperature: 0.15, max_tokens: 8000 })
+            })
+          });
+          if (!response.ok) {
+            const errJson = await response.json().catch(() => ({}));
+            throw new Error(errJson?.error?.message || `Erreur OpenAI HTTP ${response.status}`);
+          }
+          const data = await response.json();
+          const content = data?.choices?.[0]?.message?.content;
+          if (content && content.trim()) {
+            return filterBaremeByDocType(content.trim(), docType, docTitle || chapterTitle);
+          }
+        } catch (err) {
+          console.warn(`[AI Solver] OpenAI ${oModel} failed:`, err.message);
+          lastError = err;
+        }
       }
+    }
 
-      const data = await response.json();
-      const text = data?.content?.[0]?.text;
-      if (text && text.trim()) {
-        return filterBaremeByDocType(text.trim(), docType, docTitle || chapterTitle);
+    if (engine === 'claude') {
+      const cModel = (preferredSolverModel.startsWith('claude') ? preferredSolverModel : (localStorage.getItem('claudeModel') || 'claude-3-5-sonnet-20241022')).trim();
+      try {
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': claudeKey,
+            'anthropic-version': '2023-06-01',
+            'dangerously-allow-browser': 'true'
+          },
+          body: JSON.stringify({
+            model: cModel,
+            system: systemPrompt,
+            messages: [{ role: 'user', content: userPrompt }],
+            max_tokens: 8000,
+            temperature: 0.15
+          })
+        });
+
+        if (!response.ok) {
+          const errJson = await response.json().catch(() => ({}));
+          throw new Error(errJson?.error?.message || `Erreur Claude HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        const text = data?.content?.[0]?.text;
+        if (text && text.trim()) {
+          return filterBaremeByDocType(text.trim(), docType, docTitle || chapterTitle);
+        }
+      } catch (err) {
+        console.warn('[AI Solver] Claude solver failed:', err.message);
+        lastError = err;
       }
-    } catch (err) {
-      console.warn('[AI Solver] Claude solver failed:', err.message);
-      lastError = err;
     }
   }
 
@@ -787,11 +837,14 @@ Format JSON EXACT attendu (tableau d'objets) :
   }
 ]`;
 
-  const provider = localStorage.getItem('aiImportProvider') || 'deepseek';
+  const preferredSolverProvider = (metadata.solverProvider || localStorage.getItem('ai_solver_provider') || 'auto').trim();
+  const preferredSolverModel = (metadata.solverModel || localStorage.getItem('ai_solver_model') || '').trim();
+  const provider = preferredSolverProvider !== 'auto' ? preferredSolverProvider : (localStorage.getItem('aiImportProvider') || 'deepseek');
   const deepseekKey = localStorage.getItem('deepseekApiKey') || '';
   const deepseekUrl = (localStorage.getItem('deepseekApiUrl') || 'https://api.deepseek.com').replace(/\/$/, '');
   const geminiKey = localStorage.getItem('geminiApiKey') || '';
   const claudeKey = localStorage.getItem('claudeApiKey') || '';
+  const openaiKey = localStorage.getItem('openaiApiKey') || '';
 
   let rawResponseText = '';
 
@@ -807,11 +860,14 @@ Format JSON EXACT attendu (tableau d'objets) :
         language: isAr ? 'ar' : 'fr',
         docTitle,
         docType: 'devoir_prime',
+        provider: preferredSolverProvider,
+        model: preferredSolverModel || undefined,
         userPrompt,
         systemPrompt,
         apiKey: geminiKey || undefined,
         deepseekKey: deepseekKey || undefined,
         claudeKey: claudeKey || undefined,
+        openaiKey: openaiKey || undefined,
       }),
     });
     if (res.ok) {
@@ -826,15 +882,22 @@ Format JSON EXACT attendu (tableau d'objets) :
 
   // 2. Direct engine fallback if backend didn't return content
   const engines = [];
-  if (provider === 'gemini' && geminiKey) engines.push('gemini');
-  if (deepseekKey) engines.push('deepseek');
-  if (geminiKey && !engines.includes('gemini')) engines.push('gemini');
-  if (claudeKey) engines.push('claude');
+  const pushEng = (e, k) => { if (k && !engines.includes(e)) engines.push(e); };
+  if (provider === 'gemini') pushEng('gemini', geminiKey);
+  if (provider === 'deepseek') pushEng('deepseek', deepseekKey);
+  if (provider === 'openai') pushEng('openai', openaiKey);
+  if (provider === 'claude') pushEng('claude', claudeKey);
+  pushEng('deepseek', deepseekKey);
+  pushEng('gemini', geminiKey);
+  pushEng('openai', openaiKey);
+  pushEng('claude', claudeKey);
 
   for (const engine of engines) {
     if (rawResponseText) break;
     try {
       if (engine === 'deepseek') {
+        const dsModel = preferredSolverModel.startsWith('deepseek') ? preferredSolverModel : 'deepseek-chat';
+        const isReasoner = dsModel.includes('reasoner') || dsModel.includes('r1');
         const resp = await fetch(`${deepseekUrl}/v1/chat/completions`, {
           method: 'POST',
           headers: {
@@ -842,13 +905,12 @@ Format JSON EXACT attendu (tableau d'objets) :
             'Authorization': `Bearer ${deepseekKey}`,
           },
           body: JSON.stringify({
-            model: 'deepseek-chat',
+            model: dsModel,
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: userPrompt },
             ],
-            temperature: 0.15,
-            max_tokens: 6000,
+            ...(isReasoner ? { max_tokens: 6000 } : { temperature: 0.15, max_tokens: 6000 }),
           }),
         });
         if (resp.ok) {
@@ -856,7 +918,7 @@ Format JSON EXACT attendu (tableau d'objets) :
           rawResponseText = data?.choices?.[0]?.message?.content || '';
         }
       } else if (engine === 'gemini') {
-        const storedModel = (localStorage.getItem('geminiModel') || 'gemini-2.5-flash').trim();
+        const storedModel = (preferredSolverModel.startsWith('gemini') ? preferredSolverModel : (localStorage.getItem('geminiModel') || 'gemini-2.5-flash')).trim();
         const model = ['gemini-3.5-flash-lite', 'gemini-3.5-flash'].includes(storedModel) ? 'gemini-2.5-flash' : storedModel;
         const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey.trim()}`, {
           method: 'POST',
@@ -871,7 +933,30 @@ Format JSON EXACT attendu (tableau d'objets) :
           const data = await resp.json();
           rawResponseText = (data.candidates?.[0]?.content?.parts || []).filter(p => !p.thought).map(p => p.text || '').join('');
         }
+      } else if (engine === 'openai') {
+        const oModel = (preferredSolverProvider === 'openai' && preferredSolverModel) ? preferredSolverModel : 'gpt-4o';
+        const isReasoning = /^o[134]/.test(oModel);
+        const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${openaiKey}`,
+          },
+          body: JSON.stringify({
+            model: oModel,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userPrompt },
+            ],
+            ...(isReasoning ? { max_completion_tokens: 10000 } : { temperature: 0.15, max_tokens: 6000 }),
+          }),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          rawResponseText = data?.choices?.[0]?.message?.content || '';
+        }
       } else if (engine === 'claude') {
+        const cModel = preferredSolverModel.startsWith('claude') ? preferredSolverModel : 'claude-3-5-sonnet-20241022';
         const resp = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
           headers: {
@@ -881,7 +966,7 @@ Format JSON EXACT attendu (tableau d'objets) :
             'dangerously-allow-browser': 'true',
           },
           body: JSON.stringify({
-            model: 'claude-3-5-sonnet-20241022',
+            model: cModel,
             system: systemPrompt,
             messages: [{ role: 'user', content: userPrompt }],
             max_tokens: 6000,

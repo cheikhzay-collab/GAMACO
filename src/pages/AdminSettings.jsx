@@ -142,6 +142,37 @@ export default function AdminSettings() {
   const [showOpenaiKey, setShowOpenaiKey] = useState(false);
   const [openaiKeySaved, setOpenaiKeySaved] = useState(false);
 
+  // Dedicated AI Solver (Exams & Exercises) Provider & Model
+  const [solverProvider, setSolverProvider] = useState(() => localStorage.getItem('ai_solver_provider') || 'auto');
+  const [solverModel, setSolverModel] = useState(() => localStorage.getItem('ai_solver_model') || '');
+  const [solverSaved, setSolverSaved] = useState(false);
+
+  const SOLVER_MODELS_BY_PROVIDER = {
+    gemini: [
+      { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', tag: 'الأقوى في البراهين والرياضيات' },
+      { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', tag: 'سريع ومتوازن (موصى به)' },
+      { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash-Lite', tag: 'اقتصادي وسريع جداً' },
+      { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash', tag: 'مستقر' },
+      { id: 'gemini-pro-latest', label: 'Gemini Pro Latest', tag: 'أحدث إصدار Pro' },
+    ],
+    deepseek: [
+      { id: 'deepseek-reasoner', label: 'DeepSeek R1 (Reasoner)', tag: 'الأفضل للتفكير الرياضي المعمق' },
+      { id: 'deepseek-chat', label: 'DeepSeek V3 (Chat)', tag: 'سريع واقتصادي' },
+    ],
+    openai: [
+      { id: 'o3-mini', label: 'OpenAI o3-mini', tag: 'نموذج تفكير رياضي متقدم' },
+      { id: 'o4-mini', label: 'OpenAI o4-mini', tag: 'تفكير حديث وسريع' },
+      { id: 'gpt-4o', label: 'GPT-4o', tag: 'دقة عالية وشاملة' },
+      { id: 'gpt-4.1', label: 'GPT-4.1', tag: 'أحدث نموذج نصي' },
+      { id: 'gpt-4o-mini', label: 'GPT-4o mini', tag: 'اقتصادي' },
+    ],
+    claude: [
+      { id: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4', tag: 'الأحدث والأقوى في الصياغة' },
+      { id: 'claude-3-7-sonnet-20250219', label: 'Claude 3.7 Sonnet', tag: 'تفكير رياضي موسع' },
+      { id: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet', tag: 'مستقر ومجرب' },
+    ],
+  };
+
   // AI Extraction Prompts & Custom Directives
   const [examPrompt, setExamPrompt] = useState(() => getStoredExamPrompt());
   const [lessonPrompt, setLessonPrompt] = useState(() => getStoredLessonPrompt());
@@ -194,6 +225,14 @@ export default function AdminSettings() {
           setOpenaiKey(remoteSettings.openaiApiKey);
           localStorage.setItem('openaiApiKey', remoteSettings.openaiApiKey);
         }
+        if (remoteSettings.solverProvider !== undefined) {
+          setSolverProvider(remoteSettings.solverProvider || 'auto');
+          localStorage.setItem('ai_solver_provider', remoteSettings.solverProvider || 'auto');
+        }
+        if (remoteSettings.solverModel !== undefined) {
+          setSolverModel(remoteSettings.solverModel || '');
+          localStorage.setItem('ai_solver_model', remoteSettings.solverModel || '');
+        }
         if (remoteSettings.exam_extraction_prompt !== undefined) {
           setExamPrompt(remoteSettings.exam_extraction_prompt);
           saveExamPrompt(remoteSettings.exam_extraction_prompt);
@@ -222,6 +261,8 @@ export default function AdminSettings() {
       deepseek_solve_solutions: overrides.deepseek_solve_solutions !== undefined ? overrides.deepseek_solve_solutions : deepseekSolveSolutions,
       groqApiKey: overrides.groqApiKey !== undefined ? overrides.groqApiKey : groqKey.trim(),
       openaiApiKey: overrides.openaiApiKey !== undefined ? overrides.openaiApiKey : openaiKey.trim(),
+      solverProvider: overrides.solverProvider !== undefined ? overrides.solverProvider : solverProvider,
+      solverModel: overrides.solverModel !== undefined ? overrides.solverModel : solverModel.trim(),
       exam_extraction_prompt: overrides.exam_extraction_prompt !== undefined ? overrides.exam_extraction_prompt : examPrompt,
       lesson_extraction_prompt: overrides.lesson_extraction_prompt !== undefined ? overrides.lesson_extraction_prompt : lessonPrompt,
       extractor_custom_directives: overrides.extractor_custom_directives !== undefined ? overrides.extractor_custom_directives : extractorDirectives,
@@ -338,6 +379,31 @@ export default function AdminSettings() {
     syncAiSettingsToDb({ openaiApiKey: trimmedKey });
     setOpenaiKeySaved(true);
     setTimeout(() => setOpenaiKeySaved(false), 2500);
+  };
+
+  const saveSolverConfig = async (nextProvider = solverProvider, nextModel = solverModel) => {
+    const cleanProv = (nextProvider || 'auto').trim();
+    const cleanModel = cleanProv === 'auto' ? '' : (nextModel || '').trim();
+    setSolverProvider(cleanProv);
+    setSolverModel(cleanModel);
+    localStorage.setItem('ai_solver_provider', cleanProv);
+    localStorage.setItem('ai_solver_model', cleanModel);
+    await syncAiSettingsToDb({ solverProvider: cleanProv, solverModel: cleanModel });
+    setSolverSaved(true);
+    setTimeout(() => setSolverSaved(false), 2500);
+  };
+
+  const handleSelectSolverProvider = (provId) => {
+    setSolverProvider(provId);
+    if (provId === 'auto') {
+      setSolverModel('');
+      return;
+    }
+    const presets = SOLVER_MODELS_BY_PROVIDER[provId] || [];
+    const stillValid = presets.some(p => p.id === solverModel);
+    if (!stillValid && presets.length > 0) {
+      setSolverModel(presets[0].id);
+    }
   };
 
   // ── Database Backup & Restore & Platform Reset ──────────────────────────────
@@ -2431,6 +2497,202 @@ export default function AdminSettings() {
                   <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="btn-secondary" style={{ fontSize: '0.72rem', padding: '0.3rem 0.65rem', borderRadius: '8px', gap: '0.3rem', color: '#8B5CF6', borderColor: 'rgba(139, 92, 246, 0.3)' }}>
                     OpenAI Console <ExternalLink size={12} />
                   </a>
+                </div>
+              </div>
+
+              {/* ── DEDICATED SOLVER MODEL SELECTOR (EXAMS & EXERCISES) ── */}
+              <div className="bento-card" style={{
+                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.06) 0%, rgba(59, 130, 246, 0.06) 100%)',
+                border: '1.5px solid rgba(16, 185, 129, 0.3)',
+                borderRadius: '1.25rem',
+                padding: '1.6rem',
+                boxShadow: '0 8px 30px rgba(16, 185, 129, 0.06)'
+              }}>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
+                  <div>
+                    <div className="flex items-center gap-2.5 mb-1">
+                      <div style={{
+                        width: '36px', height: '36px', borderRadius: '10px',
+                        background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.18), rgba(5, 150, 105, 0.28))',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        color: '#10B981', border: '1px solid rgba(16, 185, 129, 0.35)'
+                      }}>
+                        <Cpu size={19} />
+                      </div>
+                      <div>
+                        <h3 style={{ fontSize: '1.08rem', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
+                          النموذج المخصص لحل الامتحانات والتمارين (Solveur IA Examens &amp; Exercices)
+                        </h3>
+                        <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                          اختر المزود والنموذج الافتراضي المعتمد في تصحيح التمارين، الامتحانات الوطنية، وقالب DEVOIR PRIME
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '0.45rem',
+                    padding: '0.45rem 0.9rem', borderRadius: '99px',
+                    background: 'var(--bg-glass)', border: '1px solid var(--border)',
+                    fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-main)', whiteSpace: 'nowrap'
+                  }}>
+                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10B981' }} />
+                    <span>
+                      {solverProvider === 'auto'
+                        ? 'الوضع التلقائي الذكي (Cascade)'
+                        : `${solverProvider.toUpperCase()} — ${solverModel || 'افتراضي'}`}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Provider Selector Pills */}
+                <div style={{ marginBottom: '1.15rem' }}>
+                  <label className="settings-label" style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-subtle)', marginBottom: '0.5rem', display: 'block' }}>
+                    1. اختر المزود الأساسي للحل (Fournisseur IA) :
+                  </label>
+                  <div className="flex flex-wrap gap-2.5">
+                    {[
+                      { id: 'auto', label: '⚡ تلقائي ذكي (Auto)', color: '#6366f1', hasKey: true },
+                      { id: 'deepseek', label: '🧠 DeepSeek (R1 / V3)', color: '#00BA7C', hasKey: Boolean(deepseekKey.trim()) },
+                      { id: 'gemini', label: '✨ Google Gemini', color: '#4285F4', hasKey: Boolean(geminiKey.trim()) },
+                      { id: 'openai', label: '🤖 OpenAI (o3 / GPT-4o)', color: '#8B5CF6', hasKey: Boolean(openaiKey.trim()) },
+                      { id: 'claude', label: '🔑 Anthropic Claude', color: '#D97706', hasKey: Boolean(apiKey.trim()) },
+                    ].map(p => {
+                      const active = solverProvider === p.id;
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => handleSelectSolverProvider(p.id)}
+                          style={{
+                            padding: '0.55rem 0.95rem',
+                            borderRadius: '10px',
+                            border: `1.5px solid ${active ? p.color : 'var(--border)'}`,
+                            background: active ? `${p.color}20` : 'var(--bg-glass)',
+                            color: active ? p.color : 'var(--text-main)',
+                            fontWeight: 700,
+                            fontSize: '0.8rem',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <span>{p.label}</span>
+                          {p.id !== 'auto' && (
+                            <span style={{
+                              fontSize: '0.66rem',
+                              padding: '0.1rem 0.4rem',
+                              borderRadius: '6px',
+                              background: p.hasKey ? 'rgba(16,185,129,0.14)' : 'rgba(239,68,68,0.12)',
+                              color: p.hasKey ? '#10B981' : '#ef4444'
+                            }}>
+                              {p.hasKey ? '✓ مفعل' : 'بدون مفتاح'}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Specific Model Selector for chosen provider */}
+                {solverProvider !== 'auto' ? (
+                  <div style={{
+                    background: 'var(--bg-glass)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '12px',
+                    padding: '1rem',
+                    marginBottom: '1rem'
+                  }}>
+                    <label className="settings-label" style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-subtle)', marginBottom: '0.6rem', display: 'block' }}>
+                      2. اختر النموذج الدقيق المخصص للحل (Modèle exact) :
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 mb-3">
+                      {(SOLVER_MODELS_BY_PROVIDER[solverProvider] || []).map(m => {
+                        const isSelected = solverModel === m.id;
+                        return (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => setSolverModel(m.id)}
+                            style={{
+                              textAlign: 'left',
+                              padding: '0.65rem 0.85rem',
+                              borderRadius: '10px',
+                              border: `1.5px solid ${isSelected ? '#10B981' : 'var(--border)'}`,
+                              background: isSelected ? 'rgba(16, 185, 129, 0.12)' : 'transparent',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.2rem',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                              <span style={{ fontSize: '0.82rem', fontWeight: 800, color: isSelected ? '#10B981' : 'var(--text-main)' }}>
+                                {m.label}
+                              </span>
+                              {isSelected && <Check size={14} color="#10B981" />}
+                            </div>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{m.tag}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="settings-field" style={{ marginBottom: 0 }}>
+                      <label className="settings-label" style={{ fontSize: '0.72rem', color: 'var(--text-subtle)' }}>
+                        أو أدخل معرف النموذج يدوياً (ID du modèle personnalisé) :
+                      </label>
+                      <input
+                        type="text"
+                        className="input-control"
+                        placeholder="Ex: deepseek-reasoner, gemini-2.5-pro, o3-mini..."
+                        value={solverModel}
+                        onChange={e => setSolverModel(e.target.value)}
+                        style={{ fontFamily: 'monospace', fontSize: '0.82rem', borderRadius: '10px' }}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{
+                    background: 'var(--bg-glass)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '12px',
+                    padding: '0.85rem 1rem',
+                    marginBottom: '1rem',
+                    fontSize: '0.78rem',
+                    color: 'var(--text-muted)',
+                    lineHeight: 1.55
+                  }}>
+                    💡 في الوضع <strong>التلقائي</strong>، يقوم النظام باختيار أفضل محرك متوفر ومفعل (مع التبديل التلقائي إلى المحرك الاحتياطي في حال نفاد الرصيد أو الضغط على الخادم).
+                  </div>
+                )}
+
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => saveSolverConfig(solverProvider, solverModel)}
+                    className="btn"
+                    style={{
+                      padding: '0.65rem 1.4rem',
+                      borderRadius: '10px',
+                      fontSize: '0.84rem',
+                      fontWeight: 700,
+                      background: solverSaved ? '#10B981' : 'linear-gradient(135deg, #059669 0%, #10B981 100%)',
+                      color: '#fff',
+                      border: 'none',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {solverSaved ? <Check size={16} /> : <Sparkles size={16} />}
+                    <span>{solverSaved ? '✅ تم حفظ نموذج الحل بنجاح' : 'حفظ إعدادات نموذج الحل'}</span>
+                  </button>
                 </div>
               </div>
 

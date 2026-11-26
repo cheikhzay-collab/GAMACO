@@ -3183,13 +3183,16 @@ export const handleApiRequest = async (req, res, next) => {
         chapterTitle = '',
         sectionTitle = '',
         docType = 'course',
-        provider = 'auto',
+        provider: requestedProvider,
+        model: requestedModel,
         userPrompt: customUserPrompt,
         systemPrompt: customSystemPrompt
       } = payload;
 
       const cfg = readDataFile('config.json', {});
       const aiSettings = cfg?.ai_settings || {};
+      const provider = (requestedProvider && requestedProvider !== 'auto' ? requestedProvider : (aiSettings.solverProvider || 'auto')).trim();
+      const preferredModel = (requestedModel || aiSettings.solverModel || '').trim();
 
       let geminiKey = (
         payload.apiKey ||
@@ -3229,16 +3232,18 @@ export const handleApiRequest = async (req, res, next) => {
       ).trim().replace(/^[\"']|[\"']$/g, '');
 
       const candidates = [];
-      if (provider === 'openai' && openaiKey) candidates.push('openai');
-      else if (provider === 'gemini' && geminiKey) candidates.push('gemini');
-      else if (provider === 'deepseek' && deepseekKey) candidates.push('deepseek');
-      else if (provider === 'claude' && claudeKey) candidates.push('claude');
-      else {
-        if (openaiKey && openaiKey.length > 15) candidates.push('openai');
-        if (deepseekKey && deepseekKey.length > 10) candidates.push('deepseek');
-        if (geminiKey && geminiKey.length > 15) candidates.push('gemini');
-        if (claudeKey && claudeKey.length > 15) candidates.push('claude');
-      }
+      const pushCandidate = (name, key, minLen = 10) => {
+        if (key && key.length > minLen && !candidates.includes(name)) candidates.push(name);
+      };
+      if (provider === 'openai') pushCandidate('openai', openaiKey, 15);
+      else if (provider === 'gemini') pushCandidate('gemini', geminiKey, 15);
+      else if (provider === 'deepseek') pushCandidate('deepseek', deepseekKey, 10);
+      else if (provider === 'claude') pushCandidate('claude', claudeKey, 15);
+      // Add fallbacks in clean order
+      pushCandidate('deepseek', deepseekKey, 10);
+      pushCandidate('gemini', geminiKey, 15);
+      pushCandidate('openai', openaiKey, 15);
+      pushCandidate('claude', claudeKey, 15);
 
       if (candidates.length === 0) {
         return sendJSON(res, 400, {
@@ -3262,57 +3267,62 @@ export const handleApiRequest = async (req, res, next) => {
       for (const prov of candidates) {
         // 1. DeepSeek Engine
         if (prov === 'deepseek') {
-          try {
-            const dsRes = await fetch(`${deepseekUrl}/v1/chat/completions`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${deepseekKey}`
-              },
-              body: JSON.stringify({
-                model: 'deepseek-chat',
-                messages: [
-                  { role: 'system', content: systemText },
-                  { role: 'user', content: userText }
-                ],
-                temperature: 0.15,
-                max_tokens: 8000
-              })
-            });
-
-            if (!dsRes.ok) {
-              const errBody = await dsRes.json().catch(() => ({}));
-              throw new Error(errBody?.error?.message || `HTTP ${dsRes.status}`);
-            }
-
-            const dsData = await dsRes.json();
-            const solutionText = dsData?.choices?.[0]?.message?.content;
-            if (solutionText && solutionText.trim()) {
-              return sendJSON(res, 200, {
-                success: true,
-                solution: solutionText.trim(),
-                provider: 'deepseek',
-                model: 'deepseek-chat'
+          const dsModels = Array.from(new Set([
+            ...(preferredModel.startsWith('deepseek') ? [preferredModel] : []),
+            'deepseek-chat'
+          ]));
+          for (const dsModel of dsModels) {
+            try {
+              const isReasoner = dsModel.includes('reasoner') || dsModel.includes('r1');
+              const dsRes = await fetch(`${deepseekUrl}/v1/chat/completions`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${deepseekKey}`
+                },
+                body: JSON.stringify({
+                  model: dsModel,
+                  messages: [
+                    { role: 'system', content: systemText },
+                    { role: 'user', content: userText }
+                  ],
+                  ...(isReasoner ? { max_tokens: 8000 } : { temperature: 0.15, max_tokens: 8000 })
+                })
               });
+
+              if (!dsRes.ok) {
+                const errBody = await dsRes.json().catch(() => ({}));
+                throw new Error(errBody?.error?.message || `HTTP ${dsRes.status}`);
+              }
+
+              const dsData = await dsRes.json();
+              const solutionText = dsData?.choices?.[0]?.message?.content;
+              if (solutionText && solutionText.trim()) {
+                return sendJSON(res, 200, {
+                  success: true,
+                  solution: solutionText.trim(),
+                  provider: 'deepseek',
+                  model: dsModel
+                });
+              }
+            } catch (dsErr) {
+              console.warn(`[Server AI Solve] DeepSeek ${dsModel} failed:`, dsErr.message);
+              lastError = dsErr;
             }
-          } catch (dsErr) {
-            console.warn('[Server AI Solve] DeepSeek failed:', dsErr.message);
-            lastError = dsErr;
           }
         }
 
         // 2. Google Gemini Engine
         if (prov === 'gemini') {
-          const geminiModels = [
-            'gemini-3.5-flash-lite',
-            'gemini-3.1-flash-lite',
-            'gemini-flash-lite-latest',
-            'gemini-3-flash-preview',
-            'gemini-3.5-flash',
-            'gemini-3.8-flash',
+          const geminiModels = Array.from(new Set([
+            ...(preferredModel.startsWith('gemini') ? [preferredModel] : []),
+            'gemini-2.5-pro',
+            'gemini-2.5-flash',
+            'gemini-2.5-flash-lite',
             'gemini-flash-latest',
-            'gemini-pro-latest'
-          ];
+            'gemini-pro-latest',
+            'gemini-2.0-flash'
+          ]));
 
           for (const gModel of geminiModels) {
             try {
@@ -3361,10 +3371,15 @@ export const handleApiRequest = async (req, res, next) => {
 
         // 3. OpenAI Engine
         if (prov === 'openai') {
-          const openaiModels = ['gpt-4o', 'gpt-4o-mini', 'o3-mini'];
+          const openaiModels = Array.from(new Set([
+            ...(provider === 'openai' && preferredModel ? [preferredModel] : []),
+            'o3-mini',
+            'gpt-4o',
+            'gpt-4o-mini'
+          ]));
           for (const oModel of openaiModels) {
             try {
-              const isReasoning = oModel.startsWith('o1') || oModel.startsWith('o3');
+              const isReasoning = /^o[134]/.test(oModel);
               const oRes = await fetch('https://api.openai.com/v1/chat/completions', {
                 method: 'POST',
                 headers: {
@@ -3398,6 +3413,50 @@ export const handleApiRequest = async (req, res, next) => {
             } catch (oErr) {
               console.warn(`[Server AI Solve] OpenAI ${oModel} failed:`, oErr.message);
               lastError = oErr;
+            }
+          }
+        }
+
+        // 4. Anthropic Claude Engine
+        if (prov === 'claude') {
+          const claudeModels = Array.from(new Set([
+            ...(preferredModel.startsWith('claude') ? [preferredModel] : []),
+            'claude-sonnet-4-20250514',
+            'claude-3-7-sonnet-20250219',
+            'claude-3-5-sonnet-20241022'
+          ]));
+          for (const cModel of claudeModels) {
+            try {
+              const cRes = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'x-api-key': claudeKey,
+                  'anthropic-version': '2023-06-01'
+                },
+                body: JSON.stringify({
+                  model: cModel,
+                  system: systemText,
+                  messages: [{ role: 'user', content: userText }],
+                  max_tokens: 8000,
+                  temperature: 0.15
+                })
+              });
+              if (cRes.ok) {
+                const cData = await cRes.json();
+                const solutionText = cData?.content?.[0]?.text;
+                if (solutionText && solutionText.trim()) {
+                  return sendJSON(res, 200, {
+                    success: true,
+                    solution: solutionText.trim(),
+                    provider: 'claude',
+                    model: cModel
+                  });
+                }
+              }
+            } catch (cErr) {
+              console.warn(`[Server AI Solve] Claude ${cModel} failed:`, cErr.message);
+              lastError = cErr;
             }
           }
         }
