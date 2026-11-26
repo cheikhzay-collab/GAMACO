@@ -1,277 +1,446 @@
 import QRCode from 'qrcode';
+import { parseNationalExamExercise, extractNationalExamMeta } from './nationalExamHelpers.js';
 
-// Helper to clean markdown & LaTeX strings
-const cleanLatexStr = (str) => {
-  if (!str || typeof str !== 'string') return '';
-  return str
-    .replace(/\\n(?!(?:eq|ne|notin|nabla|nsubseteq|nsupseteq|nexists|nparallel|natural|nearrow|nwarrow|ni|not|neg)\b)([A-ZÀ-ÖØ-ß])/g, '\n $1') // Fix \nSoit -> \n Soit
-    .replace(/(?<![a-zA-Z\\])otin(?=[\\\{\sA-Z0-9\(\[]|$)/g, '\\notin ') // Fix corrupted \notin (otin -> \notin)
-    .replace(/\\\\([a-zA-Z]+)/g, '\\$1') // Fix \\overrightarrow -> \overrightarrow
-    .replace(/\*\*/g, '') // Strip markdown **
-    .trim();
+const escapeHtml = (str) => String(str || '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;');
+
+// Format inline text safely while preserving $...$ / $$...$$ math and converting **bold** & \n
+const formatRichMathHtml = (raw) => {
+  if (!raw || typeof raw !== 'string') return '';
+  const mathTokens = [];
+  const masked = raw.replace(/(\$\$[\s\S]*?\$\$|\$[^$\n]+?\$)/g, (m) => {
+    const idx = mathTokens.length;
+    mathTokens.push(m);
+    return `__KMATH_${idx}__`;
+  });
+
+  let html = escapeHtml(masked)
+    .replace(/\*\*([^*\n]+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*\*/g, '')
+    .replace(/\n/g, '<br/>');
+
+  html = html.replace(/__KMATH_(\d+)__/g, (_, i) => escapeHtml(mathTokens[Number(i)] || ''));
+  return html;
 };
 
-// Helper to parse exercise text, titles, points and sub-questions
-const parseExercise = (sec, idx) => {
-  let rawTitle = sec.title || sec.name || `Exercice ${idx + 1}`;
-  let cleanTitle = rawTitle.replace(/\*\*/g, '').replace(/:\s*$/, '').trim();
-
-  let points = sec.points ? `${sec.points} points` : '';
-  let rawContent = sec.content || sec.description || sec.intro || '';
-  let rawItems = sec.items || sec.questions || sec.sub_questions || [];
-
-  let preamble = '';
-  let items = [];
-
-  if (Array.isArray(rawItems) && rawItems.length > 1) {
-    preamble = cleanLatexStr(rawContent);
-    items = rawItems.map((it, qIdx) => {
-      const qText = typeof it === 'string' ? it : (it.text || it.question || it.content || '');
-      const qLabel = it.number || it.label || it.index || `${qIdx + 1}.`;
-      let qPoints = it.points || it.pts || '';
-      let cleanText = cleanLatexStr(qText);
-      const ptMatch = cleanText.match(/\(\s*(\d+(?:[\.,]\d+)?)\s*(?:pt|pts|ن|نقطة)\s*\)/i);
-      if (ptMatch) {
-        if (!qPoints) qPoints = `${ptMatch[1]} pt`;
-        cleanText = cleanText.replace(ptMatch[0], '').trim();
-      }
-      if (!qPoints) qPoints = '0.5 pt';
-      return { number: qLabel, points: qPoints, text: cleanText, solution: it.solution || it.answer || '' };
-    });
-  } else {
-    // Single text block — split preamble and sub-questions dynamically
-    const fullText = (rawContent + ' ' + (rawItems[0]?.text || rawItems[0] || '')).trim();
-    
-    // Pattern to match sub-question markers like 1.a. , 1.b. , 2.a. , 1. , 2.
-    const qMarkerRegex = /(?:\*\*|\s|^)(\d+\.[a-z]\.|\d+\.|\b[a-z]\.)(?:\*\*|\s)/gi;
-    
-    let matches = [];
-    let match;
-    while ((match = qMarkerRegex.exec(fullText)) !== null) {
-      matches.push({ index: match.index, label: match[1].trim(), length: match[0].length });
-    }
-
-    if (matches.length > 0) {
-      preamble = cleanLatexStr(fullText.slice(0, matches[0].index));
-      for (let i = 0; i < matches.length; i++) {
-        const curr = matches[i];
-        const nextIndex = i + 1 < matches.length ? matches[i + 1].index : fullText.length;
-        let segment = fullText.slice(curr.index + curr.length, nextIndex).trim();
-
-        let qPoints = '0.5 pt';
-        const ptMatch = segment.match(/\(\s*(\d+(?:[\.,]\d+)?)\s*(?:pt|pts|ن|نقطة)\s*\)/i);
-        if (ptMatch) {
-          qPoints = `${ptMatch[1]} pt`;
-          segment = segment.replace(ptMatch[0], '').trim();
-        }
-
-        items.push({
-          number: curr.label,
-          points: qPoints,
-          text: cleanLatexStr(segment),
-          solution: ''
-        });
-      }
-    } else {
-      preamble = cleanLatexStr(fullText);
-    }
-  }
-
-  return { title: cleanTitle, points, preamble, items };
-};
+const isArabicStr = (s) => /[\u0600-\u06FF]/.test(String(s || ''));
 
 export const generateNationalExamHTML = async (examData, settings = {}) => {
-  const meta = examData?.header?.national_exam_meta || examData?.national_exam_meta || {};
-  
-  const year = meta.year || '2026';
-  const session = meta.session || `الدورة العادية ${year}`;
-  const subject = meta.subject || examData?.header?.subject || 'الرياضيات';
-  const branch = meta.branch || examData?.header?.level || 'مسلك علوم الحياة والأرض ومسلك العلوم الفيزيائية (خيار فرنسية)';
-  const code = meta.code || 'NS 22F';
-  const duration = meta.duration || '3س';
-  const coeff = meta.coefficient || '7';
-  const subjectNumber = meta.subject_number || '3';
-  const totalPages = meta.total_pages || 8;
+  const showSolutions = Boolean(settings.showSolutions);
+  const showQR = settings.showQR !== false;
 
-  const instructions = meta.general_instructions || [
-    "L'utilisation d'une calculatrice non programmable est autorisée ;",
-    "Le candidat peut traiter les exercices et le problème suivant l'ordre qui lui convient ;",
-    "Il est recommandé d'éviter l'usage de la couleur rouge dans la rédaction des solutions."
-  ];
-
-  const components = meta.subject_components || [
-    { name: "Exercice 1", topic: "Géométrie dans l'espace", points: "3 points" },
-    { name: "Exercice 2", topic: "Nombres complexes", points: "3.5 points" },
-    { name: "Exercice 3", topic: "Calcul des probabilités", points: "2.5 points" },
-    { name: "Problème", topic: "Etude de fonctions numériques, suites numériques et calcul intégral", points: "11 points" }
-  ];
-
-  const notations = meta.notations || [
-    "On note z̄ le conjugué d'un nombre complexe z, et |z| son module.",
-    "ln désigne la fonction logarithme népérien.",
-    "e est le nombre réel tel que ln(e) = 1."
-  ];
+  const {
+    session,
+    subject,
+    branch,
+    code,
+    duration,
+    coeff,
+    subjectNumber,
+    instructions,
+    components,
+    notations,
+  } = extractNationalExamMeta(examData);
 
   const rawSections = examData?.sections || examData?.items || examData?.questions || [];
-  const exercises = Array.isArray(rawSections) ? rawSections
-    .filter(sec => {
-      const t = (sec.title || sec.name || '').toLowerCase().trim();
-      if (t.includes('composante') || t.includes('instruction') || t.includes('notation')) return false;
-      return true;
-    })
-    .map((sec, idx) => parseExercise(sec, idx)) : [];
+  const exercises = Array.isArray(rawSections)
+    ? rawSections
+        .filter(sec => {
+          const t = (sec.title || sec.name || '').toLowerCase().trim();
+          return !t.includes('composante') && !t.includes('instruction') && !t.includes('notation');
+        })
+        .map((sec, idx) => parseNationalExamExercise(sec, idx))
+    : [];
 
-  // Generate QR codes
+  // Generate compact QR codes for graded question blocks
   const qrCodeUrls = {};
-  for (let eIdx = 0; eIdx < exercises.length; eIdx++) {
-    const ex = exercises[eIdx];
-    const qList = ex.items || [];
-    for (let qIdx = 0; qIdx < qList.length; qIdx++) {
-      const q = qList[qIdx];
-      const key = `ex${eIdx}_q${qIdx}`;
-      const payload = q.qr_code_data || q.qr_code_url || `https://lconq.ma/solve?ex=${eIdx + 1}&q=${qIdx + 1}&code=${code}`;
-      try {
-        qrCodeUrls[key] = await QRCode.toDataURL(payload, { width: 100, margin: 1 });
-      } catch (err) {
-        qrCodeUrls[key] = '';
+  if (showQR) {
+    for (let eIdx = 0; eIdx < exercises.length; eIdx++) {
+      const ex = exercises[eIdx];
+      const blocks = ex.blocks || [];
+      let qCounter = 0;
+      for (let bIdx = 0; bIdx < blocks.length; bIdx++) {
+        const blk = blocks[bIdx];
+        if (blk.kind !== 'question') continue;
+        qCounter++;
+        const key = `ex${eIdx}_b${bIdx}`;
+        const payload = blk.qr_code_data || blk.qr_code_url || `https://lconq.ma/solve?ex=${eIdx + 1}&q=${qCounter}&code=${encodeURIComponent(code)}`;
+        try {
+          qrCodeUrls[key] = await QRCode.toDataURL(payload, {
+            width: 96,
+            margin: 1,
+            color: { dark: '#0f172a', light: '#ffffff' }
+          });
+        } catch {
+          qrCodeUrls[key] = '';
+        }
       }
     }
   }
 
-  const escapeHtml = (str) => String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const renderGridTable = (blk) => {
+    const cells = Array.isArray(blk.grid_items) ? blk.grid_items : [];
+    if (cells.length === 0) return '';
+    // Heuristic: if cells look like 2 rows of probability distribution (length % 2 === 0 and > 4), split into 2 rows
+    const rowLen = cells.length >= 6 && cells.length % 2 === 0 ? cells.length / 2 : Math.max(2, Number(blk.cols) || 4);
+    const rows = [];
+    for (let i = 0; i < cells.length; i += rowLen) {
+      rows.push(cells.slice(i, i + rowLen));
+    }
+    return `
+      <div style="margin: 8px 0 12px; display: flex; justify-content: center;">
+        <table class="ne-prob-table">
+          <tbody>
+            ${rows.map((r, rIdx) => `
+              <tr>
+                ${r.map((cell, cIdx) => `
+                  <td style="${cIdx === 0 || rIdx === 0 ? 'font-weight:700; background:#f8fafc;' : 'min-width:52px;'}">
+                    ${cell ? formatRichMathHtml(String(cell)) : '&nbsp;'}
+                  </td>
+                `).join('')}
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  };
 
-  return `
-<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html lang="fr" dir="ltr">
 <head>
   <meta charset="UTF-8">
-  <title>الامتحان الوطني الموحد للبكالوريا - ${escapeHtml(code)}</title>
-  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
-  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body, { delimiters: [{left: '$$', right: '$$', display: true}, {left: '$', right: '$', display: false}, {left: '\\\\(', right: '\\\\)', display: false}, {left: '\\\\[', right: '\\\\]', display: true}], ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'] });"></script>
+  <title>Examen National du Baccalauréat — ${escapeHtml(code)}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@600;700;800&family=STIX+Two+Text:ital,wght@0,400;0,600;0,700;1,400&family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/gh/dreampulse/computer-modern-web-font@master/fonts.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
   <style>
     @page {
-      size: A4;
-      margin: 12mm 14mm;
+      size: A4 portrait;
+      margin: 13mm 14mm 16mm 14mm;
+      @bottom-center {
+        content: "Page " counter(page) " / " counter(pages);
+        font-family: 'Computer Modern Serif', 'STIX Two Text', serif;
+        font-size: 9.5pt;
+        color: #475569;
+      }
     }
+
+    * {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
     body {
-      font-family: 'Inter', 'Tajawal', 'Segoe UI', Arial, sans-serif;
+      font-family: 'Computer Modern Serif', 'STIX Two Text', 'Times New Roman', Georgia, serif;
       margin: 0;
       padding: 0;
-      color: #000;
-      background: #fff;
+      color: #0f172a;
+      background: #e2e8f0;
+      font-size: 11pt;
+      line-height: 1.62;
+    }
+
+    .screen-toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 9999;
+      background: #0f172a;
+      color: #fff;
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-family: 'Tajawal', 'Cairo', system-ui, sans-serif;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.2);
+    }
+
+    .screen-toolbar button {
+      background: #ffffff;
+      color: #005086;
+      border: none;
+      padding: 7px 16px;
+      border-radius: 8px;
+      font-weight: 800;
       font-size: 13px;
-      line-height: 1.45;
+      cursor: pointer;
     }
-    .ne-page {
+
+    .ne-sheet {
+      width: 210mm;
+      max-width: 100%;
+      margin: 18px auto;
+      background: #ffffff;
+      padding: 12mm 14mm;
+      box-shadow: 0 10px 35px rgba(15, 23, 42, 0.14);
+    }
+
+    .ne-box {
+      border: 1.5px solid #0f172a;
+    }
+
+    .ne-table {
+      border-collapse: collapse;
       width: 100%;
-      box-sizing: border-box;
+      font-size: 10.5pt;
     }
-    .ne-box { border: 1.5px solid #000; box-sizing: border-box; }
-    .ne-table { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
-    .ne-table td, .ne-table th { border: 1.5px solid #000; padding: 7px 10px; text-align: center; }
-    .ne-q-box { border: 1.5px solid #000; margin-bottom: 12px; display: flex; width: 100%; box-sizing: border-box; min-height: 54px; page-break-inside: avoid; }
-    .ne-q-points { width: 85px; border-right: 1.5px solid #000; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.95rem; background: #fff; text-align: center; padding: 6px; flex-shrink: 0; }
-    .ne-q-content { flex: 1; padding: 10px 14px; font-size: 0.95rem; display: flex; flex-direction: column; justify-content: center; border-right: 1.5px solid #000; }
-    .ne-q-qr { width: 85px; display: flex; align-items: center; justify-content: center; background: #fff; padding: 4px; flex-shrink: 0; }
-    .ne-q-qr img { width: 75px; height: 75px; object-fit: contain; }
-    .page-break { page-break-before: always; }
+
+    .ne-table td, .ne-table th {
+      border: 1.25px solid #0f172a;
+      padding: 7px 10px;
+      text-align: center;
+    }
+
+    .ne-section-title {
+      text-align: center;
+      font-size: 12pt;
+      font-weight: 700;
+      margin: 0 0 10px 0;
+    }
+
+    .ne-section-title > span {
+      border-bottom: 1.5px solid #0f172a;
+      padding-bottom: 2px;
+      display: inline-block;
+    }
+
+    .ne-ex-block {
+      margin-bottom: 16px;
+    }
+
+    .ne-ex-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      border-bottom: 1.5px solid #0f172a;
+      padding-bottom: 4px;
+      margin: 14px 0 8px 0;
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+
+    .ne-ex-title {
+      font-size: 12.2pt;
+      font-weight: 700;
+      color: #0f172a;
+      margin: 0;
+    }
+
+    .ne-ex-points {
+      font-size: 10.5pt;
+      font-weight: 700;
+      color: #005086;
+      white-space: nowrap;
+      margin-left: 12px;
+    }
+
+    .ne-intro-p {
+      font-size: 10.8pt;
+      line-height: 1.62;
+      margin: 5px 0 8px 0;
+      color: #111827;
+      text-align: justify;
+    }
+
+    .ne-q-box {
+      border: 1px solid #334155;
+      border-radius: 3px;
+      margin-bottom: 6px;
+      display: flex;
+      width: 100%;
+      min-height: 40px;
+      break-inside: avoid;
+      page-break-inside: avoid;
+      background: #ffffff;
+    }
+
+    .ne-q-points {
+      width: 66px;
+      border-right: 1px solid #334155;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 9.5pt;
+      background: #f8fafc;
+      color: #0f172a;
+      text-align: center;
+      padding: 4px;
+      flex-shrink: 0;
+    }
+
+    .ne-q-content {
+      flex: 1;
+      padding: 7px 11px;
+      font-size: 10.6pt;
+      line-height: 1.64;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      overflow-wrap: anywhere;
+    }
+
+    .ne-q-qr {
+      width: 52px;
+      border-left: 1px solid #334155;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #ffffff;
+      padding: 3px;
+      flex-shrink: 0;
+    }
+
+    .ne-q-qr img {
+      width: 42px;
+      height: 42px;
+      object-fit: contain;
+    }
+
+    .ne-prob-table {
+      border-collapse: collapse;
+      font-size: 10.2pt;
+    }
+
+    .ne-prob-table td {
+      border: 1px solid #0f172a;
+      padding: 5px 14px;
+      text-align: center;
+    }
+
+    .ne-sol-box {
+      border-left: 3px solid #059669;
+      background: #f0fdf4;
+      padding: 8px 12px;
+      margin: 4px 0 10px 0;
+      font-size: 10.2pt;
+      line-height: 1.58;
+      color: #064e3b;
+      border-radius: 0 4px 4px 0;
+      break-inside: avoid;
+    }
+
+    .ne-page-break {
+      page-break-before: always;
+      break-before: page;
+    }
+
+    .ne-running-banner {
+      display: grid;
+      grid-template-columns: 90px 1fr 90px;
+      border: 1.25px solid #0f172a;
+      margin-bottom: 14px;
+      padding: 5px 0;
+      align-items: center;
+      background: #f8fafc;
+    }
+
+    /* Respect natural TeX proportions in KaTeX */
     .katex {
-      font-size: 1.0em !important;
+      font-size: 1.02em;
     }
-    .katex .msupsub {
-      font-size: 1.0em !important;
+    .katex-display {
+      margin: 0.45em 0;
     }
-    .katex .msupsub .sizing.size3,
-    .katex .msupsub .sizing.reset-size6.size3,
-    .katex .msupsub .vlist-t:not(.vlist-t2) .sizing.size3,
-    .katex .msupsub .vlist-t:not(.vlist-t2) .sizing.reset-size6.size3,
-    .katex .msupsub .vlist-t.vlist-t2 span[style*="top:-3"] .sizing.size3,
-    .katex .msupsub .vlist-t.vlist-t2 span[style*="top:-3"] .sizing.reset-size6.size3,
-    .katex .msupsub .vlist-t .sizing.size3,
-    .katex .msupsub .vlist-t .sizing.reset-size6.size3 {
-      font-size: 0.70em !important;
-    }
-    .katex .msupsub .sizing > span,
-    .katex .msupsub .sizing .mord,
-    .katex .msupsub .sizing .mtight {
-      font-size: inherit !important;
-    }
-    .katex .sqrt > .root {
-      font-size: 1.0em !important;
-    }
-    .katex .sqrt > .root .sizing,
-    .katex .sqrt > .root .sizing.size1,
-    .katex .sqrt > .root .sizing.reset-size6.size1,
-    .katex .sizing.reset-size6.size1,
-    .katex .fontsize-ensurer.reset-size6.size1 {
-      font-size: 0.58em !important;
-    }
-    .katex .sqrt > .root .sizing > span,
-    .katex .sqrt > .root .sizing .mord,
-    .katex .sqrt > .root .sizing .mtight {
-      font-size: inherit !important;
+
+    @media print {
+      body {
+        background: #ffffff;
+      }
+      .screen-toolbar {
+        display: none !important;
+      }
+      .ne-sheet {
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        box-shadow: none;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="ne-page">
-    <!-- PAGE 1 COVER -->
-    <div class="ne-box" style="display: grid; grid-template-columns: 130px 1fr 210px; height: 142px; margin-bottom: 14px;">
-      <div style="border-right: 1.5px solid #000; text-align: center; padding: 6px; display: flex; flex-direction: column; justify-content: center;">
-        <div style="font-size: 1.05rem; font-weight: bold; margin-bottom: 8px; font-family: 'Tajawal', sans-serif;">الصفحة</div>
-        <div style="font-size: 1.8rem; font-weight: 900; line-height: 1;">1</div>
-        <div style="width: 36px; height: 1.5px; background: #000; margin: 5px auto;"></div>
-        <div style="font-size: 1.35rem; font-weight: bold;">${totalPages}</div>
+
+  <div class="screen-toolbar">
+    <div style="font-weight: 800; font-size: 14px;">
+      🇲🇦 Examen National du Baccalauréat — ${escapeHtml(code)} ${showSolutions ? '(Avec Corrigé)' : ''}
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <button type="button" onclick="window.print()">🖨️ Imprimer / Enregistrer PDF</button>
+      <button type="button" onclick="window.close()" style="background: rgba(255,255,255,0.16); color: #fff; border: 1px solid rgba(255,255,255,0.35);">Fermer</button>
+    </div>
+  </div>
+
+  <div class="ne-sheet">
+    <!-- ── PAGE 1 : OFFICIAL COVER HEADER & METADATA ── -->
+    <div class="ne-box" style="display: grid; grid-template-columns: 112px 1fr 220px; min-height: 136px; margin-bottom: 14px;">
+      <div style="border-right: 1.5px solid #0f172a; text-align: center; padding: 8px; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+        <div style="font-size: 10.5pt; font-weight: 800; margin-bottom: 6px; font-family: 'Tajawal', sans-serif;" dir="rtl">الصفحة</div>
+        <div style="font-size: 20pt; font-weight: 900; line-height: 1;">1</div>
+        <div style="width: 34px; height: 1.5px; background: #0f172a; margin: 5px auto;"></div>
+        <div style="font-size: 9pt; font-weight: 700; color: #334155; font-family: 'Tajawal', sans-serif;" dir="rtl">الموضوع</div>
       </div>
-      <div style="border-right: 1.5px solid #000; text-align: center; padding: 8px; display: flex; flex-direction: column; justify-content: center;">
-        <h1 style="font-size: 1.4rem; font-weight: 900; margin: 0 0 6px 0; font-family: 'Tajawal', sans-serif;">الامتحان الوطني الموحد للبكالوريا</h1>
-        <h2 style="font-size: 1.1rem; font-weight: 700; margin: 0; font-family: 'Tajawal', sans-serif;">- ${escapeHtml(session)} -</h2>
+
+      <div style="border-right: 1.5px solid #0f172a; text-align: center; padding: 10px 12px; display: flex; flex-direction: column; justify-content: center;" dir="rtl">
+        <h1 style="font-size: 15.5pt; font-weight: 900; margin: 0 0 6px 0; font-family: 'Tajawal', sans-serif; color: #0f172a;">الامتحان الوطني الموحد للبكالوريا</h1>
+        <h2 style="font-size: 11.5pt; font-weight: 700; margin: 0; font-family: 'Tajawal', sans-serif; color: #1e293b;">- ${escapeHtml(session)} -</h2>
       </div>
-      <div style="position: relative; text-align: center; padding: 6px; display: flex; flex-direction: column; justify-content: center; align-items: center;">
-        <div style="position: absolute; top:0; left:0; width:36px; height:36px; clip-path: polygon(0 0, 100% 0, 0 100%); background:#000; display:flex; align-items:flex-start; justify-content:flex-start; padding:2px 0 0 5px;">
-          <span style="color:#fff; font-size:0.85rem; font-weight:900; line-height:1;">${subjectNumber}</span>
-        </div>
-        <svg width="44" height="44" viewBox="0 0 100 100" fill="none">
-          <circle cx="50" cy="50" r="46" stroke="#000" stroke-width="2" fill="none" />
-          <path d="M40 22 Q50 14 60 22 L57 26 Q50 19 43 26 Z" fill="#000" />
-          <circle cx="50" cy="15" r="2.5" fill="#000" />
-          <path d="M34 30 Q50 32 66 30 Q66 58 50 68 Q34 58 34 30 Z" stroke="#000" stroke-width="2" fill="#fff" />
-          <path d="M50 36 L53 44 L61 44 L55 49 L57 57 L50 52 L43 57 L45 49 L39 44 L47 44 Z" stroke="#000" stroke-width="1.5" fill="#000" fill-opacity="0.1" />
+
+      <div style="position: relative; text-align: center; padding: 8px 10px; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+        <!-- Crisp SVG corner badge (never loses black fill in print) -->
+        <svg width="36" height="36" viewBox="0 0 36 36" style="position: absolute; top: 0; left: 0;">
+          <polygon points="0,0 36,0 0,36" fill="#0f172a" />
+          <text x="6" y="15" fill="#ffffff" font-family="STIX Two Text, Tajawal, sans-serif" font-size="11" font-weight="800">${escapeHtml(subjectNumber)}</text>
         </svg>
-        <div style="font-weight: bold; font-size: 0.68rem; line-height: 1.2; font-family: 'Tajawal', sans-serif; margin-top: 4px;">
+
+        <svg width="42" height="42" viewBox="0 0 100 100" fill="none">
+          <circle cx="50" cy="50" r="46" stroke="#0f172a" stroke-width="2" fill="none" />
+          <path d="M40 22 Q50 14 60 22 L57 26 Q50 19 43 26 Z" fill="#0f172a" />
+          <circle cx="50" cy="15" r="2.5" fill="#0f172a" />
+          <path d="M34 30 Q50 32 66 30 Q66 58 50 68 Q34 58 34 30 Z" stroke="#0f172a" stroke-width="2" fill="#fff" />
+          <path d="M50 36 L53 44 L61 44 L55 49 L57 57 L50 52 L43 57 L45 49 L39 44 L47 44 Z" stroke="#0f172a" stroke-width="1.5" fill="#0f172a" fill-opacity="0.12" />
+        </svg>
+        <div style="font-weight: 700; font-size: 7.5pt; line-height: 1.3; font-family: 'Tajawal', sans-serif; margin-top: 4px;" dir="rtl">
           المملكة المغربية<br/>
-          وزارة التربية الوطنية والتعليم الأولية والرياضة<br/>
-          <span style="font-size: 0.62rem; font-weight: normal;">المركز الوطني للامتحانات والتوجيه</span>
+          وزارة التربية الوطنية والتعليم الأولي والرياضة<br/>
+          <span style="font-size: 6.8pt; font-weight: 500; color: #334155;">المركز الوطني للتقويم والامتحانات والتوجيه</span>
         </div>
       </div>
     </div>
 
     <!-- METADATA TABLE -->
-    <table class="ne-table" style="margin-bottom: 22px;">
+    <table class="ne-table" style="margin-bottom: 20px;">
       <tbody>
         <tr>
-          <td style="width: 130px; font-weight: bold; font-size: 1.05rem; background: #fcfcfc;">${escapeHtml(code)}</td>
-          <td style="font-weight: 900; font-size: 1.25rem; font-family: 'Tajawal', sans-serif;">الموضوع</td>
+          <td style="width: 112px; font-weight: 800; font-size: 11pt; background: #f8fafc;">${escapeHtml(code)}</td>
+          <td style="font-weight: 900; font-size: 13pt; font-family: 'Tajawal', sans-serif;" dir="rtl">الموضوع</td>
         </tr>
         <tr>
-          <td style="padding: 6px;">
-            <div style="font-size: 0.75rem; font-family: 'Tajawal', sans-serif;">مدة الإنجاز</div>
-            <div style="font-weight: bold; font-size: 1.1rem;">${escapeHtml(duration)}</div>
+          <td style="padding: 7px;" dir="rtl">
+            <div style="font-size: 8pt; font-family: 'Tajawal', sans-serif; color: #475569;">مدة الإنجاز</div>
+            <div style="font-weight: 800; font-size: 11pt; font-family: 'Tajawal', sans-serif;">${escapeHtml(duration)}</div>
           </td>
-          <td style="font-weight: bold; font-size: 1.1rem; text-align: center; padding: 6px; font-family: 'Tajawal', 'Inter', sans-serif;">
-            <div style="font-size: 0.75rem; font-weight: normal; margin-bottom: 2px;">المادة</div>
+          <td style="font-weight: 800; font-size: 11.5pt; text-align: center; padding: 7px; font-family: 'Tajawal', sans-serif;" dir="${isArabicStr(subject) ? 'rtl' : 'ltr'}">
+            <div style="font-size: 8pt; font-weight: 500; color: #475569; margin-bottom: 2px;" dir="rtl">المادة</div>
             ${escapeHtml(subject)}
           </td>
         </tr>
         <tr>
-          <td style="padding: 6px;">
-            <div style="font-size: 0.75rem; font-family: 'Tajawal', sans-serif;">المعامل</div>
-            <div style="font-weight: bold; font-size: 1.1rem;">${escapeHtml(coeff)}</div>
+          <td style="padding: 7px;" dir="rtl">
+            <div style="font-size: 8pt; font-family: 'Tajawal', sans-serif; color: #475569;">المعامل</div>
+            <div style="font-weight: 800; font-size: 11pt; font-family: 'Tajawal', sans-serif;">${escapeHtml(coeff)}</div>
           </td>
-          <td style="font-weight: bold; font-size: 0.95rem; text-align: center; padding: 6px; font-family: 'Tajawal', 'Inter', sans-serif;">
-            <div style="font-size: 0.75rem; font-weight: normal; margin-bottom: 2px;">الشعبة والمسلك</div>
+          <td style="font-weight: 700; font-size: 10.2pt; text-align: center; padding: 7px; font-family: 'Tajawal', sans-serif;" dir="${isArabicStr(branch) ? 'rtl' : 'ltr'}">
+            <div style="font-size: 8pt; font-weight: 500; color: #475569; margin-bottom: 2px;" dir="rtl">الشعبة والمسلك</div>
             ${escapeHtml(branch)}
           </td>
         </tr>
@@ -279,24 +448,26 @@ export const generateNationalExamHTML = async (examData, settings = {}) => {
     </table>
 
     <!-- INSTRUCTIONS -->
-    <div style="margin-bottom: 22px;">
-      <h3 style="text-align: center; font-size: 1.1rem; font-weight: bold; margin: 0 0 10px 0; text-decoration: underline;">Instructions générales</h3>
-      <ul style="margin: 0; padding-left: 24px; font-size: 0.92rem; line-height: 1.5;">
-        ${instructions.map(i => `<li style="margin-bottom: 4px;">${escapeHtml(i)}</li>`).join('')}
+    <div style="margin-bottom: 20px;">
+      <h3 class="ne-section-title"><span>Instructions générales</span></h3>
+      <ul style="margin: 0; padding-left: 24px; font-size: 10.8pt; line-height: 1.58;">
+        ${instructions.map(i => `<li style="margin-bottom: 4px;" dir="${isArabicStr(i) ? 'rtl' : 'ltr'}">${formatRichMathHtml(i)}</li>`).join('')}
       </ul>
     </div>
 
     <!-- COMPOSANTES DU SUJET -->
-    <div style="margin-bottom: 22px;">
-      <h3 style="text-align: center; font-size: 1.1rem; font-weight: bold; margin: 0 0 8px 0; text-decoration: underline;">Composantes du sujet</h3>
-      <p style="font-size: 0.9rem; margin-bottom: 12px; line-height: 1.4;">L'épreuve est composée de trois exercices et d'un problème, indépendants entre eux, et répartis selon les domaines comme suit :</p>
-      <table class="ne-table" style="font-size: 0.92rem;">
+    <div style="margin-bottom: 20px;">
+      <h3 class="ne-section-title"><span>Composantes du sujet</span></h3>
+      <p style="font-size: 10.6pt; margin: 0 0 10px 0; line-height: 1.55;">
+        L&apos;épreuve est composée des exercices et du problème suivants, indépendants entre eux, et répartis selon les domaines comme suit :
+      </p>
+      <table class="ne-table" style="font-size: 10.4pt;">
         <tbody>
           ${components.map(c => `
             <tr>
-              <td style="width: 140px; font-weight: bold; text-align: left; padding-left: 12px;">${escapeHtml(c.name)}</td>
-              <td style="text-align: left; padding-left: 12px;">${escapeHtml(c.topic)}</td>
-              <td style="width: 110px; font-weight: bold;">${escapeHtml(c.points)}</td>
+              <td style="width: 140px; font-weight: 700; text-align: left; padding-left: 12px;" dir="${isArabicStr(c.name) ? 'rtl' : 'ltr'}">${escapeHtml(c.name)}</td>
+              <td style="text-align: left; padding-left: 12px;" dir="${isArabicStr(c.topic) ? 'rtl' : 'ltr'}">${escapeHtml(c.topic)}</td>
+              <td style="width: 110px; font-weight: 700;" dir="${isArabicStr(c.points) ? 'rtl' : 'ltr'}">${escapeHtml(c.points)}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -304,76 +475,125 @@ export const generateNationalExamHTML = async (examData, settings = {}) => {
     </div>
 
     <!-- NOTATIONS -->
-    <div style="margin-bottom: 28px;">
-      <h3 style="text-align: center; font-size: 1.1rem; font-weight: bold; margin: 0 0 8px 0; text-decoration: underline;">Notations</h3>
-      <ul style="margin: 0; padding-left: 24px; font-size: 0.92rem; line-height: 1.5;">
-        ${notations.map(n => `<li style="margin-bottom: 4px;">${escapeHtml(n)}</li>`).join('')}
+    <div style="margin-bottom: 18px;">
+      <h3 class="ne-section-title"><span>Notations</span></h3>
+      <ul style="margin: 0; padding-left: 24px; font-size: 10.8pt; line-height: 1.58;">
+        ${notations.map(n => `<li style="margin-bottom: 4px;" dir="${isArabicStr(n) ? 'rtl' : 'ltr'}">${formatRichMathHtml(n)}</li>`).join('')}
       </ul>
     </div>
 
-    <!-- EXERCISES -->
-    ${exercises.map((ex, eIdx) => {
-      const titleHasPoints = ex.title.toLowerCase().includes('point') || ex.title.toLowerCase().includes('pt');
-      const titlePointsSuffix = (ex.points && !titleHasPoints) ? ` (${escapeHtml(ex.points)})` : '';
-
-      return `
-        <div class="page-break" style="margin-top: 28px;">
-          <div class="ne-box" style="display: grid; grid-template-columns: 110px 1fr 100px; height: 48px; margin-bottom: 18px; align-items: center;">
-            <div style="border-right: 1.5px solid #000; text-align: center; font-weight: bold; font-size: 0.88rem;">
-              <div style="font-family: 'Tajawal', sans-serif;">الصفحة</div>
-              <div>${eIdx + 2} / ${totalPages}</div>
-            </div>
-            <div style="border-right: 1.5px solid #000; text-align: center; padding: 0 8px;">
-              <div style="font-size: 0.78rem; font-weight: bold; font-family: 'Tajawal', sans-serif;">موضوع الامتحان الوطني الموحد للبكالوريا - ${escapeHtml(session)}</div>
-              <div style="font-size: 0.72rem; font-family: 'Tajawal', 'Inter', sans-serif;">مادة : ${escapeHtml(subject)} - ${escapeHtml(branch)}</div>
-            </div>
-            <div style="text-align: center; font-weight: bold; font-size: 0.88rem;">${escapeHtml(code)}</div>
+    <!-- ── PAGES 2+ : EXERCISES (Natural flow without half-empty page breaks) ── -->
+    ${exercises.length > 0 ? `
+      <div class="ne-page-break">
+        <div class="ne-running-banner">
+          <div style="border-right: 1.25px solid #0f172a; text-align: center; font-weight: 800; font-size: 9.5pt;">${escapeHtml(code)}</div>
+          <div style="text-align: center; padding: 0 10px;" dir="rtl">
+            <div style="font-size: 9pt; font-weight: 800; font-family: 'Tajawal', sans-serif;">موضوع الامتحان الوطني الموحد للبكالوريا — ${escapeHtml(session)}</div>
+            <div style="font-size: 8pt; color: #334155; font-family: 'Tajawal', sans-serif;">مادة : ${escapeHtml(subject)} — ${escapeHtml(branch)}</div>
           </div>
-
-          <div style="margin-bottom: 12px;">
-            <h3 style="font-size: 1.12rem; font-weight: 900; text-decoration: underline; margin: 0 0 8px 0;">
-              ${escapeHtml(ex.title)}${titlePointsSuffix} :
-            </h3>
-            ${ex.preamble ? `<div style="font-size: 0.95rem; margin-bottom: 12px; line-height: 1.55;">${escapeHtml(ex.preamble)}</div>` : ''}
-          </div>
-
-          ${(ex.items || []).map((q, qIdx) => {
-            const qrKey = `ex${eIdx}_q${qIdx}`;
-            const qrUrl = qrCodeUrls[qrKey] || '';
-            const qPts = q.points || q.pts || '0.5 pt';
-            const qLabel = q.number || q.label || q.index || `${qIdx + 1}.`;
-            const qText = typeof q === 'string' ? q : (q.text || q.question || q.content || '');
-
-            return `
-              <div class="ne-q-box">
-                <div class="ne-q-points">${escapeHtml(qPts)}</div>
-                <div class="ne-q-content">
-                  <div><strong style="margin-right: 6px; font-size: 0.98rem;">${escapeHtml(qLabel)}</strong> ${escapeHtml(qText)}</div>
-                </div>
-                <div class="ne-q-qr">
-                  ${qrUrl ? `<img src="${qrUrl}" alt="QR" />` : ''}
-                </div>
-              </div>
-            `;
-          }).join('')}
+          <div style="border-left: 1.25px solid #0f172a; text-align: center; font-weight: 800; font-size: 9pt; font-family: 'Tajawal', sans-serif;" dir="rtl">الموضوع</div>
         </div>
-      `;
-    }).join('')}
+
+        ${exercises.map((ex, eIdx) => {
+          const titleHasPoints = /point|pt|نقط/i.test(ex.title);
+          const blocks = ex.blocks || [];
+
+          return `
+            <section class="ne-ex-block">
+              <div class="ne-ex-head" dir="${isArabicStr(ex.title) ? 'rtl' : 'ltr'}">
+                <h3 class="ne-ex-title">${escapeHtml(ex.title)}</h3>
+                ${(ex.points && !titleHasPoints) ? `<span class="ne-ex-points">(${escapeHtml(ex.points)})</span>` : ''}
+              </div>
+
+              ${blocks.map((blk, bIdx) => {
+                if (blk.kind === 'table') {
+                  return renderGridTable(blk);
+                }
+
+                if (blk.kind === 'text') {
+                  return `<div class="ne-intro-p" dir="${isArabicStr(blk.text) ? 'rtl' : 'ltr'}">${formatRichMathHtml(blk.text)}</div>`;
+                }
+
+                // Graded question block
+                const qrUrl = qrCodeUrls[`ex${eIdx}_b${bIdx}`] || '';
+                const ptsDisplay = blk.points ? escapeHtml(blk.points) : '&mdash;';
+
+                return `
+                  <div class="ne-q-box">
+                    <div class="ne-q-points">${ptsDisplay}</div>
+                    <div class="ne-q-content" dir="${isArabicStr(blk.text) ? 'rtl' : 'ltr'}">
+                      <div>${blk.number ? `<strong style="margin-right: 6px;">${escapeHtml(blk.number)}</strong>` : ''}${formatRichMathHtml(blk.text)}</div>
+                    </div>
+                    ${showQR ? `
+                      <div class="ne-q-qr">
+                        ${qrUrl ? `<img src="${qrUrl}" alt="QR" />` : ''}
+                      </div>
+                    ` : ''}
+                  </div>
+                  ${showSolutions && blk.solution ? `
+                    <div class="ne-sol-box" dir="${isArabicStr(blk.solution) ? 'rtl' : 'ltr'}">
+                      <strong>Corrigé :</strong> ${formatRichMathHtml(blk.solution)}
+                    </div>
+                  ` : ''}
+                `;
+              }).join('')}
+
+              ${showSolutions && ex.solution ? `
+                <div class="ne-sol-box" dir="${isArabicStr(ex.solution) ? 'rtl' : 'ltr'}">
+                  <strong style="display:block; margin-bottom:3px;">📖 Éléments de réponse / Corrigé détaillé :</strong>
+                  ${formatRichMathHtml(ex.solution)}
+                </div>
+              ` : ''}
+            </section>
+          `;
+        }).join('')}
+      </div>
+    ` : ''}
   </div>
+
+  <script>
+    (function () {
+      function renderAllMath() {
+        if (typeof window.renderMathInElement === 'function') {
+          try {
+            window.renderMathInElement(document.body, {
+              delimiters: [
+                { left: '$$', right: '$$', display: true },
+                { left: '$', right: '$', display: false },
+                { left: '\\\\(', right: '\\\\)', display: false },
+                { left: '\\\\[', right: '\\\\]', display: true }
+              ],
+              strict: 'ignore',
+              throwOnError: false,
+              ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+            });
+          } catch (e) { console.warn('KaTeX render warning:', e); }
+        }
+      }
+
+      window.addEventListener('load', function () {
+        renderAllMath();
+        var fontReady = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
+        fontReady.then(function () {
+          renderAllMath();
+          setTimeout(function () {
+            try { window.print(); } catch (_) {}
+          }, 350);
+        });
+      });
+    })();
+  </script>
 </body>
-</html>
-  `;
+</html>`;
 };
 
 export const openNationalExamPrintWindow = async (examData, settings = {}) => {
   const html = await generateNationalExamHTML(examData, settings);
   const win = window.open('', '_blank');
   if (win) {
+    win.document.open();
     win.document.write(html);
     win.document.close();
     win.focus();
-    setTimeout(() => {
-      win.print();
-    }, 800);
   }
 };

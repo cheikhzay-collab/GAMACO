@@ -1,305 +1,236 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import QRCode from 'qrcode';
 import { renderWithMath } from '../utils/mathRenderer';
+import { parseNationalExamExercise, extractNationalExamMeta } from '../utils/nationalExamHelpers';
 
 // High-precision Moroccan Emblem Coat of Arms SVG Icon
 const MoroccanEmblemSVG = () => (
-  <svg width="44" height="44" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="50" cy="50" r="46" stroke="#000000" strokeWidth="2" fill="none" />
-    <path d="M40 22 Q50 14 60 22 L57 26 Q50 19 43 26 Z" fill="#000000" />
-    <circle cx="50" cy="15" r="2.5" fill="#000000" />
-    <path d="M34 30 Q50 32 66 30 Q66 58 50 68 Q34 58 34 30 Z" stroke="#000000" strokeWidth="2" fill="#ffffff" />
-    <path d="M50 36 L53 44 L61 44 L55 49 L57 57 L50 52 L43 57 L45 49 L39 44 L47 44 Z" stroke="#000000" strokeWidth="1.5" fill="#000000" fillOpacity="0.1" />
-    <circle cx="50" cy="30" r="3" fill="#000000" />
-    <path d="M50 25 L50 21 M44 26 L41 23 M56 26 L59 23" stroke="#000000" strokeWidth="1.5" />
-    <path d="M30 74 Q50 80 70 74 Q60 84 50 82 Q40 84 30 74 Z" stroke="#000000" strokeWidth="1.5" fill="#000000" />
+  <svg width="42" height="42" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="50" cy="50" r="46" stroke="#0f172a" strokeWidth="2" fill="none" />
+    <path d="M40 22 Q50 14 60 22 L57 26 Q50 19 43 26 Z" fill="#0f172a" />
+    <circle cx="50" cy="15" r="2.5" fill="#0f172a" />
+    <path d="M34 30 Q50 32 66 30 Q66 58 50 68 Q34 58 34 30 Z" stroke="#0f172a" strokeWidth="2" fill="#ffffff" />
+    <path d="M50 36 L53 44 L61 44 L55 49 L57 57 L50 52 L43 57 L45 49 L39 44 L47 44 Z" stroke="#0f172a" strokeWidth="1.5" fill="#0f172a" fillOpacity="0.12" />
+    <circle cx="50" cy="30" r="3" fill="#0f172a" />
+    <path d="M50 25 L50 21 M44 26 L41 23 M56 26 L59 23" stroke="#0f172a" strokeWidth="1.5" />
+    <path d="M30 74 Q50 80 70 74 Q60 84 50 82 Q40 84 30 74 Z" stroke="#0f172a" strokeWidth="1.5" fill="#0f172a" />
   </svg>
 );
 
-// Helper to clean markdown & LaTeX strings
-const cleanLatexStr = (str) => {
-  if (!str || typeof str !== 'string') return '';
-  return str
-    .replace(/\\n(?!(?:eq|ne|notin|nabla|nsubseteq|nsupseteq|nexists|nparallel|natural|nearrow|nwarrow|ni|not|neg)\b)([A-ZÀ-ÖØ-ß])/g, '\n $1') // Fix \nSoit -> \n Soit
-    .replace(/(?<![a-zA-Z\\])otin(?=[\\\{\sA-Z0-9\(\[]|$)/g, '\\notin ') // Fix corrupted \notin (otin -> \notin)
-    .replace(/\\\\([a-zA-Z]+)/g, '\\$1') // Fix \\overrightarrow -> \overrightarrow
-    .replace(/\*\*/g, '') // Strip markdown **
-    .trim();
-};
+const isArabicStr = (s) => /[\u0600-\u06FF]/.test(String(s || ''));
 
-// Helper to parse exercise text, titles, points and sub-questions
-const parseExercise = (sec, idx) => {
-  let rawTitle = sec.title || sec.name || `Exercice ${idx + 1}`;
-  let cleanTitle = rawTitle.replace(/\*\*/g, '').replace(/:\s*$/, '').trim();
-
-  let points = sec.points ? `${sec.points} points` : '';
-  let rawContent = sec.content || sec.description || sec.intro || '';
-  let rawItems = sec.items || sec.questions || sec.sub_questions || [];
-
-  let preamble = '';
-  let items = [];
-
-  if (Array.isArray(rawItems) && rawItems.length > 1) {
-    preamble = cleanLatexStr(rawContent);
-    items = rawItems.map((it, qIdx) => {
-      const qText = typeof it === 'string' ? it : (it.text || it.question || it.content || '');
-      const qLabel = it.number || it.label || it.index || `${qIdx + 1}.`;
-      let qPoints = it.points || it.pts || '';
-      let cleanText = cleanLatexStr(qText);
-      const ptMatch = cleanText.match(/\(\s*(\d+(?:[\.,]\d+)?)\s*(?:pt|pts|ن|نقطة)\s*\)/i);
-      if (ptMatch) {
-        if (!qPoints) qPoints = `${ptMatch[1]} pt`;
-        cleanText = cleanText.replace(ptMatch[0], '').trim();
-      }
-      if (!qPoints) qPoints = '0.5 pt';
-      return { number: qLabel, points: qPoints, text: cleanText, solution: it.solution || it.answer || '' };
-    });
-  } else {
-    // Single text block — split preamble and sub-questions dynamically
-    const fullText = (rawContent + ' ' + (rawItems[0]?.text || rawItems[0] || '')).trim();
-    
-    // Pattern to match sub-question markers like 1.a. , 1.b. , 2.a. , 1. , 2.
-    const qMarkerRegex = /(?:\*\*|\s|^)(\d+\.[a-z]\.|\d+\.|\b[a-z]\.)(?:\*\*|\s)/gi;
-    
-    let matches = [];
-    let match;
-    while ((match = qMarkerRegex.exec(fullText)) !== null) {
-      matches.push({ index: match.index, label: match[1].trim(), length: match[0].length });
-    }
-
-    if (matches.length > 0) {
-      preamble = cleanLatexStr(fullText.slice(0, matches[0].index));
-      for (let i = 0; i < matches.length; i++) {
-        const curr = matches[i];
-        const nextIndex = i + 1 < matches.length ? matches[i + 1].index : fullText.length;
-        let segment = fullText.slice(curr.index + curr.length, nextIndex).trim();
-
-        let qPoints = '0.5 pt';
-        const ptMatch = segment.match(/\(\s*(\d+(?:[\.,]\d+)?)\s*(?:pt|pts|ن|نقطة)\s*\)/i);
-        if (ptMatch) {
-          qPoints = `${ptMatch[1]} pt`;
-          segment = segment.replace(ptMatch[0], '').trim();
-        }
-
-        items.push({
-          number: curr.label,
-          points: qPoints,
-          text: cleanLatexStr(segment),
-          solution: ''
-        });
-      }
-    } else {
-      preamble = cleanLatexStr(fullText);
-    }
+const renderGridTable = (blk, key) => {
+  const cells = Array.isArray(blk.grid_items) ? blk.grid_items : [];
+  if (cells.length === 0) return null;
+  const rowLen = cells.length >= 6 && cells.length % 2 === 0 ? cells.length / 2 : Math.max(2, Number(blk.cols) || 4);
+  const rows = [];
+  for (let i = 0; i < cells.length; i += rowLen) {
+    rows.push(cells.slice(i, i + rowLen));
   }
-
-  return { title: cleanTitle, points, preamble, items };
+  return (
+    <div key={key} style={{ margin: '10px 0 14px', display: 'flex', justifyContent: 'center', overflowX: 'auto' }}>
+      <table style={{ borderCollapse: 'collapse', fontSize: '10.2pt' }}>
+        <tbody>
+          {rows.map((r, rIdx) => (
+            <tr key={rIdx}>
+              {r.map((cell, cIdx) => (
+                <td
+                  key={cIdx}
+                  style={{
+                    border: '1px solid #0f172a',
+                    padding: '6px 14px',
+                    textAlign: 'center',
+                    minWidth: '52px',
+                    fontWeight: cIdx === 0 || rIdx === 0 ? 700 : 400,
+                    backgroundColor: cIdx === 0 || rIdx === 0 ? '#f8fafc' : '#ffffff',
+                  }}
+                >
+                  {cell ? renderWithMath(String(cell)) : '\u00A0'}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 };
 
 export default function NationalExamTemplate({ examData, solutionMode = false }) {
   const [qrCodeUrls, setQrCodeUrls] = useState({});
 
-  // Safely extract metadata from examData
-  const meta = examData?.header?.national_exam_meta || examData?.national_exam_meta || {};
+  const {
+    session,
+    subject,
+    branch,
+    code,
+    duration,
+    coeff,
+    subjectNumber,
+    instructions,
+    components,
+    notations,
+  } = useMemo(() => extractNationalExamMeta(examData), [examData]);
 
-  const year = meta.year || '2026';
-  const session = meta.session || `الدورة العادية ${year}`;
-  const subject = meta.subject || examData?.header?.subject || 'الرياضيات';
-  const branch = meta.branch || examData?.header?.level || 'مسلك علوم الحياة والأرض ومسلك العلوم الفيزيائية (خيار فرنسية)';
-  const code = meta.code || 'NS 22F';
-  const duration = meta.duration || '3س';
-  const coeff = meta.coefficient || '7';
-  const subjectNumber = meta.subject_number || '3';
-  const totalPages = meta.total_pages || 8;
+  const exercises = useMemo(() => {
+    const rawSections = examData?.sections || examData?.items || examData?.questions || [];
+    if (!Array.isArray(rawSections)) return [];
+    return rawSections
+      .filter(sec => {
+        const t = (sec.title || sec.name || '').toLowerCase().trim();
+        return !t.includes('composante') && !t.includes('instruction') && !t.includes('notation');
+      })
+      .map((sec, idx) => parseNationalExamExercise(sec, idx));
+  }, [examData]);
 
-  const instructions = meta.general_instructions || [
-    "L'utilisation d'une calculatrice non programmable est autorisée ;",
-    "Le candidat peut traiter les exercices et le problème suivant l'ordre qui lui convient ;",
-    "Il est recommandé d'éviter l'usage de la couleur rouge dans la rédaction des solutions."
-  ];
-
-  const components = meta.subject_components || [
-    { name: "Exercice 1", topic: "Géométrie dans l'espace", points: "3 points" },
-    { name: "Exercice 2", topic: "Nombres complexes", points: "3.5 points" },
-    { name: "Exercice 3", topic: "Calcul des probabilités", points: "2.5 points" },
-    { name: "Problème", topic: "Etude de fonctions numériques, suites numériques et calcul intégral", points: "11 points" }
-  ];
-
-  const notations = meta.notations || [
-    "On note z̄ le conjugué d'un nombre complexe z, et |z| son module.",
-    "ln désigne la fonction logarithme népérien.",
-    "e est le nombre réel tel que ln(e) = 1."
-  ];
-
-  // Extract raw sections / exercises
-  const rawSections = examData?.sections || examData?.items || examData?.questions || [];
-  
-  // Filter out meta-sections & parse each exercise cleanly
-  const exercises = Array.isArray(rawSections) ? rawSections
-    .filter(sec => {
-      const t = (sec.title || sec.name || '').toLowerCase().trim();
-      if (t.includes('composante') || t.includes('instruction') || t.includes('notation')) return false;
-      return true;
-    })
-    .map((sec, idx) => parseExercise(sec, idx)) : [];
-
-  // Generate QR codes for questions
+  // Generate compact QR codes for graded questions
   useEffect(() => {
     let active = true;
     const generateQRs = async () => {
       const urls = {};
-      let qIndex = 1;
       for (let eIdx = 0; eIdx < exercises.length; eIdx++) {
         const ex = exercises[eIdx];
-        const qList = ex.items || [];
-        for (let qIdx = 0; qIdx < qList.length; qIdx++) {
-          const q = qList[qIdx];
-          const key = `ex${eIdx}_q${qIdx}`;
-          const payload = q.qr_code_data || q.qr_code_url || `https://lconq.ma/solve?ex=${eIdx + 1}&q=${qIdx + 1}&code=${code}`;
+        const blocks = ex.blocks || [];
+        let qCounter = 0;
+        for (let bIdx = 0; bIdx < blocks.length; bIdx++) {
+          const blk = blocks[bIdx];
+          if (blk.kind !== 'question') continue;
+          qCounter++;
+          const key = `ex${eIdx}_b${bIdx}`;
+          const payload = blk.qr_code_data || blk.qr_code_url || `https://lconq.ma/solve?ex=${eIdx + 1}&q=${qCounter}&code=${encodeURIComponent(code)}`;
           try {
             const url = await QRCode.toDataURL(payload, {
-              width: 100,
+              width: 96,
               margin: 1,
-              color: { dark: '#000000', light: '#ffffff' }
+              color: { dark: '#0f172a', light: '#ffffff' }
             });
             if (active) urls[key] = url;
-          } catch (err) {
-            console.error('QR code generation error:', err);
+          } catch {
+            // ignore QR failure
           }
-          qIndex++;
         }
       }
       if (active) setQrCodeUrls(urls);
     };
     generateQRs();
     return () => { active = false; };
-  }, [examData]);
+  }, [exercises, code]);
 
   return (
-    <div className="national-exam-wrapper" style={{
-      backgroundColor: '#f8fafc',
-      padding: '20px 10px',
-      display: 'flex',
-      justifyContent: 'center'
-    }}>
-      {/* Google Fonts */}
-      <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Tajawal:wght@400;500;700;900&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+    <div
+      className="national-exam-wrapper"
+      dir="ltr"
+      style={{
+        backgroundColor: '#f1f5f9',
+        padding: '20px 10px',
+        display: 'flex',
+        justifyContent: 'center'
+      }}
+    >
+      {/* Authentic Academic & Arabic Fonts */}
+      <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@600;700;800&family=STIX+Two+Text:ital,wght@0,400;0,600;0,700;1,400&family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet" />
+      <link href="https://cdn.jsdelivr.net/gh/dreampulse/computer-modern-web-font@master/fonts.css" rel="stylesheet" />
 
-      <div className="national-exam-container" style={{
-        fontFamily: "'Inter', 'Tajawal', 'Segoe UI', Arial, sans-serif",
-        backgroundColor: '#ffffff',
-        color: '#000000',
-        width: '100%',
-        maxWidth: '820px',
-        padding: '24px 32px',
-        boxSizing: 'border-box',
-        boxShadow: '0 10px 30px rgba(0,0,0,0.08)',
-        border: '1px solid #e2e8f0',
-        borderRadius: '2px',
-        lineHeight: '1.45'
-      }}>
+      <div
+        className="national-exam-container"
+        style={{
+          fontFamily: "'Computer Modern Serif', 'STIX Two Text', 'Times New Roman', Georgia, serif",
+          backgroundColor: '#ffffff',
+          color: '#0f172a',
+          width: '100%',
+          maxWidth: '820px',
+          padding: '28px 34px',
+          boxSizing: 'border-box',
+          boxShadow: '0 10px 30px rgba(0,0,0,0.08)',
+          border: '1px solid #cbd5e1',
+          borderRadius: '2px',
+          fontSize: '11pt',
+          lineHeight: 1.62
+        }}
+      >
         <style>{`
-          .ne-box { border: 1.5px solid #000; box-sizing: border-box; }
-          .ne-table { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
-          .ne-table td, .ne-table th { border: 1.5px solid #000; padding: 7px 10px; text-align: center; }
-          .ne-q-box { border: 1.5px solid #000; margin-bottom: 14px; display: flex; width: 100%; box-sizing: border-box; min-height: 56px; }
-          .ne-q-points { width: 85px; border-right: 1.5px solid #000; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.95rem; background: #fff; text-align: center; padding: 6px; flex-shrink: 0; }
-          .ne-q-content { flex: 1; padding: 10px 14px; font-size: 0.95rem; display: flex; flex-direction: column; justify-content: center; border-right: 1.5px solid #000; }
-          .ne-q-qr { width: 85px; display: flex; align-items: center; justify-content: center; background: #fff; padding: 4px; flex-shrink: 0; }
-          .ne-q-qr img { width: 75px; height: 75px; object-fit: contain; }
+          .ne-box { border: 1.5px solid #0f172a; box-sizing: border-box; }
+          .ne-table { border-collapse: collapse; width: 100%; font-size: 10.4pt; }
+          .ne-table td, .ne-table th { border: 1.25px solid #0f172a; padding: 7px 10px; text-align: center; }
+          .ne-q-box { border: 1px solid #334155; border-radius: 3px; margin-bottom: 7px; display: flex; width: 100%; box-sizing: border-box; min-height: 40px; }
+          .ne-q-points { width: 68px; border-right: 1px solid #334155; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 9.5pt; background: #f8fafc; color: #0f172a; text-align: center; padding: 4px; flex-shrink: 0; }
+          .ne-q-content { flex: 1; padding: 7px 12px; font-size: 10.6pt; line-height: 1.64; display: flex; flex-direction: column; justify-content: center; overflow-wrap: anywhere; }
+          .ne-q-qr { width: 52px; border-left: 1px solid #334155; display: flex; align-items: center; justify-content: center; background: #fff; padding: 3px; flex-shrink: 0; }
+          .ne-q-qr img { width: 42px; height: 42px; object-fit: contain; }
+          .ne-sol-box { border-left: 3px solid #059669; background: #f0fdf4; padding: 8px 12px; margin: 4px 0 10px 0; font-size: 10.2pt; line-height: 1.58; color: #064e3b; border-radius: 0 4px 4px 0; }
+          .ne-ex-head { display: flex; align-items: baseline; justify-content: space-between; border-bottom: 1.5px solid #0f172a; padding-bottom: 4px; margin: 16px 0 8px 0; }
+          .ne-section-title { text-align: center; font-size: 12pt; font-weight: 700; margin: 0 0 10px 0; }
+          .ne-section-title > span { border-bottom: 1.5px solid #0f172a; padding-bottom: 2px; display: inline-block; }
 
           @media print {
             .national-exam-wrapper { background: #fff !important; padding: 0 !important; }
-            .national-exam-container { width: 100% !important; max-width: none !important; padding: 0 !important; boxShadow: none !important; border: none !important; }
-            .ne-page-break { page-break-before: always; margin-top: 24px; }
+            .national-exam-container { width: 100% !important; max-width: none !important; padding: 0 !important; box-shadow: none !important; border: none !important; }
+            .ne-page-break { page-break-before: always; break-before: page; }
           }
         `}</style>
 
         {/* ════════════════════════════════════════════════════════════ */}
         {/* PAGE 1: OFFICIAL COVER & HEADER SHEET */}
         {/* ════════════════════════════════════════════════════════════ */}
-
-        {/* Top Header Grid Box (Page 1) */}
-        <div className="ne-box" style={{ display: 'grid', gridTemplateColumns: '130px 1fr 210px', height: '142px', marginBottom: '14px' }}>
-          
-          {/* Left Column: Page Numbers */}
-          <div style={{ borderRight: '1.5px solid #000', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '6px' }}>
-            <div style={{ fontSize: '1.05rem', fontWeight: 'bold', marginBottom: '8px', fontFamily: "'Tajawal', sans-serif" }}>الصفحة</div>
-            <div style={{ fontSize: '1.8rem', fontWeight: '900', lineHeight: 1 }}>1</div>
-            <div style={{ width: '36px', height: '1.5px', backgroundColor: '#000', margin: '5px 0' }} />
-            <div style={{ fontSize: '1.35rem', fontWeight: 'bold' }}>{totalPages}</div>
+        <div className="ne-box" style={{ display: 'grid', gridTemplateColumns: '112px 1fr 220px', minHeight: '136px', marginBottom: '14px' }}>
+          {/* Left Column: Page 1 Badge */}
+          <div style={{ borderRight: '1.5px solid #0f172a', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '8px' }}>
+            <div style={{ fontSize: '10.5pt', fontWeight: 800, marginBottom: '6px', fontFamily: "'Tajawal', sans-serif" }} dir="rtl">الصفحة</div>
+            <div style={{ fontSize: '20pt', fontWeight: 900, lineHeight: 1 }}>1</div>
+            <div style={{ width: '34px', height: '1.5px', backgroundColor: '#0f172a', margin: '5px 0' }} />
+            <div style={{ fontSize: '9pt', fontWeight: 700, color: '#334155', fontFamily: "'Tajawal', sans-serif" }} dir="rtl">الموضوع</div>
           </div>
 
           {/* Middle Column: Title & Session */}
-          <div style={{ borderRight: '1.5px solid #000', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '10px' }}>
-            <h1 style={{ fontSize: '1.4rem', fontWeight: '900', margin: '0 0 6px 0', fontFamily: "'Tajawal', sans-serif", letterSpacing: '-0.01em' }}>
+          <div style={{ borderRight: '1.5px solid #0f172a', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '10px 12px' }} dir="rtl">
+            <h1 style={{ fontSize: '15.5pt', fontWeight: 900, margin: '0 0 6px 0', fontFamily: "'Tajawal', sans-serif", color: '#0f172a' }}>
               الامتحان الوطني الموحد للبكالوريا
             </h1>
-            <h2 style={{ fontSize: '1.1rem', fontWeight: '700', margin: 0, fontFamily: "'Tajawal', sans-serif" }}>
+            <h2 style={{ fontSize: '11.5pt', fontWeight: 700, margin: 0, fontFamily: "'Tajawal', sans-serif", color: '#1e293b' }}>
               - {session} -
             </h2>
           </div>
 
           {/* Right Column: Emblem & Ministry Text */}
-          <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '6px' }}>
-            {/* Triangular Badge */}
-            <div style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '36px',
-              height: '36px',
-              clipPath: 'polygon(0 0, 100% 0, 0 100%)',
-              backgroundColor: '#000',
-              zIndex: 2,
-              display: 'flex',
-              alignItems: 'flex-start',
-              justifyContent: 'flex-start',
-              padding: '2px 0 0 5px'
-            }}>
-              <span style={{
-                color: '#fff',
-                fontSize: '0.85rem',
-                fontWeight: '900',
-                lineHeight: 1
-              }}>
-                {subjectNumber}
-              </span>
-            </div>
+          <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '8px 10px' }}>
+            <svg width="36" height="36" viewBox="0 0 36 36" style={{ position: 'absolute', top: 0, left: 0 }}>
+              <polygon points="0,0 36,0 0,36" fill="#0f172a" />
+              <text x="6" y="15" fill="#ffffff" fontFamily="STIX Two Text, Tajawal, sans-serif" fontSize="11" fontWeight="800">{subjectNumber}</text>
+            </svg>
 
             <MoroccanEmblemSVG />
-            <div style={{ fontSize: '0.68rem', fontWeight: 'bold', lineHeight: 1.2, marginTop: '4px', fontFamily: "'Tajawal', sans-serif" }}>
+            <div style={{ fontSize: '7.5pt', fontWeight: 700, lineHeight: 1.3, marginTop: '4px', fontFamily: "'Tajawal', sans-serif" }} dir="rtl">
               المملكة المغربية<br />
-              وزارة التربية الوطنية والتعليم الأولية والرياضة<br />
-              <span style={{ fontSize: '0.62rem', fontWeight: 'normal' }}>المركز الوطني للامتحانات والتوجيه</span>
+              وزارة التربية الوطنية والتعليم الأولي والرياضة<br />
+              <span style={{ fontSize: '6.8pt', fontWeight: 500, color: '#334155' }}>المركز الوطني للتقويم والامتحانات والتوجيه</span>
             </div>
           </div>
         </div>
 
         {/* Metadata Grid Table (Page 1) */}
-        <table className="ne-table" style={{ marginBottom: '22px' }}>
+        <table className="ne-table" style={{ marginBottom: '20px' }}>
           <tbody>
             <tr>
-              <td style={{ width: '130px', fontWeight: 'bold', fontSize: '1.05rem', backgroundColor: '#fcfcfc' }}>{code}</td>
-              <td style={{ fontWeight: '900', fontSize: '1.25rem', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: "'Tajawal', sans-serif" }}>الموضوع</td>
+              <td style={{ width: '112px', fontWeight: 800, fontSize: '11pt', backgroundColor: '#f8fafc' }}>{code}</td>
+              <td style={{ fontWeight: 900, fontSize: '13pt', fontFamily: "'Tajawal', sans-serif" }} dir="rtl">الموضوع</td>
             </tr>
             <tr>
-              <td style={{ padding: '6px' }}>
-                <div style={{ fontSize: '0.75rem', fontFamily: "'Tajawal', sans-serif", color: '#222' }}>مدة الإنجاز</div>
-                <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{duration}</div>
+              <td style={{ padding: '7px' }} dir="rtl">
+                <div style={{ fontSize: '8pt', fontFamily: "'Tajawal', sans-serif", color: '#475569' }}>مدة الإنجاز</div>
+                <div style={{ fontWeight: 800, fontSize: '11pt', fontFamily: "'Tajawal', sans-serif" }}>{duration}</div>
               </td>
-              <td style={{ fontWeight: 'bold', fontSize: '1.1rem', textAlign: 'center', padding: '6px', fontFamily: "'Tajawal', 'Inter', sans-serif" }}>
-                <div style={{ fontSize: '0.75rem', fontWeight: 'normal', color: '#222', marginBottom: '2px' }}>المادة</div>
+              <td style={{ fontWeight: 800, fontSize: '11.5pt', textAlign: 'center', padding: '7px', fontFamily: "'Tajawal', sans-serif" }} dir={isArabicStr(subject) ? 'rtl' : 'ltr'}>
+                <div style={{ fontSize: '8pt', fontWeight: 500, color: '#475569', marginBottom: '2px' }} dir="rtl">المادة</div>
                 {subject}
               </td>
             </tr>
             <tr>
-              <td style={{ padding: '6px' }}>
-                <div style={{ fontSize: '0.75rem', fontFamily: "'Tajawal', sans-serif", color: '#222' }}>المعامل</div>
-                <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{coeff}</div>
+              <td style={{ padding: '7px' }} dir="rtl">
+                <div style={{ fontSize: '8pt', fontFamily: "'Tajawal', sans-serif", color: '#475569' }}>المعامل</div>
+                <div style={{ fontWeight: 800, fontSize: '11pt', fontFamily: "'Tajawal', sans-serif" }}>{coeff}</div>
               </td>
-              <td style={{ fontWeight: 'bold', fontSize: '0.95rem', textAlign: 'center', padding: '6px', fontFamily: "'Tajawal', 'Inter', sans-serif" }}>
-                <div style={{ fontSize: '0.75rem', fontWeight: 'normal', color: '#222', marginBottom: '2px' }}>الشعبة والمسلك</div>
+              <td style={{ fontWeight: 700, fontSize: '10.2pt', textAlign: 'center', padding: '7px', fontFamily: "'Tajawal', sans-serif" }} dir={isArabicStr(branch) ? 'rtl' : 'ltr'}>
+                <div style={{ fontSize: '8pt', fontWeight: 500, color: '#475569', marginBottom: '2px' }} dir="rtl">الشعبة والمسلك</div>
                 {branch}
               </td>
             </tr>
@@ -307,37 +238,33 @@ export default function NationalExamTemplate({ examData, solutionMode = false })
         </table>
 
         {/* General Instructions Section */}
-        <div style={{ marginBottom: '22px' }}>
-          <h3 style={{ textAlign: 'center', fontSize: '1.1rem', fontWeight: 'bold', margin: '0 0 10px 0', textDecoration: 'underline' }}>
-            Instructions générales
-          </h3>
-          <ul style={{ margin: 0, paddingLeft: '24px', fontSize: '0.92rem', lineHeight: '1.5' }}>
+        <div style={{ marginBottom: '20px' }}>
+          <h3 className="ne-section-title"><span>Instructions générales</span></h3>
+          <ul style={{ margin: 0, paddingLeft: '24px', fontSize: '10.8pt', lineHeight: 1.58 }}>
             {instructions.map((inst, idx) => (
-              <li key={idx} style={{ marginBottom: '4px' }}>{inst}</li>
+              <li key={idx} style={{ marginBottom: '4px' }} dir={isArabicStr(inst) ? 'rtl' : 'ltr'}>{renderWithMath(inst)}</li>
             ))}
           </ul>
         </div>
 
         {/* Composantes du Sujet Section */}
-        <div style={{ marginBottom: '22px' }}>
-          <h3 style={{ textAlign: 'center', fontSize: '1.1rem', fontWeight: 'bold', margin: '0 0 8px 0', textDecoration: 'underline' }}>
-            Composantes du sujet
-          </h3>
-          <p style={{ fontSize: '0.9rem', marginBottom: '12px', lineHeight: '1.4' }}>
-            L'épreuve est composée de trois exercices et d'un problème, indépendants entre eux, et répartis selon les domaines comme suit :
+        <div style={{ marginBottom: '20px' }}>
+          <h3 className="ne-section-title"><span>Composantes du sujet</span></h3>
+          <p style={{ fontSize: '10.6pt', margin: '0 0 10px 0', lineHeight: 1.55 }}>
+            L&apos;épreuve est composée des exercices et du problème suivants, indépendants entre eux, et répartis selon les domaines comme suit :
           </p>
 
-          <table className="ne-table" style={{ fontSize: '0.92rem' }}>
+          <table className="ne-table" style={{ fontSize: '10.4pt' }}>
             <tbody>
               {components.map((comp, idx) => (
                 <tr key={idx}>
-                  <td style={{ width: '140px', fontWeight: 'bold', textAlign: 'left', paddingLeft: '12px' }}>
+                  <td style={{ width: '140px', fontWeight: 700, textAlign: 'left', paddingLeft: '12px' }} dir={isArabicStr(comp.name) ? 'rtl' : 'ltr'}>
                     {comp.name}
                   </td>
-                  <td style={{ textAlign: 'left', paddingLeft: '12px' }}>
+                  <td style={{ textAlign: 'left', paddingLeft: '12px' }} dir={isArabicStr(comp.topic) ? 'rtl' : 'ltr'}>
                     {comp.topic}
                   </td>
-                  <td style={{ width: '110px', fontWeight: 'bold' }}>
+                  <td style={{ width: '110px', fontWeight: 700 }} dir={isArabicStr(comp.points) ? 'rtl' : 'ltr'}>
                     {comp.points}
                   </td>
                 </tr>
@@ -347,13 +274,11 @@ export default function NationalExamTemplate({ examData, solutionMode = false })
         </div>
 
         {/* Notations Section */}
-        <div style={{ marginBottom: '28px' }}>
-          <h3 style={{ textAlign: 'center', fontSize: '1.1rem', fontWeight: 'bold', margin: '0 0 8px 0', textDecoration: 'underline' }}>
-            Notations
-          </h3>
-          <ul style={{ margin: 0, paddingLeft: '24px', fontSize: '0.92rem', lineHeight: '1.5' }}>
+        <div style={{ marginBottom: '20px' }}>
+          <h3 className="ne-section-title"><span>Notations</span></h3>
+          <ul style={{ margin: 0, paddingLeft: '24px', fontSize: '10.8pt', lineHeight: 1.58 }}>
             {notations.map((not, idx) => (
-              <li key={idx} style={{ marginBottom: '4px' }}>
+              <li key={idx} style={{ marginBottom: '4px' }} dir={isArabicStr(not) ? 'rtl' : 'ltr'}>
                 {renderWithMath(not)}
               </li>
             ))}
@@ -361,99 +286,100 @@ export default function NationalExamTemplate({ examData, solutionMode = false })
         </div>
 
         {/* ════════════════════════════════════════════════════════════ */}
-        {/* PAGES 2+: EXERCISES & SUB-QUESTION BOX GRID */}
+        {/* PAGES 2+: EXERCISES (Clean sequential flow) */}
         {/* ════════════════════════════════════════════════════════════ */}
-
-        {exercises.map((ex, eIdx) => {
-          const titleHasPoints = ex.title.toLowerCase().includes('point') || ex.title.toLowerCase().includes('pt');
-          const titlePointsSuffix = (ex.points && !titleHasPoints) ? ` (${ex.points})` : '';
-
-          return (
-            <div key={eIdx} className="ne-page-break" style={{ marginTop: '28px' }}>
-
-              {/* Banner Header for Pages 2+ */}
-              <div className="ne-box" style={{ display: 'grid', gridTemplateColumns: '110px 1fr 100px', height: '48px', marginBottom: '18px', alignItems: 'center' }}>
-                <div style={{ borderRight: '1.5px solid #000', textAlign: 'center', fontWeight: 'bold', fontSize: '0.88rem' }}>
-                  <div style={{ fontFamily: "'Tajawal', sans-serif" }}>الصفحة</div>
-                  <div>{eIdx + 2} / {totalPages}</div>
+        {exercises.length > 0 && (
+          <div className="ne-page-break" style={{ borderTop: '2px dashed #cbd5e1', paddingTop: '18px', marginTop: '22px' }}>
+            {/* Single Running Exam Header Banner */}
+            <div className="ne-box" style={{ display: 'grid', gridTemplateColumns: '90px 1fr 90px', padding: '5px 0', marginBottom: '14px', alignItems: 'center', background: '#f8fafc' }}>
+              <div style={{ borderRight: '1.25px solid #0f172a', textAlign: 'center', fontWeight: 800, fontSize: '9.5pt' }}>
+                {code}
+              </div>
+              <div style={{ textAlign: 'center', padding: '0 10px' }} dir="rtl">
+                <div style={{ fontSize: '9pt', fontWeight: 800, fontFamily: "'Tajawal', sans-serif" }}>
+                  موضوع الامتحان الوطني الموحد للبكالوريا — {session}
                 </div>
-                <div style={{ borderRight: '1.5px solid #000', textAlign: 'center', padding: '0 8px' }}>
-                  <div style={{ fontSize: '0.78rem', fontWeight: 'bold', fontFamily: "'Tajawal', sans-serif" }}>
-                    موضوع الامتحان الوطني الموحد للبكالوريا - {session}
-                  </div>
-                  <div style={{ fontSize: '0.72rem', fontFamily: "'Tajawal', 'Inter', sans-serif" }}>
-                    مادة : {subject} - {branch}
-                  </div>
-                </div>
-                <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '0.9rem' }}>
-                  {code}
+                <div style={{ fontSize: '8pt', color: '#334155', fontFamily: "'Tajawal', sans-serif" }}>
+                  مادة : {subject} — {branch}
                 </div>
               </div>
-
-              {/* Exercise Title */}
-              <div style={{ marginBottom: '12px' }}>
-                <h3 style={{ fontSize: '1.12rem', fontWeight: '900', textDecoration: 'underline', margin: '0 0 8px 0' }}>
-                  {ex.title}{titlePointsSuffix} :
-                </h3>
-                {ex.preamble && (
-                  <div style={{ fontSize: '0.95rem', marginBottom: '12px', lineHeight: 1.55 }}>
-                    {renderWithMath(ex.preamble)}
-                  </div>
-                )}
+              <div style={{ borderLeft: '1.25px solid #0f172a', textAlign: 'center', fontWeight: 800, fontSize: '9pt', fontFamily: "'Tajawal', sans-serif" }} dir="rtl">
+                الموضوع
               </div>
-
-              {/* Sub-question Grid Cards */}
-              {ex.items && ex.items.map((q, qIdx) => {
-                const qrKey = `ex${eIdx}_q${qIdx}`;
-                const qrUrl = qrCodeUrls[qrKey];
-                const qPoints = q.points || q.pts || '0.5 pt';
-                const qLabel = q.number || q.label || q.index || `${qIdx + 1}.`;
-                const qText = typeof q === 'string' ? q : (q.text || q.question || q.content || '');
-                const solutionText = q.solution || q.answer || '';
-
-                return (
-                  <div key={qIdx} className="ne-q-box">
-                    {/* Left Cell: Allocated Points */}
-                    <div className="ne-q-points">
-                      {qPoints}
-                    </div>
-
-                    {/* Middle Cell: Question Statement */}
-                    <div className="ne-q-content">
-                      <div>
-                        {qLabel && <strong style={{ marginRight: '6px', fontSize: '0.98rem' }}>{qLabel}</strong>}
-                        {renderWithMath(qText)}
-                      </div>
-
-                      {solutionMode && solutionText && (
-                        <div style={{
-                          marginTop: '8px',
-                          padding: '8px 12px',
-                          background: '#f8fafc',
-                          borderLeft: '3px solid #10b981',
-                          fontSize: '0.88rem',
-                          color: '#064e3b'
-                        }}>
-                          <strong style={{ display: 'block', marginBottom: '3px', color: '#047857' }}>التصحيح / الحل :</strong>
-                          {renderWithMath(solutionText)}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Right Cell: Dynamic QR Code */}
-                    <div className="ne-q-qr">
-                      {qrUrl ? (
-                        <img src={qrUrl} alt={`QR Code Q${qIdx + 1}`} />
-                      ) : (
-                        <div style={{ fontSize: '0.65rem', color: '#64748b' }}>QR</div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
             </div>
-          );
-        })}
+
+            {exercises.map((ex, eIdx) => {
+              const titleHasPoints = /point|pt|نقط/i.test(ex.title);
+              const blocks = ex.blocks || [];
+
+              return (
+                <div key={eIdx} style={{ marginBottom: '18px' }}>
+                  <div className="ne-ex-head" dir={isArabicStr(ex.title) ? 'rtl' : 'ltr'}>
+                    <h3 style={{ fontSize: '12.2pt', fontWeight: 700, margin: 0, color: '#0f172a' }}>
+                      {ex.title}
+                    </h3>
+                    {(ex.points && !titleHasPoints) && (
+                      <span style={{ fontSize: '10.5pt', fontWeight: 700, color: '#005086', whiteSpace: 'nowrap', marginLeft: '12px' }}>
+                        ({ex.points})
+                      </span>
+                    )}
+                  </div>
+
+                  {blocks.map((blk, bIdx) => {
+                    if (blk.kind === 'table') {
+                      return renderGridTable(blk, bIdx);
+                    }
+
+                    if (blk.kind === 'text') {
+                      return (
+                        <div
+                          key={bIdx}
+                          style={{ fontSize: '10.8pt', lineHeight: 1.62, margin: '5px 0 8px 0', color: '#111827', textAlign: 'justify' }}
+                          dir={isArabicStr(blk.text) ? 'rtl' : 'ltr'}
+                        >
+                          {renderWithMath(blk.text)}
+                        </div>
+                      );
+                    }
+
+                    const qrUrl = qrCodeUrls[`ex${eIdx}_b${bIdx}`] || '';
+                    return (
+                      <React.Fragment key={bIdx}>
+                        <div className="ne-q-box">
+                          <div className="ne-q-points">
+                            {blk.points || '—'}
+                          </div>
+                          <div className="ne-q-content" dir={isArabicStr(blk.text) ? 'rtl' : 'ltr'}>
+                            <div>
+                              {blk.number && <strong style={{ marginRight: '6px' }}>{blk.number}</strong>}
+                              {renderWithMath(blk.text)}
+                            </div>
+                          </div>
+                          <div className="ne-q-qr">
+                            {qrUrl && <img src={qrUrl} alt="QR" />}
+                          </div>
+                        </div>
+                        {solutionMode && blk.solution && (
+                          <div className="ne-sol-box" dir={isArabicStr(blk.solution) ? 'rtl' : 'ltr'}>
+                            <strong>Corrigé : </strong>
+                            {renderWithMath(blk.solution)}
+                          </div>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+
+                  {solutionMode && ex.solution && (
+                    <div className="ne-sol-box" dir={isArabicStr(ex.solution) ? 'rtl' : 'ltr'}>
+                      <strong style={{ display: 'block', marginBottom: '3px' }}>📖 Éléments de réponse / Corrigé détaillé :</strong>
+                      {renderWithMath(ex.solution)}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

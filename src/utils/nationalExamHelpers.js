@@ -216,3 +216,307 @@ export function sortNationalExams(exams, sortMode = 'year_desc') {
       return sorted.sort((a, b) => b.year - a.year);
   }
 }
+
+// ─── Shared Official National Exam Parser & Cleaner ───────────────────────────
+
+/**
+ * Clean corrupted LaTeX escapes, AI extraction notes, and stray punctuation
+ * while preserving markdown **bold** (for inline formatting) and valid math.
+ */
+export function cleanNationalExamLatex(str) {
+  if (!str || typeof str !== 'string') return '';
+  return str
+    // Convert literal escaped \n (except LaTeX commands like \neq, \notin, \nabla, \nu...)
+    .replace(/\\n(?!(?:eq|ne|notin|nabla|nsubseteq|nsupseteq|nexists|nparallel|natural|nearrow|nwarrow|ni|not|neg|nu|nolimits|nleftarrow|nrightarrow)\b)/g, '\n')
+    // Fix corrupted \notin (otin -> \notin)
+    .replace(/(?<![a-zA-Z\\])otin(?=[\\{\sA-Z0-9([]|$)/g, '\\notin ')
+    // Fix double-escaped LaTeX commands (\\overrightarrow -> \overrightarrow), but keep \\ followed by space/newline
+    .replace(/\\\\([a-zA-Z]+)/g, '\\$1')
+    // Strip leaked AI OCR notes like [Note: formule exacte...] or [ou formule équivalente]
+    .replace(/\[(?:Note\s*:|ou formule|ou limite)[^\]]*\]/gi, '')
+    // Clean stray markdown headings ### inside text
+    .replace(/(^|\n)\s*#{1,4}\s*/g, '$1')
+    // Collapse excessive whitespace lines
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+const isMeaninglessFragment = (txt) => {
+  if (!txt) return true;
+  const stripped = String(txt).replace(/\*\*/g, '').replace(/\s+/g, '').trim();
+  return !stripped || /^[.,;:!?–—\-_]+$/.test(stripped);
+};
+
+const stripOuterMarkdownBold = (txt) => String(txt || '').replace(/\*\*/g, '').trim();
+
+const QUESTION_POINTS_RE = /\(\s*(\d+(?:[.,]\d+)?)\s*(?:pt|pts|point|points|ن|نقطة|نقط)\s*\)/i;
+const LEADING_Q_LABEL_RE = /^(?:\*\*)?\s*((?:[IVX]+\.\s*)?\d+\s*[.)]\s*[a-zA-Z\u0621-\u064A]\s*[.)]?|\d+\s*[.)]|[a-zA-Z\u0621-\u064A]\s*[.)])\s*(?:\*\*)?\s*/i;
+const CONTEXT_PHRASE_RE = /^(?:on\s+consid[èe]re|soit\b|soient\b|dans\s+(?:le\s+plan|l'espace)|une\s+urne|la\s+courbe|le\s+graphique|la\s+figure|le\s+tableau|partie\s+[IVX0-9]+|نعتبر|لتكن|ليكن|في\s+(?:الفضاء|المستوى)|يحتوي\s+صندوق)/i;
+const QUESTION_VERB_RE = /\b(?:montrer|v[ée]rifier|calculer|d[ée]duire|en\s+d[ée]duire|r[ée]soudre|d[ée]terminer|justifier|tracer|[ée]tudier|etudier|copier|donner|interpr[ée]ter|exprimer|[ée]crire|ecrire|pr[ée]ciser|comparer)\b|بين|تحقق|احسب|استنتج|حدد|حل|أنشئ|ادرس|أعط|اكتب/i;
+
+function classifyBlockKind(rawText, explicitType = '', explicitPoints = '') {
+  const cleaned = cleanNationalExamLatex(rawText);
+  if (isMeaninglessFragment(cleaned)) return null;
+
+  let text = cleaned;
+  let points = explicitPoints ? String(explicitPoints).trim() : '';
+
+  const ptMatch = text.match(QUESTION_POINTS_RE);
+  if (ptMatch) {
+    if (!points) points = `${ptMatch[1].replace(',', '.')} pt`;
+    text = text.replace(ptMatch[0], '').replace(/\s{2,}/g, ' ').trim();
+  }
+
+  // Re-check if only punctuation remains after stripping points
+  if (isMeaninglessFragment(text)) return null;
+
+  // Check if text has a leading question number/letter
+  let number = '';
+  const bodyCandidateForTest = stripOuterMarkdownBold(text);
+  const labelMatch = text.match(LEADING_Q_LABEL_RE);
+  if (labelMatch) {
+    const extractedLabel = labelMatch[1].trim();
+    const restText = text.slice(labelMatch[0].length).trim();
+    if (isMeaninglessFragment(restText)) return null;
+    number = extractedLabel;
+    text = restText;
+  }
+
+  const plainRest = stripOuterMarkdownBold(text);
+
+  // Determine whether this is an intro/context statement OR an actual graded question
+  const hasExplicitPoints = Boolean(points);
+  const isPartHeading = /^partie\s+[IVX0-9]+/i.test(bodyCandidateForTest);
+  const startsWithContext = CONTEXT_PHRASE_RE.test(plainRest) && !QUESTION_VERB_RE.test(plainRest.slice(0, 65));
+  const isBareNumberIntro = /^\d+\s*[.)]$/.test(number) && startsWithContext && !hasExplicitPoints;
+  const isTextIntro = (explicitType === 'text' && !hasExplicitPoints && !QUESTION_VERB_RE.test(plainRest.slice(0, 50))) ||
+    isPartHeading ||
+    (!number && !hasExplicitPoints && startsWithContext) ||
+    isBareNumberIntro;
+
+  if (isTextIntro) {
+    // Re-attach bare number (e.g. "3. Soit (v_n)...") cleanly inside paragraph text
+    const fullParagraph = number ? `**${number}** ${text}` : text;
+    return { kind: 'text', text: fullParagraph };
+  }
+
+  return {
+    kind: 'question',
+    number,
+    points,
+    text,
+    solution: '',
+  };
+}
+
+/**
+ * Split a single concatenated exercise text string into ordered text/question blocks
+ * while safely ignoring anything inside $...$ or $$...$$ math blocks.
+ */
+function splitExerciseTextToBlocks(rawText) {
+  const cleaned = cleanNationalExamLatex(rawText);
+  if (isMeaninglessFragment(cleaned)) return [];
+
+  // Mask math expressions so markers inside LaTeX are never matched
+  const mathTokens = [];
+  const masked = cleaned.replace(/(\$\$[\s\S]*?\$\$|\$[^$\n]+?\$)/g, (m) => {
+    const idx = mathTokens.length;
+    mathTokens.push(m);
+    return `__MATH_TOK_${idx}__`;
+  });
+  const unmask = (s) => s.replace(/__MATH_TOK_(\d+)__/g, (_, i) => mathTokens[Number(i)] || '');
+
+  // Match question markers at line starts or sentence boundaries:
+  // e.g. **1.a.** | **1. a)** | 1. a) | 1.b) | **2.** | 1) | **a)** | b)
+  const markerRe = /(?:^|\n|\s)(?:(\*\*(?:\d+\s*[.)]\s*[a-zA-Z\u0621-\u064A]\s*[.)]?|\d+\s*[.)]|[a-zA-Z\u0621-\u064A]\s*[.)])\*\*)|((?:^|\n|[.?!:]\s+)\s*(?:\d+\s*[.)]\s*[a-zA-Z\u0621-\u064A]\s*[.)]?|\d+\s*[.)]))|((?:^|\n|\s)\s*[a-zA-Z\u0621-\u064A]\)))/g;
+
+  const matches = [];
+  let m;
+  while ((m = markerRe.exec(masked)) !== null) {
+    const full = m[0];
+    const labelRaw = m[1] || m[2] || m[3] || '';
+    const trimmedLabel = labelRaw.replace(/^[.?!:\s]+/, '').replace(/\*\*/g, '').trim();
+    if (!trimmedLabel) continue;
+    // Skip matches like "c)" inside "c.à.d" or single uppercase letters mid-sentence
+    const matchStart = m.index + full.indexOf(labelRaw.replace(/^[.?!:\s]+/, ''));
+    const matchEnd = m.index + full.length;
+    matches.push({ start: matchStart, end: matchEnd, label: trimmedLabel });
+  }
+
+  if (matches.length === 0) {
+    return [{ kind: 'text', text: cleaned }];
+  }
+
+  const blocks = [];
+  const leading = unmask(masked.slice(0, matches[0].start)).trim();
+  if (!isMeaninglessFragment(leading)) {
+    // Split multi-line intro paragraphs cleanly
+    leading.split(/\n+/).forEach(p => {
+      const t = p.trim();
+      if (!isMeaninglessFragment(t)) blocks.push({ kind: 'text', text: t });
+    });
+  }
+
+  for (let i = 0; i < matches.length; i++) {
+    const curr = matches[i];
+    const nextStart = i + 1 < matches.length ? matches[i + 1].start : masked.length;
+    const bodyRaw = unmask(masked.slice(curr.end, nextStart)).trim();
+    if (isMeaninglessFragment(bodyRaw)) continue;
+
+    const classified = classifyBlockKind(`**${curr.label}** ${bodyRaw}`);
+    if (classified) blocks.push(classified);
+  }
+
+  return blocks;
+}
+
+/**
+ * Parse a national exam section into clean, non-duplicated ordered blocks:
+ *   - { kind: 'text', text }
+ *   - { kind: 'question', number, points, text, solution }
+ *   - { kind: 'table', cols, grid_items }
+ */
+export function parseNationalExamExercise(sec, idx = 0) {
+  const rawTitle = sec.title || sec.name || `Exercice ${idx + 1}`;
+  const cleanTitle = stripOuterMarkdownBold(rawTitle).replace(/:\s*$/, '').trim();
+  const points = sec.points ? `${sec.points} points` : '';
+  const rawContent = cleanNationalExamLatex(sec.content || sec.description || sec.intro || '');
+  const rawItems = Array.isArray(sec.items)
+    ? sec.items
+    : (Array.isArray(sec.questions) ? sec.questions : (Array.isArray(sec.sub_questions) ? sec.sub_questions : []));
+
+  const nonTableItems = rawItems.filter(it => !(it && (it.type === 'grid_items' || Array.isArray(it.grid_items))));
+  const tableItems = rawItems.filter(it => it && (it.type === 'grid_items' || Array.isArray(it.grid_items)));
+
+  const blocks = [];
+
+  if (nonTableItems.length > 0) {
+    // Check if rawContent is a distinct preamble/partial block NOT duplicated in nonTableItems
+    if (rawContent && !isMeaninglessFragment(rawContent)) {
+      const firstItemText = typeof nonTableItems[0] === 'string'
+        ? nonTableItems[0]
+        : (nonTableItems[0]?.text || nonTableItems[0]?.question || nonTableItems[0]?.content || '');
+      const normContent = stripOuterMarkdownBold(rawContent).replace(/\s+/g, ' ').toLowerCase();
+      const normFirst = stripOuterMarkdownBold(cleanNationalExamLatex(firstItemText)).replace(/\s+/g, ' ').toLowerCase();
+      const snippet = normFirst.slice(0, Math.min(32, normFirst.length));
+
+      const isDuplicateDump = snippet.length >= 12 && normContent.includes(snippet);
+      if (!isDuplicateDump) {
+        blocks.push(...splitExerciseTextToBlocks(rawContent));
+      }
+    }
+
+    // Insert tables before items if rawContent ended with a table reference (e.g. J1G3 sec 5)
+    let tablesInjected = false;
+    rawItems.forEach((it) => {
+      if (it && (it.type === 'grid_items' || Array.isArray(it.grid_items))) {
+        blocks.push({ kind: 'table', cols: it.cols || 4, grid_items: it.grid_items || [] });
+        tablesInjected = true;
+        return;
+      }
+
+      const qText = typeof it === 'string' ? it : (it?.text || it?.question || it?.content || '');
+      const explicitPoints = it?.points || it?.pts || '';
+      const explicitNumber = it?.number || it?.label || it?.index || '';
+      const classified = classifyBlockKind(qText, it?.type || '', explicitPoints);
+      if (!classified) return;
+
+      if (classified.kind === 'question') {
+        if (!classified.number && explicitNumber) {
+          classified.number = String(explicitNumber).trim();
+        }
+        classified.solution = cleanNationalExamLatex(it?.solution || it?.answer || '');
+      }
+      blocks.push(classified);
+    });
+
+    if (!tablesInjected && tableItems.length > 0) {
+      tableItems.forEach(t => blocks.push({ kind: 'table', cols: t.cols || 4, grid_items: t.grid_items || [] }));
+    }
+  } else {
+    // No text/bullet items — parse rawContent + any grid tables
+    if (rawContent) {
+      blocks.push(...splitExerciseTextToBlocks(rawContent));
+    }
+    tableItems.forEach(t => blocks.push({ kind: 'table', cols: t.cols || 4, grid_items: t.grid_items || [] }));
+  }
+
+  // Backward-compatible summary fields
+  const items = blocks.filter(b => b.kind === 'question');
+  const firstTextIdx = blocks.findIndex(b => b.kind === 'text');
+  const preamble = firstTextIdx === 0 ? blocks[0].text : '';
+
+  return {
+    title: cleanTitle,
+    points,
+    preamble,
+    items,
+    blocks,
+    solution: cleanNationalExamLatex(sec.solution || ''),
+  };
+}
+
+/**
+ * Extract official Moroccan Baccalaureate metadata cleanly with proper defaults.
+ */
+export function extractNationalExamMeta(examData) {
+  const meta = examData?.header?.national_exam_meta || examData?.national_exam_meta || {};
+  const rawTitle = examData?.title || examData?.header?.fiche_title || '';
+
+  let year = meta.year || '';
+  if (!year) {
+    const ym = rawTitle.match(/\b(20[0-2][0-9]|199[0-9])\b/);
+    year = ym ? ym[1] : '2026';
+  }
+
+  const session = meta.session || (/rattrapage|استدراك/i.test(rawTitle) ? `الدورة الاستدراكية ${year}` : `الدورة العادية ${year}`);
+  const subject = meta.subject || examData?.header?.subject || 'الرياضيات';
+  const branch = meta.branch || examData?.header?.level || 'مسلك علوم الحياة والأرض ومسلك العلوم الفيزيائية (خيار فرنسية)';
+  const code = meta.code || (/sciences?\s*math|علوم\s*رياضية/i.test(branch + ' ' + rawTitle) ? 'NS 26F' : 'NS 22F');
+
+  let duration = meta.duration || '3 ساعات';
+  if (/^\s*(\d+)\s*س\s*$/i.test(duration)) {
+    duration = duration.replace(/^\s*(\d+)\s*س\s*$/i, '$1 ساعات');
+  } else if (/^\s*(\d+)\s*h\s*$/i.test(duration)) {
+    duration = duration.replace(/^\s*(\d+)\s*h\s*$/i, '$1 ساعات');
+  }
+
+  const coeff = meta.coefficient || (/sciences?\s*math|علوم\s*رياضية/i.test(branch + ' ' + rawTitle) ? '9' : '7');
+  const subjectNumber = meta.subject_number || '3';
+  const totalPages = meta.total_pages || 4;
+
+  const instructions = meta.general_instructions || [
+    "L'utilisation de la calculatrice non programmable est autorisée ;",
+    "Le candidat peut traiter les exercices de l'épreuve suivant l'ordre qui lui convient ;",
+    "L'utilisation de la couleur rouge lors de la rédaction des solutions est à éviter."
+  ];
+
+  const components = meta.subject_components || [
+    { name: "Exercice 1", topic: "Suites numériques", points: "3 points" },
+    { name: "Exercice 2", topic: "Géométrie dans l'espace", points: "3 points" },
+    { name: "Exercice 3", topic: "Nombres complexes", points: "4 points" },
+    { name: "Exercice 4", topic: "Calcul des probabilités", points: "2 points" },
+    { name: "Problème", topic: "Étude de fonctions numériques et calcul intégral", points: "8 points" }
+  ];
+
+  const notations = meta.notations || [
+    "On désigne par $\\bar{z}$ le conjugué du nombre complexe $z$ et par $|z|$ son module.",
+    "$\\ln$ désigne la fonction logarithme népérien."
+  ];
+
+  return {
+    year,
+    session,
+    subject,
+    branch,
+    code,
+    duration,
+    coeff,
+    subjectNumber,
+    totalPages,
+    instructions,
+    components,
+    notations,
+  };
+}
+

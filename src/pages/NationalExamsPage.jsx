@@ -56,6 +56,7 @@ export default function NationalExamsPage() {
   // Quick Preview Modal
   const [previewExam, setPreviewExam] = useState(null);
   const [previewTemplateMode, setPreviewTemplateMode] = useState('official'); // official, prime
+  const [previewShowSolutions, setPreviewShowSolutions] = useState(false);
 
   // Book Printing Modal State
   const [showBookModal, setShowBookModal] = useState(false);
@@ -1274,7 +1275,27 @@ export default function NationalExamsPage() {
 
                 <button
                   type="button"
-                  onClick={() => handlePrintSingleExam(previewExam, previewTemplateMode, false)}
+                  onClick={() => setPreviewShowSolutions(v => !v)}
+                  style={{
+                    background: previewShowSolutions ? '#10b981' : 'rgba(255,255,255,0.15)',
+                    color: '#ffffff',
+                    border: '1px solid rgba(255,255,255,0.35)',
+                    padding: '0.38rem 0.8rem',
+                    borderRadius: '8px',
+                    fontWeight: 700,
+                    fontSize: '0.76rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem'
+                  }}
+                >
+                  <BookOpen size={14} /> <span>{previewShowSolutions ? 'Corrigé activé' : 'Afficher corrigé'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handlePrintSingleExam(previewExam, previewTemplateMode, previewShowSolutions)}
                   style={{
                     background: '#ffffff',
                     color: '#005086',
@@ -1313,7 +1334,7 @@ export default function NationalExamsPage() {
               ) : (
                 <NationalExamTemplate
                   examData={previewExam.content || previewExam}
-                  solutionMode={false}
+                  solutionMode={previewShowSolutions}
                 />
               )}
             </div>
