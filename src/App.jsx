@@ -1,14 +1,13 @@
-import { lazy, Suspense, useTransition, useEffect } from 'react';
+import { lazy, Suspense, useTransition, useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ErrorBoundary from './components/ErrorBoundary';
 
 // Keep only the public entry screen in the initial bundle.
 import Login from './pages/Login';
-import CommandPalette from './components/CommandPalette';
 
-// Protected pages are lazy-loaded so login does not download charts, PDF tools,
-// KaTeX, scanners, or admin-only dependencies.
+// Protected pages & utilities are lazy-loaded so initial boot stays fast.
+const CommandPalette     = lazy(() => import('./components/CommandPalette'));
 const Layout             = lazy(() => import('./components/Layout'));
 const StudentDashboard   = lazy(() => import('./pages/StudentDashboard'));
 const StudyMode          = lazy(() => import('./pages/StudyMode'));
@@ -109,6 +108,19 @@ function OAuthRedirectGuard() {
 function AppContent() {
   const location = useLocation();
   const [, startTransition] = useTransition();
+  const [paletteRequested, setPaletteRequested] = useState(false);
+
+  useEffect(() => {
+    if (paletteRequested) return;
+    const onShortcut = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteRequested(true);
+      }
+    };
+    window.addEventListener('keydown', onShortcut);
+    return () => window.removeEventListener('keydown', onShortcut);
+  }, [paletteRequested]);
 
   useEffect(() => {
     // Wrap title update in startTransition to avoid blocking renders
@@ -170,7 +182,11 @@ function AppContent() {
 
   return (
     <>
-      <CommandPalette />
+      {paletteRequested && (
+        <Suspense fallback={null}>
+          <CommandPalette defaultOpen />
+        </Suspense>
+      )}
       <OAuthRedirectGuard />
       <Suspense fallback={<LoadingFallback />}>
         <Routes>

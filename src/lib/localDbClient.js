@@ -48,7 +48,11 @@ const probeCompanion = async () => {
 };
 
 const request = async (endpoint, options = {}) => {
-  if (!(await probeCompanion())) throw unavailableError();
+  // Fast-path: only block on /ping recovery probe when we recently detected offline state.
+  if (companionAvailable === false) {
+    if (Date.now() < companionUnavailableUntil) throw unavailableError();
+    if (!(await probeCompanion())) throw unavailableError();
+  }
 
   const url = `${getBaseUrl()}${endpoint}`;
   const headers = {
@@ -57,9 +61,6 @@ const request = async (endpoint, options = {}) => {
   };
 
   const controller = new AbortController();
-  // The companion server can need a moment to read local JSON files on its
-  // first request. A short timeout keeps the UI responsive without treating a
-  // healthy local service as unavailable.
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   const config = {
@@ -71,6 +72,13 @@ const request = async (endpoint, options = {}) => {
   try {
     const response = await fetch(url, config);
     clearTimeout(timeoutId);
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json') && response.status === 200) {
+      // Static-only host returned SPA HTML instead of API JSON
+      companionAvailable = false;
+      companionUnavailableUntil = Date.now() + OFFLINE_COOLDOWN_MS;
+      throw unavailableError();
+    }
     companionAvailable = true;
     if (!response.ok) {
       const errBody = await response.json().catch(() => ({}));
@@ -81,6 +89,7 @@ const request = async (endpoint, options = {}) => {
     return await response.json();
   } catch (error) {
     clearTimeout(timeoutId);
+    if (error.code === 'API_UNAVAILABLE') throw error;
     if (error.name === 'AbortError' || error.name === 'TypeError') {
       companionAvailable = false;
       companionUnavailableUntil = Date.now() + OFFLINE_COOLDOWN_MS;

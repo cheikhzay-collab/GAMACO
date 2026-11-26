@@ -22,10 +22,10 @@ import SmartTableRenderer, { parseMarkdownTable } from '../components/SmartTable
 
 export { SmartTableRenderer, parseMarkdownTable };
 
-export function MathText({ text, children }) {
+export const MathText = React.memo(function MathText({ text, children }) {
   const content = text ?? children;
   return renderWithMath(content);
-}
+});
 
 /* ─── 1. Master text sanitizer ──────────────────────────────────────────────
  *
@@ -179,10 +179,32 @@ export const repairMathExpression = (latex) => {
   return repaired;
 };
 
+const MAX_KATEX_CACHE = 1500;
+const katexHtmlCache = new Map();
+
+function renderKatexCached(latex, displayMode) {
+  const normalized = String(latex ?? '');
+  const cacheKey = `${displayMode ? '1' : '0'}:${normalized}`;
+  const cached = katexHtmlCache.get(cacheKey);
+  if (cached !== undefined) {
+    // Refresh recency for LRU behavior
+    katexHtmlCache.delete(cacheKey);
+    katexHtmlCache.set(cacheKey, cached);
+    return cached;
+  }
+  const repaired = repairMathExpression(normalized);
+  const html = katex.renderToString(repaired, { ...KATEX_OPTIONS, displayMode });
+  if (katexHtmlCache.size >= MAX_KATEX_CACHE) {
+    const oldestKey = katexHtmlCache.keys().next().value;
+    if (oldestKey !== undefined) katexHtmlCache.delete(oldestKey);
+  }
+  katexHtmlCache.set(cacheKey, html);
+  return html;
+}
+
 function renderInlineKatex(latex) {
   try {
-    const repaired = repairMathExpression(latex);
-    return katex.renderToString(repaired, { ...KATEX_OPTIONS, displayMode: false });
+    return renderKatexCached(latex, false);
   } catch {
     // Fallback: show raw latex in italic
     return `<span style="font-style:italic;opacity:0.75">${escapeHtml(latex)}</span>`;
@@ -191,8 +213,7 @@ function renderInlineKatex(latex) {
 
 function renderBlockKatex(latex) {
   try {
-    const repaired = repairMathExpression(latex);
-    return katex.renderToString(repaired, { ...KATEX_OPTIONS, displayMode: true });
+    return renderKatexCached(latex, true);
   } catch {
     return `<span style="font-style:italic;opacity:0.75;display:block">${escapeHtml(latex)}</span>`;
   }
@@ -211,7 +232,7 @@ function escapeHtml(str) {
  *  Uses dangerouslySetInnerHTML with KaTeX's own sanitized HTML output.
  *  KaTeX output is safe — it only produces math markup.
  */
-export function SafeInlineMath({ math }) {
+export const SafeInlineMath = React.memo(function SafeInlineMath({ math }) {
   const html = renderInlineKatex(math);
   return (
     <span
@@ -220,9 +241,9 @@ export function SafeInlineMath({ math }) {
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );
-}
+});
 
-export function SafeBlockMath({ math }) {
+export const SafeBlockMath = React.memo(function SafeBlockMath({ math }) {
   const html = renderBlockKatex(math);
   return (
     <span
@@ -240,7 +261,7 @@ export function SafeBlockMath({ math }) {
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );
-}
+});
 
 /* ─── 5. Error boundary (kept as safety net) ─────────────────────────────── */
 export class MathErrorBoundary extends React.Component {
@@ -1180,16 +1201,16 @@ export function renderToHtmlString(text) {
   raw = autoRepairMathText(raw);
   raw = wrapStandaloneLatexCommands(raw);
 
-  // 3. Render math to KaTeX HTML
+  // 3. Render math to KaTeX HTML (shares bounded LRU cache)
   const renderMathInline = (latex) => {
     try {
-      return katex.renderToString(repairMathExpression(latex), { ...KATEX_OPTIONS, displayMode: false });
+      return renderKatexCached(latex, false);
     } catch { return `<em>${latex}</em>`; }
   };
 
   const renderMathBlock = (latex) => {
     try {
-      return `<div style="overflow-x:auto;text-align:center;margin:.75em 0">${katex.renderToString(repairMathExpression(latex), { ...KATEX_OPTIONS, displayMode: true })}</div>`;
+      return `<div style="overflow-x:auto;text-align:center;margin:.75em 0">${renderKatexCached(latex, true)}</div>`;
     } catch { return `<pre>${latex}</pre>`; }
   };
 

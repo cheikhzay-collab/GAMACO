@@ -42,10 +42,29 @@ export default defineConfig(({ mode }) => {
         clientsClaim: true,
         skipWaiting: true,
         navigateFallbackDenylist: [/^\/api\//, /^\/ping$/],
+        globIgnores: [
+          '**/pdf.worker*',
+          '**/vendor-pdfjs*',
+          '**/vendor-pdf-*',
+          '**/vendor-charts*',
+          '**/vendor-sheets*',
+          '**/vendor-qr*',
+          '**/AdminAIGenerator*',
+          '**/AdminLogbook*',
+          '**/generate*PDF*',
+        ],
         runtimeCaching: [
           {
             urlPattern: /^\/api\/.*$/,
             handler: 'NetworkOnly',
+          },
+          {
+            urlPattern: /^\/assets\/.*\.(?:js|mjs|css|woff2?|ttf|svg|png)$/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'gamaco-hashed-assets',
+              expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 * 30 },
+            },
           },
           {
             urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/i,
@@ -128,7 +147,13 @@ export default defineConfig(({ mode }) => {
             return 'vendor-katex';
           }
           // ── PDF generation (heavy, jsPDF + html2canvas) ───────────
-          if (id.includes('jspdf')) {
+          if (
+            id.includes('jspdf') ||
+            id.includes('html2canvas') ||
+            id.includes('dompurify') ||
+            id.includes('canvg') ||
+            id.includes('fflate')
+          ) {
             return 'vendor-pdf';
           }
           // ── PDF.js viewer ─────────────────────────────────────────

@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Sparkles, BookOpen, Layers, Camera, Settings, Users, KeyRound, ArrowRight, Command, X } from 'lucide-react';
 
-export default function CommandPalette() {
-  const [isOpen, setIsOpen] = useState(false);
+export default function CommandPalette({ defaultOpen = false }) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const navigate = useNavigate();

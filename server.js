@@ -2,6 +2,7 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import zlib from 'zlib';
 import { fileURLToPath } from 'url';
 import {
   getExtractionTasks,
@@ -189,6 +190,17 @@ if (PERSISTENT_DIR) {
 
 const memoryCache = new Map();
 const pendingWrites = new Map();
+const apiResponseCache = new Map();
+
+const invalidateApiCache = (prefix = null) => {
+  if (!prefix) {
+    apiResponseCache.clear();
+    return;
+  }
+  for (const key of apiResponseCache.keys()) {
+    if (key.startsWith(prefix)) apiResponseCache.delete(key);
+  }
+};
 
 const safeJsonParse = (val, fallback = val) => {
   if (typeof val !== 'string') return val;
@@ -270,6 +282,11 @@ const atomicWriteFileSync = (targetPath, content) => {
 
 const writeDataFile = (fileName, data) => {
   memoryCache.set(fileName, data);
+  if (fileName === 'lessons.json' || fileName === 'devoir_prime.json' || fileName === 'solutions.json') {
+    invalidateApiCache('lessons');
+  } else if (fileName === 'exams.json') {
+    invalidateApiCache('exams');
+  }
   const localPath = path.join(DATA_DIR, fileName);
   const persistentPath = PERSISTENT_DIR ? path.join(PERSISTENT_DIR, fileName) : null;
 
@@ -833,16 +850,72 @@ const initMySQL = async () => {
   }
 };
 
-// ── HTTP Helpers ────────────────────────────────────────────────────────────
-const sendJSON = (res, statusCode, data) => {
-  if (res.headersSent || res.writableEnded) return;
-  res.writeHead(statusCode, {
-    'Content-Type': 'application/json',
+// ── HTTP Helpers (with Gzip compression, ETag revalidation & static RAM cache) ──
+const COMPRESSIBLE_EXTS = new Set(['.html', '.js', '.mjs', '.css', '.json', '.svg', '.webmanifest']);
+const MAX_STATIC_CACHE_BYTES = 24 * 1024 * 1024;
+const staticBufferCache = new Map(); // filePath -> { mtimeMs, size, etag, rawBuf, gzipBuf }
+let staticBufferCacheBytes = 0;
+
+const acceptsGzip = (req) => {
+  const enc = req?.headers?.['accept-encoding'];
+  return typeof enc === 'string' && /\bgzip\b/i.test(enc);
+};
+
+const buildPrecompressedJson = (data) => {
+  const rawBuf = Buffer.from(JSON.stringify(data), 'utf8');
+  const etag = `W/"${crypto.createHash('md5').update(rawBuf).digest('hex').slice(0, 16)}"`;
+  const gzipBuf = rawBuf.length >= 1024 ? zlib.gzipSync(rawBuf, { level: 6 }) : null;
+  return { rawBuf, gzipBuf, etag };
+};
+
+const sendCachedJsonPayload = (req, res, statusCode, payload) => {
+  if (res.headersSent || res.writableEnded) return true;
+  if (req?.headers?.['if-none-match'] === payload.etag) {
+    res.writeHead(304, {
+      'ETag': payload.etag,
+      'Cache-Control': 'private, no-cache',
+      'Vary': 'Accept-Encoding',
+    });
+    res.end();
+    return true;
+  }
+  const useGzip = Boolean(payload.gzipBuf) && acceptsGzip(req);
+  const body = useGzip ? payload.gzipBuf : payload.rawBuf;
+  const headers = {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Content-Length': body.length,
+    'ETag': payload.etag,
+    'Cache-Control': 'private, no-cache',
+    'Vary': 'Accept-Encoding',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': '*'
-  });
-  res.end(JSON.stringify(data));
+    'Access-Control-Allow-Headers': '*',
+  };
+  if (useGzip) headers['Content-Encoding'] = 'gzip';
+  res.writeHead(statusCode, headers);
+  res.end(body);
+  return true;
+};
+
+const sendJSON = (res, statusCode, data) => {
+  if (res.headersSent || res.writableEnded) return true;
+  const rawBuf = Buffer.from(JSON.stringify(data), 'utf8');
+  const useGzip = rawBuf.length >= 1024 && acceptsGzip(res._req);
+  const body = useGzip ? zlib.gzipSync(rawBuf, { level: 5 }) : rawBuf;
+  const headers = {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Content-Length': body.length,
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': '*',
+  };
+  if (useGzip) {
+    headers['Content-Encoding'] = 'gzip';
+    headers['Vary'] = 'Accept-Encoding';
+  }
+  res.writeHead(statusCode, headers);
+  res.end(body);
+  return true;
 };
 
 const getBody = (req) => {
@@ -864,11 +937,12 @@ const getBody = (req) => {
 };
 
 const MIME_TYPES = {
-  '.html': 'text/html',
-  '.js': 'text/javascript',
-  '.mjs': 'text/javascript',
-  '.css': 'text/css',
-  '.json': 'application/json',
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
@@ -881,37 +955,135 @@ const MIME_TYPES = {
   '.pdf': 'application/pdf'
 };
 
-const serveStatic = (res, filePath) => {
-  fs.stat(filePath, (err, stats) => {
-    if (err || !stats.isFile()) {
-      // Fallback to index.html for SPA routing
-      const indexPath = path.join(DIST_DIR, 'index.html');
-      fs.readFile(indexPath, (readErr, content) => {
-        if (res.headersSent || res.writableEnded) return;
-        if (readErr) {
-          res.writeHead(404, { 'Content-Type': 'text/plain' });
-          res.end('404 Not Found');
-        } else {
-          res.writeHead(200, { 'Content-Type': 'text/html' });
-          res.end(content);
-        }
-      });
+const putStaticCache = (filePath, entry) => {
+  const entryBytes = entry.rawBuf.length + (entry.gzipBuf ? entry.gzipBuf.length : 0);
+  if (entryBytes > 5 * 1024 * 1024) return;
+  while (staticBufferCacheBytes + entryBytes > MAX_STATIC_CACHE_BYTES && staticBufferCache.size > 0) {
+    const oldestKey = staticBufferCache.keys().next().value;
+    const oldEntry = staticBufferCache.get(oldestKey);
+    staticBufferCache.delete(oldestKey);
+    if (oldEntry) {
+      staticBufferCacheBytes -= oldEntry.rawBuf.length + (oldEntry.gzipBuf ? oldEntry.gzipBuf.length : 0);
+    }
+  }
+  const prev = staticBufferCache.get(filePath);
+  if (prev) {
+    staticBufferCacheBytes -= prev.rawBuf.length + (prev.gzipBuf ? prev.gzipBuf.length : 0);
+  }
+  staticBufferCache.set(filePath, entry);
+  staticBufferCacheBytes += entryBytes;
+};
+
+const getStaticCacheControl = (filePath, ext) => {
+  const baseName = path.basename(filePath);
+  if (
+    ext === '.html' ||
+    baseName === 'sw.js' ||
+    baseName === 'registerSW.js' ||
+    baseName.startsWith('workbox-') ||
+    baseName === 'manifest.json' ||
+    baseName === 'manifest.webmanifest'
+  ) {
+    return 'no-cache, must-revalidate';
+  }
+  const normalized = filePath.replace(/\\/g, '/');
+  if (normalized.includes('/assets/') || ext === '.woff2' || ext === '.woff' || ext === '.ttf') {
+    return 'public, max-age=31536000, immutable';
+  }
+  return 'public, max-age=3600';
+};
+
+const serveStaticFile = (req, res, filePath, stats) => {
+  if (res.headersSent || res.writableEnded) return;
+  const ext = path.extname(filePath).toLowerCase();
+  const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+  const cacheControl = getStaticCacheControl(filePath, ext);
+  const etag = `W/"${stats.size}-${Math.floor(stats.mtimeMs)}"`;
+
+  if (req?.headers?.['if-none-match'] === etag) {
+    res.writeHead(304, {
+      'ETag': etag,
+      'Cache-Control': cacheControl,
+      'Vary': 'Accept-Encoding',
+    });
+    res.end();
+    return;
+  }
+
+  const cached = staticBufferCache.get(filePath);
+  if (cached && cached.mtimeMs === stats.mtimeMs && cached.size === stats.size) {
+    const useGzip = Boolean(cached.gzipBuf) && acceptsGzip(req);
+    const body = useGzip ? cached.gzipBuf : cached.rawBuf;
+    const headers = {
+      'Content-Type': contentType,
+      'Content-Length': body.length,
+      'Cache-Control': cacheControl,
+      'ETag': etag,
+    };
+    if (COMPRESSIBLE_EXTS.has(ext)) headers['Vary'] = 'Accept-Encoding';
+    if (useGzip) headers['Content-Encoding'] = 'gzip';
+    res.writeHead(200, headers);
+    res.end(body);
+    return;
+  }
+
+  if (stats.size <= 5 * 1024 * 1024 && COMPRESSIBLE_EXTS.has(ext)) {
+    fs.readFile(filePath, (readErr, rawBuf) => {
+      if (res.headersSent || res.writableEnded) return;
+      if (readErr) {
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        res.end('Internal Server Error');
+        return;
+      }
+      const gzipBuf = rawBuf.length >= 1024 ? zlib.gzipSync(rawBuf, { level: 6 }) : null;
+      const entry = { mtimeMs: stats.mtimeMs, size: stats.size, etag, rawBuf, gzipBuf };
+      putStaticCache(filePath, entry);
+      const useGzip = Boolean(gzipBuf) && acceptsGzip(req);
+      const body = useGzip ? gzipBuf : rawBuf;
+      const headers = {
+        'Content-Type': contentType,
+        'Content-Length': body.length,
+        'Cache-Control': cacheControl,
+        'ETag': etag,
+        'Vary': 'Accept-Encoding',
+      };
+      if (useGzip) headers['Content-Encoding'] = 'gzip';
+      res.writeHead(200, headers);
+      res.end(body);
+    });
+    return;
+  }
+
+  res.writeHead(200, {
+    'Content-Type': contentType,
+    'Content-Length': stats.size,
+    'Cache-Control': cacheControl,
+    'ETag': etag,
+  });
+  const stream = fs.createReadStream(filePath);
+  stream.pipe(res);
+};
+
+const serveStatic = (req, res, filePath) => {
+  const distRoot = path.resolve(DIST_DIR);
+  const resolved = path.resolve(filePath);
+  const safeTarget = resolved.startsWith(distRoot) ? resolved : path.join(distRoot, 'index.html');
+
+  fs.stat(safeTarget, (err, stats) => {
+    if (!err && stats.isFile()) {
+      serveStaticFile(req, res, safeTarget, stats);
       return;
     }
-
-    const ext = path.extname(filePath).toLowerCase();
-    const contentType = MIME_TYPES[ext] || 'application/octet-stream';
-    const isImmutable = filePath.includes('assets') || ext === '.woff2' || ext === '.woff' || ext === '.ttf';
-    const cacheControl = isImmutable ? 'public, max-age=31536000, immutable' : 'public, max-age=3600';
-
-    res.writeHead(200, {
-      'Content-Type': contentType,
-      'Content-Length': stats.size,
-      'Cache-Control': cacheControl
+    const indexPath = path.join(distRoot, 'index.html');
+    fs.stat(indexPath, (idxErr, idxStats) => {
+      if (res.headersSent || res.writableEnded) return;
+      if (idxErr || !idxStats.isFile()) {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('404 Not Found');
+        return;
+      }
+      serveStaticFile(req, res, indexPath, idxStats);
     });
-
-    const stream = fs.createReadStream(filePath);
-    stream.pipe(res);
   });
 };
 
@@ -1219,6 +1391,7 @@ const restoreFullDatabasePayload = async (payload) => {
     writeDataFile('config.json', { ...curr, ...config });
   }
   flushPendingWritesSync();
+  invalidateApiCache();
 
   return {
     exams: exams.length,
@@ -1355,6 +1528,7 @@ const listDatabaseSnapshots = () => {
 
 // ── API Request Handler (used by both Vite dev middleware & production server) ──
 export const handleApiRequest = async (req, res, next) => {
+  res._req = req;
   // CORS Headers (Restricted to trusted origins + same-origin credentials)
   const reqOrigin = req.headers?.origin || '';
   const allowedOrigins = new Set([
@@ -1391,12 +1565,11 @@ export const handleApiRequest = async (req, res, next) => {
 
   // 1. Health check
   if (pathname === '/ping') {
-    sendJSON(res, 200, {
+    return sendJSON(res, 200, {
       status: 'online',
       message: 'Gamaco Server & Database is active',
       storage: isMySqlActive ? 'mysql' : 'json'
     });
-    return;
   }
 
   // 2. Authentication Endpoints
@@ -1618,17 +1791,25 @@ export const handleApiRequest = async (req, res, next) => {
   // 3. Exams Endpoints
   if (pathname === '/api/exams') {
     if (req.method === 'GET') {
-      const fileExams = readDataFile('exams.json', []);
+      const cachedExams = apiResponseCache.get('exams:all');
+      if (cachedExams) {
+        return sendCachedJsonPayload(req, res, 200, cachedExams);
+      }
       if (isMySqlActive) {
         try {
           const [rows] = await dbPool.query('SELECT data FROM tbl_exams ORDER BY updated_at DESC');
           const exams = rows.map(r => safeJsonParse(r.data, null)).filter(Boolean);
-          return sendJSON(res, 200, exams);
+          const payload = buildPrecompressedJson(exams);
+          apiResponseCache.set('exams:all', payload);
+          return sendCachedJsonPayload(req, res, 200, payload);
         } catch (dbErr) {
           console.warn('[Server] GET /api/exams MySQL error:', dbErr.message);
         }
       }
-      return sendJSON(res, 200, fileExams);
+      const fileExams = readDataFile('exams.json', []);
+      const payload = buildPrecompressedJson(fileExams);
+      apiResponseCache.set('exams:all', payload);
+      return sendCachedJsonPayload(req, res, 200, payload);
     }
 
     if (req.method === 'POST') {
@@ -1667,6 +1848,7 @@ export const handleApiRequest = async (req, res, next) => {
         const exams = readDataFile('exams.json', []).filter(e => e.id !== id);
         writeDataFile('exams.json', exams);
         flushPendingWritesSync();
+  invalidateApiCache();
         return sendJSON(res, 200, { success: true, id });
       } catch (err) {
         return sendJSON(res, 500, { error: err.message });
@@ -1763,7 +1945,11 @@ export const handleApiRequest = async (req, res, next) => {
         return sendJSON(res, 404, { error: 'Lesson not found' });
       }
 
-      const fileLessons = readDataFile('lessons.json', []);
+      const cachedLessons = apiResponseCache.get('lessons:all');
+      if (cachedLessons) {
+        return sendCachedJsonPayload(req, res, 200, cachedLessons);
+      }
+
       if (isMySqlActive) {
         try {
           const [rows] = await dbPool.query('SELECT data, created_at, updated_at FROM tbl_lessons ORDER BY updated_at DESC');
@@ -1791,12 +1977,17 @@ export const handleApiRequest = async (req, res, next) => {
             l.archived_at = archivedAt;
             return l;
           }).filter(Boolean);
-          return sendJSON(res, 200, lessons);
+          const payload = buildPrecompressedJson(lessons);
+          apiResponseCache.set('lessons:all', payload);
+          return sendCachedJsonPayload(req, res, 200, payload);
         } catch (dbErr) {
           console.warn('[Server] GET /api/lessons MySQL error:', dbErr.message);
         }
       }
-      return sendJSON(res, 200, fileLessons);
+      const fileLessons = readDataFile('lessons.json', []);
+      const payload = buildPrecompressedJson(fileLessons);
+      apiResponseCache.set('lessons:all', payload);
+      return sendCachedJsonPayload(req, res, 200, payload);
     }
 
     if (req.method === 'POST' || req.method === 'PUT') {
@@ -1937,6 +2128,7 @@ export const handleApiRequest = async (req, res, next) => {
         const lessons = readDataFile('lessons.json', []).filter(l => l.id !== id);
         writeDataFile('lessons.json', lessons);
         flushPendingWritesSync();
+  invalidateApiCache();
 
         return sendJSON(res, 200, { success: true, id, deletedRows, deletedFromDb: isMySqlActive });
       } catch (err) {
@@ -2015,6 +2207,7 @@ export const handleApiRequest = async (req, res, next) => {
         const classes = readDataFile('classes.json', []).filter(c => c.id !== id);
         writeDataFile('classes.json', classes);
         flushPendingWritesSync();
+  invalidateApiCache();
         return sendJSON(res, 200, { success: true, id });
       } catch (err) {
         return sendJSON(res, 500, { error: err.message });
@@ -2140,6 +2333,7 @@ export const handleApiRequest = async (req, res, next) => {
         const fileEntries = readDataFile('logbook.json', []).filter(e => e.id !== id);
         writeDataFile('logbook.json', fileEntries);
         flushPendingWritesSync();
+  invalidateApiCache();
         return sendJSON(res, 200, { success: true, id });
       } catch (err) {
         return sendJSON(res, 500, { error: err.message });
@@ -2432,6 +2626,7 @@ export const handleApiRequest = async (req, res, next) => {
 
         writeDataFile('config.json', mergedOut);
         flushPendingWritesSync();
+  invalidateApiCache();
         return sendJSON(res, 200, { success: true, config: mergedOut });
       } catch (err) {
         return sendJSON(res, 500, { error: err.message });
@@ -3481,7 +3676,7 @@ const server = http.createServer(async (req, res) => {
   const pathname = parsedUrl.pathname;
   const cleanPath = pathname === '/' ? 'index.html' : pathname.replace(/^\//, '');
   const targetFile = path.join(DIST_DIR, cleanPath);
-  return serveStatic(res, targetFile);
+  return serveStatic(req, res, targetFile);
 });
 
 export { initMySQL, server };

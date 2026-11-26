@@ -348,7 +348,7 @@ ${sectionsContentText}
   };
 
   useEffect(() => {
-    fetchLessonsList(true);
+    fetchLessonsList(false);
     fetchClassesList();
 
     const unsubscribe = queryCache.subscribe('lessons_all', (updated) => {
