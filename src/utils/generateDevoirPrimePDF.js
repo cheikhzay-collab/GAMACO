@@ -240,7 +240,7 @@ function buildSolutionOverlayHtml(q, solutionStyle, figMap = null) {
     (Array.isArray(q.leftSteps) && q.leftSteps.length > 0) ||
     (Array.isArray(q.rightSteps) && q.rightSteps.length > 0)
   );
-  const graphSvgHtml = q.graph ? buildMathGraphSvg(q.graph, { maxWidth: 420, maxHeight: 260 }) : '';
+  const graphSvgHtml = q.graph ? buildMathGraphSvg(q.graph, { maxWidth: 500, maxHeight: 300 }) : '';
 
   if (!hasSingle && !hasTwoCols && !graphSvgHtml) return '';
 

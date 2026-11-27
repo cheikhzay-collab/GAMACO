@@ -1025,7 +1025,7 @@ export default function DevoirPrimeTemplate({
                   const qrDataUrl = qrMap[key] || '';
                   const linesCount = Math.max(3, Math.min(24, Number(q.linesCount) || 5));
                   const minBoxHeight = linesCount * 29 + 14;
-                  const graphSvg = q.graph ? buildMathGraphSvg(q.graph, { maxWidth: 420, maxHeight: 265 }) : '';
+                  const graphSvg = q.graph ? buildMathGraphSvg(q.graph, { maxWidth: 500, maxHeight: 300 }) : '';
                   const hasSolution = (q.steps && q.steps.length > 0) || Boolean(q.finalBox) || Boolean(graphSvg) || (q.layout === 'two_columns' && ((q.leftSteps && q.leftSteps.length > 0) || (q.rightSteps && q.rightSteps.length > 0)));
                   const renderedQUrls = new Set();
 
@@ -1233,10 +1233,76 @@ export default function DevoirPrimeTemplate({
                               ))
                             )}
                             {graphSvg && (
-                              <div
-                                style={{ display: 'flex', justifyContent: 'center', margin: '8px 0' }}
-                                dangerouslySetInnerHTML={{ __html: graphSvg }}
-                              />
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '8px 0', gap: '6px' }}>
+                                <div dangerouslySetInnerHTML={{ __html: graphSvg }} />
+                                {editable && (
+                                  <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    flexWrap: 'wrap',
+                                    justifyContent: 'center',
+                                    gap: '8px',
+                                    padding: '4px 10px',
+                                    background: '#f8fafc',
+                                    border: '1px solid #cbd5e1',
+                                    borderRadius: '8px',
+                                    fontFamily: 'Tajawal, sans-serif',
+                                    fontSize: '11.5px',
+                                    color: '#334155',
+                                    lineHeight: 1.2,
+                                  }}>
+                                    <span style={{ fontWeight: 700 }}>Largeur :</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => updateQuestion(eIdx, qIdx, { graph: { ...q.graph, width: Math.max(220, (q.graph.width || 500) - 40) } })}
+                                      style={{ width: '22px', height: '22px', borderRadius: '5px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontWeight: 700 }}
+                                    >−</button>
+                                    <strong style={{ minWidth: '42px', textAlign: 'center' }}>{q.graph.width || 500}px</strong>
+                                    <button
+                                      type="button"
+                                      onClick={() => updateQuestion(eIdx, qIdx, { graph: { ...q.graph, width: Math.min(720, (q.graph.width || 500) + 40) } })}
+                                      style={{ width: '22px', height: '22px', borderRadius: '5px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontWeight: 700 }}
+                                    >+</button>
+
+                                    <span style={{ fontWeight: 700, marginLeft: '6px' }}>Hauteur :</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => updateQuestion(eIdx, qIdx, { graph: { ...q.graph, height: Math.max(160, (q.graph.height || 300) - 30) } })}
+                                      style={{ width: '22px', height: '22px', borderRadius: '5px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontWeight: 700 }}
+                                    >−</button>
+                                    <strong style={{ minWidth: '42px', textAlign: 'center' }}>{q.graph.height || 300}px</strong>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const nextH = Math.min(580, (q.graph.height || 300) + 30);
+                                        updateQuestion(eIdx, qIdx, {
+                                          graph: { ...q.graph, height: nextH },
+                                          linesCount: Math.min(24, Math.max(linesCount, Math.ceil(nextH / 29) + 2)),
+                                        });
+                                      }}
+                                      style={{ width: '22px', height: '22px', borderRadius: '5px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontWeight: 700 }}
+                                    >+</button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => updateQuestion(eIdx, qIdx, { graph: { ...q.graph, orthonormal: !q.graph.orthonormal } })}
+                                      style={{
+                                        marginLeft: '6px',
+                                        padding: '3px 8px',
+                                        borderRadius: '5px',
+                                        border: '1px solid #0284c7',
+                                        background: q.graph.orthonormal ? '#0284c7' : '#fff',
+                                        color: q.graph.orthonormal ? '#fff' : '#0369a1',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                      }}
+                                      title="Basculer entre repère orthonormé 1:1 et repère adapté à la largeur/hauteur"
+                                    >
+                                      {q.graph.orthonormal ? '📐 Orthonormé (1:1)' : '↔️ Taille adaptée'}
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                             )}
                             {q.finalBox && (
                               <div style={{ display: 'flex', justifyContent: 'center', marginTop: '4px' }}>

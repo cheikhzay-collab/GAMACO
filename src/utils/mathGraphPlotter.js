@@ -256,16 +256,26 @@ const escapeXml = (str) =>
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 
-const niceStep = (span) => {
-  if (span <= 8) return 1;
-  if (span <= 16) return 2;
-  if (span <= 35) return 5;
-  return 10;
+const niceStepForScale = (span, scalePx) => {
+  const candidates = [0.5, 1, 2, 5, 10, 20, 50, 100];
+  for (const s of candidates) {
+    if (s * scalePx >= 28 && span / s <= 16) return s;
+  }
+  return Math.max(1, Math.ceil(span / 10));
 };
 
 const formatTickLabel = (n) => {
   if (Math.abs(n) < 1e-9) return '0';
   return Number.isInteger(n) ? String(n) : String(Number(n.toFixed(2)));
+};
+
+const renderSvgVectorSymbol = (cx, cy, letter, color = '#1e3a8a') => {
+  const f = (n) => Number(n.toFixed(2));
+  return [
+    `<text x="${f(cx)}" y="${f(cy)}" text-anchor="middle" font-family="'STIX Two Text', 'Times New Roman', serif" font-size="11.5" font-style="italic" font-weight="700" fill="${escapeXml(color)}" paint-order="stroke" stroke="#ffffff" stroke-width="3">${escapeXml(letter)}</text>`,
+    `<line x1="${f(cx - 4)}" y1="${f(cy - 9.5)}" x2="${f(cx + 4)}" y2="${f(cy - 9.5)}" stroke="${escapeXml(color)}" stroke-width="1.05" stroke-linecap="round"/>`,
+    `<path d="M ${f(cx + 2)} ${f(cy - 11.3)} L ${f(cx + 4.8)} ${f(cy - 9.5)} L ${f(cx + 2)} ${f(cy - 7.7)}" fill="none" stroke="${escapeXml(color)}" stroke-width="1.05" stroke-linecap="round" stroke-linejoin="round"/>`,
+  ].join('');
 };
 
 /**
@@ -347,11 +357,21 @@ export function normalizeGraphSpec(raw) {
     return null;
   }
 
+  const width = raw.width !== undefined && raw.width !== null
+    ? Math.max(220, Math.min(720, Math.round(toFinite(raw.width, 500))))
+    : null;
+  const height = raw.height !== undefined && raw.height !== null
+    ? Math.max(160, Math.min(580, Math.round(toFinite(raw.height, 300))))
+    : null;
+
   return {
     xMin,
     xMax,
     yMin,
     yMax,
+    width,
+    height,
+    orthonormal: raw.orthonormal === true,
     showGrid: raw.showGrid !== false,
     caption: String(raw.caption || '').trim(),
     curves,
@@ -368,25 +388,34 @@ export function buildMathGraphSvg(rawGraph, options = {}) {
   const graph = normalizeGraphSpec(rawGraph);
   if (!graph) return '';
 
-  const maxWidth = Number(options.maxWidth) || 410;
-  const maxHeight = Number(options.maxHeight) || 265;
-  const pad = { top: 18, right: 22, bottom: 22, left: 26 };
+  const maxWidth = graph.width || Number(options.maxWidth) || 500;
+  const maxHeight = graph.height || Number(options.maxHeight) || 300;
+  const pad = { top: 20, right: 24, bottom: 24, left: 30 };
 
   const xSpan = graph.xMax - graph.xMin;
   const ySpan = graph.yMax - graph.yMin;
 
-  // Preserve orthonormal 1:1 scale as much as possible within box bounds
-  const availW = maxWidth - pad.left - pad.right;
-  const availH = maxHeight - pad.top - pad.bottom;
-  const pxPerUnit = Math.min(availW / xSpan, availH / ySpan);
+  const availW = Math.max(120, maxWidth - pad.left - pad.right);
+  const availH = Math.max(100, maxHeight - pad.top - pad.bottom);
 
-  const plotW = Math.round(xSpan * pxPerUnit);
-  const plotH = Math.round(ySpan * pxPerUnit);
+  let scaleX;
+  let scaleY;
+  if (graph.orthonormal) {
+    const unitPx = Math.min(availW / xSpan, availH / ySpan);
+    scaleX = unitPx;
+    scaleY = unitPx;
+  } else {
+    scaleX = availW / xSpan;
+    scaleY = availH / ySpan;
+  }
+
+  const plotW = Math.round(xSpan * scaleX);
+  const plotH = Math.round(ySpan * scaleY);
   const svgW = plotW + pad.left + pad.right;
   const svgH = plotH + pad.top + pad.bottom;
 
-  const toPxX = (x) => pad.left + (x - graph.xMin) * pxPerUnit;
-  const toPxY = (y) => pad.top + (graph.yMax - y) * pxPerUnit;
+  const toPxX = (x) => pad.left + (x - graph.xMin) * scaleX;
+  const toPxY = (y) => pad.top + (graph.yMax - y) * scaleY;
   const fmt = (n) => Number(n.toFixed(2));
 
   const clipId = `dp-clip-${Math.random().toString(36).slice(2, 9)}`;
@@ -411,21 +440,21 @@ export function buildMathGraphSvg(rawGraph, options = {}) {
   parts.push(`<rect x="${pad.left}" y="${pad.top}" width="${plotW}" height="${plotH}" fill="#ffffff" stroke="#e2e8f0" stroke-width="0.8"/>`);
 
   // Grid lines
-  const stepX = niceStep(xSpan);
-  const stepY = niceStep(ySpan);
+  const stepX = niceStepForScale(xSpan, scaleX);
+  const stepY = niceStepForScale(ySpan, scaleY);
   if (graph.showGrid) {
-    const startGx = Math.ceil(graph.xMin);
-    for (let gx = startGx; gx <= Math.floor(graph.xMax); gx++) {
+    const minorStepX = scaleX >= 18 ? 1 : stepX;
+    const minorStepY = scaleY >= 14 ? 1 : stepY;
+    for (let gx = Math.ceil(graph.xMin / minorStepX) * minorStepX; gx <= graph.xMax; gx += minorStepX) {
       const px = fmt(toPxX(gx));
-      const isMajor = gx % stepX === 0;
+      const isMajor = Math.abs(gx % stepX) < 1e-6;
       parts.push(
         `<line x1="${px}" y1="${pad.top}" x2="${px}" y2="${pad.top + plotH}" stroke="${isMajor ? '#e2e8f0' : '#f1f5f9'}" stroke-width="${isMajor ? '0.9' : '0.6'}"/>`
       );
     }
-    const startGy = Math.ceil(graph.yMin);
-    for (let gy = startGy; gy <= Math.floor(graph.yMax); gy++) {
+    for (let gy = Math.ceil(graph.yMin / minorStepY) * minorStepY; gy <= graph.yMax; gy += minorStepY) {
       const py = fmt(toPxY(gy));
-      const isMajor = gy % stepY === 0;
+      const isMajor = Math.abs(gy % stepY) < 1e-6;
       parts.push(
         `<line x1="${pad.left}" y1="${py}" x2="${pad.left + plotW}" y2="${py}" stroke="${isMajor ? '#e2e8f0' : '#f1f5f9'}" stroke-width="${isMajor ? '0.9' : '0.6'}"/>`
       );
@@ -447,35 +476,39 @@ export function buildMathGraphSvg(rawGraph, options = {}) {
     `<line x1="${axisX}" y1="${pad.top + plotH}" x2="${axisX}" y2="${pad.top}" stroke="#0f172a" stroke-width="1.35" marker-end="url(#${arrowDarkId})"/>`
   );
 
-  // Ticks & graduation numbers
-  const tickFont = `font-family="'STIX Two Text', 'Times New Roman', serif" font-size="10.5" fill="#334155"`;
+  // Ticks & graduation numbers (avoid overlapping origin O)
+  const tickFont = `font-family="'STIX Two Text', 'Times New Roman', serif" font-size="10.5" fill="#334155" paint-order="stroke" stroke="#ffffff" stroke-width="3"`;
   for (let gx = Math.ceil(graph.xMin / stepX) * stepX; gx <= graph.xMax - 0.15; gx += stepX) {
     if (Math.abs(gx) < 1e-6) continue;
     const px = fmt(toPxX(gx));
     parts.push(`<line x1="${px}" y1="${fmt(axisY - 3)}" x2="${px}" y2="${fmt(axisY + 3)}" stroke="#0f172a" stroke-width="1"/>`);
-    parts.push(`<text x="${px}" y="${fmt(axisY + 13)}" text-anchor="middle" ${tickFont}>${escapeXml(formatTickLabel(gx))}</text>`);
+    if (!hasOriginX || Math.abs(px - axisX) >= 18) {
+      parts.push(`<text x="${px}" y="${fmt(axisY + 14)}" text-anchor="middle" ${tickFont}>${escapeXml(formatTickLabel(gx))}</text>`);
+    }
   }
   for (let gy = Math.ceil(graph.yMin / stepY) * stepY; gy <= graph.yMax - 0.15; gy += stepY) {
     if (Math.abs(gy) < 1e-6) continue;
     const py = fmt(toPxY(gy));
     parts.push(`<line x1="${fmt(axisX - 3)}" y1="${py}" x2="${fmt(axisX + 3)}" y2="${py}" stroke="#0f172a" stroke-width="1"/>`);
-    parts.push(`<text x="${fmt(axisX - 6)}" y="${fmt(py + 3.5)}" text-anchor="end" ${tickFont}>${escapeXml(formatTickLabel(gy))}</text>`);
+    if (!hasOriginY || Math.abs(py - axisY) >= 14) {
+      parts.push(`<text x="${fmt(axisX - 6)}" y="${fmt(py + 3.5)}" text-anchor="end" ${tickFont}>${escapeXml(formatTickLabel(gy))}</text>`);
+    }
   }
 
   // Origin O + Unit vectors i, j when origin is inside frame
   if (hasOriginX && hasOriginY) {
     const ox = fmt(toPxX(0));
     const oy = fmt(toPxY(0));
-    parts.push(`<text x="${fmt(ox - 6)}" y="${fmt(oy + 13)}" text-anchor="end" font-family="'STIX Two Text', serif" font-size="11" font-weight="700" fill="#0f172a">O</text>`);
+    parts.push(`<text x="${fmt(ox - 6)}" y="${fmt(oy + 14)}" text-anchor="end" font-family="'STIX Two Text', serif" font-size="11" font-weight="700" fill="#0f172a" paint-order="stroke" stroke="#ffffff" stroke-width="3">O</text>`);
     if (graph.xMax >= 1.15) {
       const ix = fmt(toPxX(1));
       parts.push(`<line x1="${ox}" y1="${oy}" x2="${ix}" y2="${oy}" stroke="#1e3a8a" stroke-width="2" marker-end="url(#${arrowVecId})"/>`);
-      parts.push(`<text x="${fmt((ox + ix) / 2)}" y="${fmt(oy - 5)}" text-anchor="middle" font-family="'STIX Two Text', serif" font-size="11" font-style="italic" font-weight="700" fill="#1e3a8a">i⃗</text>`);
+      parts.push(renderSvgVectorSymbol((ox + ix) / 2, oy - 6, 'i', '#1e3a8a'));
     }
     if (graph.yMax >= 1.15) {
       const jy = fmt(toPxY(1));
       parts.push(`<line x1="${ox}" y1="${oy}" x2="${ox}" y2="${jy}" stroke="#1e3a8a" stroke-width="2" marker-end="url(#${arrowVecId})"/>`);
-      parts.push(`<text x="${fmt(ox + 8)}" y="${fmt((oy + jy) / 2 + 3)}" text-anchor="start" font-family="'STIX Two Text', serif" font-size="11" font-style="italic" font-weight="700" fill="#1e3a8a">j⃗</text>`);
+      parts.push(renderSvgVectorSymbol(ox + 10, (oy + jy) / 2 + 4, 'j', '#1e3a8a'));
     }
   }
 
@@ -646,7 +679,7 @@ export function buildMathGraphSvg(rawGraph, options = {}) {
     const lx = Math.max(pad.left + 4, Math.min(pad.left + plotW - 14, lb.x));
     const ly = Math.max(pad.top + 11, Math.min(pad.top + plotH - 4, lb.y));
     parts.push(
-      `<text x="${fmt(lx)}" y="${fmt(ly)}" font-family="'STIX Two Text', 'Times New Roman', serif" font-size="11.5" font-weight="700" fill="${escapeXml(lb.color)}">${escapeXml(lb.text)}</text>`
+      `<text x="${fmt(lx)}" y="${fmt(ly)}" font-family="'STIX Two Text', 'Times New Roman', serif" font-size="11.5" font-weight="700" fill="${escapeXml(lb.color)}" paint-order="stroke" stroke="#ffffff" stroke-width="3" stroke-linejoin="round">${escapeXml(lb.text)}</text>`
     );
   });
 
