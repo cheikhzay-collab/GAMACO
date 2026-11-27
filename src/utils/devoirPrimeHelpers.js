@@ -223,14 +223,21 @@ export function getDefaultDevoirPrimeMeta(lesson = {}, settings = {}) {
 
   const brandName = savedMeta.brandName || globalCfg.brandName || 'MATHS PRIME';
   const handle = savedMeta.handle || header?.phone || lesson?.phone || globalCfg.handle || '';
+  const neMeta = header?.national_exam_meta || content?.national_exam_meta || lesson?.national_exam_meta || {};
+  const titleYearMatch = `${rawTitle} ${savedMeta.semester || ''} ${neMeta.session || ''}`.match(/\b(20[0-2][0-9]|199[0-9])\b/);
+  const examYear = neMeta.year || (titleYearMatch ? titleYearMatch[1] : '');
+  const code = savedMeta.code || neMeta.code || (isNational ? (level.includes('sm') || /sciences?\s*math|علوم\s*رياضية/i.test(rawTitle) ? 'NS 26F' : 'NS 22F') : '');
 
   const defaultTitle = isNational
     ? (rawTitle && rawTitle !== 'فرض محروس رقم 1' ? rawTitle : 'الامتحان الوطني الموحد للبكالوريا')
     : rawTitle;
 
-  const defaultSemester = isNational
-    ? (savedMeta.semester || (/rattrapage|استدراك/i.test(rawTitle) ? 'الدورة الاستدراكية' : 'الدورة العادية'))
+  const baseSemester = isNational
+    ? (savedMeta.semester || neMeta.session || (/rattrapage|استدراك/i.test(rawTitle) ? 'الدورة الاستدراكية' : 'الدورة العادية'))
     : (savedMeta.semester || 'الدورة الأولى');
+  const defaultSemester = isNational && examYear && !String(baseSemester).includes(examYear)
+    ? `${baseSemester} ${examYear}`
+    : baseSemester;
 
   const defaultDuration = isNational
     ? (savedMeta.duration || (level.includes('sm') ? '4 ساعات' : '3 ساعات'))
@@ -246,6 +253,7 @@ export function getDefaultDevoirPrimeMeta(lesson = {}, settings = {}) {
     academicYear,
     teacher,
     brandName,
+    code,
     handle,
     subject: savedMeta.subject || 'الرياضيات',
     branch: savedMeta.branch || BRANCH_AR_BY_LEVEL[level] || BRANCH_AR_BY_LEVEL['2bac_pc_svt'],

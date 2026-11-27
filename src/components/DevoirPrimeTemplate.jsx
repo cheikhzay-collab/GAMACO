@@ -241,7 +241,7 @@ export default function DevoirPrimeTemplate({
       try {
         if (field === 'brandName') localStorage.setItem('devoirPrimeBrand', value);
         if (field === 'handle') localStorage.setItem('devoirPrimeHandle', value);
-      } catch {}
+      } catch { }
       return next;
     });
   };
@@ -937,14 +937,18 @@ export default function DevoirPrimeTemplate({
             <div style={{ width: '92px', border: '1.4px solid #000', borderRadius: '7px', background: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'Tajawal, sans-serif' }}>
               <div style={{ fontSize: '11.5px', fontWeight: 800 }}>الصفحة</div>
               <div style={{ width: '65%', height: '1px', background: '#000', margin: '2px 0' }} />
-              <div style={{ fontSize: '12px', fontWeight: 800 }}>2 / {estimatedPages}</div>
+              <div style={{ fontSize: '12px', fontWeight: 800, direction: 'ltr' }}>2 / {estimatedPages}</div>
             </div>
             <div style={{ flex: 1, border: '1.4px solid #000', borderRadius: '7px', background: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', fontFamily: 'Tajawal, sans-serif', padding: '2px 8px' }}>
-              <div style={{ fontSize: '12.5px', fontWeight: 900 }}>{meta.semester} - {meta.title} - {meta.academicYear}</div>
+              <div style={{ fontSize: '12.5px', fontWeight: 900 }}>
+                {meta.isNational
+                  ? `موضوع الامتحان الوطني الموحد للبكالوريا - ${meta.semester} -`
+                  : `${meta.semester} - ${meta.title} - ${meta.academicYear}`}
+              </div>
               <div style={{ fontSize: '11px', fontWeight: 600, color: '#1e293b' }}>مادة : {meta.subject} - {meta.branch}</div>
             </div>
             <div style={{ width: '92px', border: '1.4px solid #000', borderRadius: '7px', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', fontWeight: 800, fontSize: '12px', padding: '4px' }}>
-              {meta.brandName}
+              {meta.isNational && meta.code ? meta.code : meta.brandName}
             </div>
           </div>
         </div>

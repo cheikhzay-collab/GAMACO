@@ -198,6 +198,10 @@ function buildPage1CoverHeaderHtml(meta) {
  * Generates the Compact 3-Part Running Header HTML template (used on Pages 2..N).
  */
 function buildRunningHeaderTemplateHtml(meta) {
+  const line1 = meta.isNational
+    ? `موضوع الامتحان الوطني الموحد للبكالوريا - ${escapeHtml(meta.semester)} -`
+    : `${escapeHtml(meta.semester)} - ${escapeHtml(meta.title)} - ${escapeHtml(meta.academicYear)}`;
+  const rightLabel = meta.isNational && meta.code ? meta.code : meta.brandName;
   return `
   <div class="dp-running-header">
     <div class="dp-rh-page-box">
@@ -206,10 +210,10 @@ function buildRunningHeaderTemplateHtml(meta) {
       <div class="dp-rh-page-val"><span class="dp-page-num">2</span> / <span class="dp-total-pages">1</span></div>
     </div>
     <div class="dp-rh-center-box">
-      <div class="dp-rh-line1">${escapeHtml(meta.semester)} - ${escapeHtml(meta.title)} - ${escapeHtml(meta.academicYear)}</div>
+      <div class="dp-rh-line1">${line1}</div>
       <div class="dp-rh-line2">مادة : ${escapeHtml(meta.subject)} - ${escapeHtml(meta.branch)}</div>
     </div>
-    <div class="dp-rh-brand-box">${escapeHtml(meta.brandName)}</div>
+    <div class="dp-rh-brand-box">${escapeHtml(rightLabel)}</div>
   </div>`;
 }
 

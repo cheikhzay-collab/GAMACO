@@ -158,13 +158,7 @@ export const generateNationalExamHTML = async (examData, settings = {}) => {
   <style>
     @page {
       size: A4 portrait;
-      margin: 13mm 14mm 16mm 14mm;
-      @bottom-center {
-        content: "Page " counter(page) " / " counter(pages);
-        font-family: 'Computer Modern Serif', 'STIX Two Text', serif;
-        font-size: 9.5pt;
-        color: #475569;
-      }
+      margin: 0;
     }
 
     * {
@@ -178,9 +172,9 @@ export const generateNationalExamHTML = async (examData, settings = {}) => {
       margin: 0;
       padding: 0;
       color: #0f172a;
-      background: #e2e8f0;
-      font-size: 11pt;
-      line-height: 1.62;
+      background: #cbd5e1;
+      font-size: 10.8pt;
+      line-height: 1.56;
     }
 
     .screen-toolbar {
@@ -209,13 +203,99 @@ export const generateNationalExamHTML = async (examData, settings = {}) => {
       cursor: pointer;
     }
 
+    #ne-pages-root {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 18px;
+      padding: 20px 0 40px;
+    }
+
     .ne-sheet {
       width: 210mm;
-      max-width: 100%;
-      margin: 18px auto;
+      height: 297mm;
       background: #ffffff;
-      padding: 12mm 14mm;
-      box-shadow: 0 10px 35px rgba(15, 23, 42, 0.14);
+      padding: 10mm 13mm 11mm 13mm;
+      box-shadow: 0 10px 35px rgba(15, 23, 42, 0.16);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+      page-break-after: always;
+      break-after: page;
+    }
+    .ne-sheet:last-child {
+      page-break-after: auto;
+      break-after: auto;
+    }
+    .ne-sheet-body {
+      display: block;
+      width: 100%;
+    }
+    #ne-staging {
+      position: absolute;
+      left: -99999px;
+      top: 0;
+      width: 184mm;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    /* ── PAGES 2..N COMPACT 3-PART RUNNING HEADER ── */
+    .ne-running-header {
+      display: flex;
+      align-items: stretch;
+      gap: 6px;
+      margin-bottom: 12px;
+      min-height: 52px;
+      flex-shrink: 0;
+    }
+    .ne-rh-page-box {
+      width: 92px;
+      border: 1.4px solid #000;
+      border-radius: 7px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Tajawal', sans-serif;
+      padding: 2px 4px;
+      flex-shrink: 0;
+      background: #fff;
+    }
+    .ne-rh-page-lbl { font-size: 11.5px; font-weight: 800; line-height: 1.1; }
+    .ne-rh-page-sep { width: 68%; height: 1px; background: #000; margin: 3px 0; }
+    .ne-rh-page-val { font-size: 12.5px; font-weight: 800; line-height: 1.1; direction: ltr; }
+    .ne-rh-center-box {
+      flex: 1;
+      border: 1.4px solid #000;
+      border-radius: 7px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-family: 'Tajawal', sans-serif;
+      padding: 3px 10px;
+      background: #fff;
+    }
+    .ne-rh-line1 { font-size: 12.5px; font-weight: 900; color: #000; line-height: 1.25; }
+    .ne-rh-line2 { font-size: 11px; font-weight: 600; color: #1e293b; line-height: 1.25; }
+    .ne-rh-code-box {
+      width: 92px;
+      border: 1.4px solid #000;
+      border-radius: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-family: 'STIX Two Text', Georgia, serif;
+      font-weight: 800;
+      font-size: 13px;
+      padding: 4px;
+      line-height: 1.15;
+      flex-shrink: 0;
+      background: #fff;
     }
 
     .ne-box {
@@ -388,16 +468,20 @@ export const generateNationalExamHTML = async (examData, settings = {}) => {
 
     @media print {
       body {
-        background: #ffffff;
+        background: #ffffff !important;
       }
       .screen-toolbar {
         display: none !important;
       }
+      #ne-pages-root {
+        padding: 0 !important;
+        gap: 0 !important;
+      }
       .ne-sheet {
-        width: 100%;
-        margin: 0;
-        padding: 0;
-        box-shadow: none;
+        width: 210mm !important;
+        height: 297mm !important;
+        margin: 0 !important;
+        box-shadow: none !important;
       }
     }
   </style>
@@ -414,88 +498,103 @@ export const generateNationalExamHTML = async (examData, settings = {}) => {
     </div>
   </div>
 
-  <div class="ne-sheet">
-    <!-- ── PAGE 1 : OFFICIAL COVER HEADER & METADATA ── -->
-    <div class="ne-box" style="display: grid; grid-template-columns: 112px 1fr 220px; min-height: 136px; margin-bottom: 14px;">
-      <div style="border-right: 1.5px solid #0f172a; text-align: center; padding: 8px; display: flex; flex-direction: column; justify-content: center; align-items: center;">
-        <div style="font-size: 10.5pt; font-weight: 800; margin-bottom: 6px; font-family: 'Tajawal', sans-serif;" dir="rtl">الصفحة</div>
-        <div style="font-size: 20pt; font-weight: 900; line-height: 1;">1</div>
-        <div style="width: 34px; height: 1.5px; background: #0f172a; margin: 5px auto;"></div>
-        <div style="font-size: 9pt; font-weight: 700; color: #334155; font-family: 'Tajawal', sans-serif;" dir="rtl">الموضوع</div>
+  <!-- Repeating Header Template for Pages 2..N -->
+  <template id="ne-tpl-running-header">
+    <div class="ne-running-header">
+      <div class="ne-rh-page-box">
+        <div class="ne-rh-page-lbl">الصفحة</div>
+        <div class="ne-rh-page-sep"></div>
+        <div class="ne-rh-page-val"><span class="ne-page-num">2</span> / <span class="ne-total-pages">1</span></div>
       </div>
-
-      <div style="border-right: 1.5px solid #0f172a; text-align: center; padding: 10px 12px; display: flex; flex-direction: column; justify-content: center;" dir="rtl">
-        <h1 style="font-size: 15.5pt; font-weight: 900; margin: 0 0 6px 0; font-family: 'Tajawal', sans-serif; color: #0f172a;">الامتحان الوطني الموحد للبكالوريا</h1>
-        <h2 style="font-size: 11.5pt; font-weight: 700; margin: 0; font-family: 'Tajawal', sans-serif; color: #1e293b;">- ${escapeHtml(session)} -</h2>
+      <div class="ne-rh-center-box" dir="rtl">
+        <div class="ne-rh-line1">موضوع الامتحان الوطني الموحد للبكالوريا - ${escapeHtml(session)} -</div>
+        <div class="ne-rh-line2">مادة : ${escapeHtml(subject)} - ${escapeHtml(branch)}</div>
       </div>
+      <div class="ne-rh-code-box">${escapeHtml(code)}</div>
+    </div>
+  </template>
 
-      <div style="position: relative; text-align: center; padding: 8px 10px; display: flex; flex-direction: column; justify-content: center; align-items: center;">
-        <!-- Crisp SVG corner badge (never loses black fill in print) -->
-        <svg width="36" height="36" viewBox="0 0 36 36" style="position: absolute; top: 0; left: 0;">
-          <polygon points="0,0 36,0 0,36" fill="#0f172a" />
-          <text x="6" y="15" fill="#ffffff" font-family="STIX Two Text, Tajawal, sans-serif" font-size="11" font-weight="800">${escapeHtml(subjectNumber)}</text>
-        </svg>
+  <!-- Hidden Staging Container for Exact DOM Pagination -->
+  <div id="ne-staging">
+    <!-- ── PAGE 1 COVER HEADER & METADATA ── -->
+    <div class="ne-flow-item" data-page-one="true">
+      <div class="ne-box" style="display: grid; grid-template-columns: 112px 1fr 220px; min-height: 136px; margin-bottom: 14px;">
+        <div style="border-right: 1.5px solid #0f172a; text-align: center; padding: 8px; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+          <div style="font-size: 10.5pt; font-weight: 800; margin-bottom: 6px; font-family: 'Tajawal', sans-serif;" dir="rtl">الصفحة</div>
+          <div style="font-size: 20pt; font-weight: 900; line-height: 1;">1</div>
+          <div style="width: 34px; height: 1.5px; background: #0f172a; margin: 5px auto;"></div>
+          <div style="font-size: 9pt; font-weight: 700; color: #334155; font-family: 'Tajawal', sans-serif;" dir="rtl">الموضوع</div>
+        </div>
 
-        ${ministryLogo ? `<img src="${escapeHtml(ministryLogo)}" alt="Logo du Ministère" style="max-height:46px;max-width:175px;width:auto;height:auto;object-fit:contain;display:block;margin:0 auto;" />` : `<svg width="42" height="42" viewBox="0 0 100 100" fill="none">
-          <circle cx="50" cy="50" r="46" stroke="#0f172a" stroke-width="2" fill="none" />
-          <path d="M40 22 Q50 14 60 22 L57 26 Q50 19 43 26 Z" fill="#0f172a" />
-          <circle cx="50" cy="15" r="2.5" fill="#0f172a" />
-          <path d="M34 30 Q50 32 66 30 Q66 58 50 68 Q34 58 34 30 Z" stroke="#0f172a" stroke-width="2" fill="#fff" />
-          <path d="M50 36 L53 44 L61 44 L55 49 L57 57 L50 52 L43 57 L45 49 L39 44 L47 44 Z" stroke="#0f172a" stroke-width="1.5" fill="#0f172a" fill-opacity="0.12" />
-        </svg>`}
-        <div style="font-weight: 700; font-size: 7.5pt; line-height: 1.3; font-family: 'Tajawal', sans-serif; margin-top: 4px;" dir="rtl">
-          المملكة المغربية<br/>
-          وزارة التربية الوطنية والتعليم الأولي والرياضة<br/>
-          <span style="font-size: 6.8pt; font-weight: 500; color: #334155;">المركز الوطني للتقويم والامتحانات والتوجيه</span>
+        <div style="border-right: 1.5px solid #0f172a; text-align: center; padding: 10px 12px; display: flex; flex-direction: column; justify-content: center;" dir="rtl">
+          <h1 style="font-size: 15.5pt; font-weight: 900; margin: 0 0 6px 0; font-family: 'Tajawal', sans-serif; color: #0f172a;">الامتحان الوطني الموحد للبكالوريا</h1>
+          <h2 style="font-size: 11.5pt; font-weight: 700; margin: 0; font-family: 'Tajawal', sans-serif; color: #1e293b;">- ${escapeHtml(session)} -</h2>
+        </div>
+
+        <div style="position: relative; text-align: center; padding: 8px 10px; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+          <svg width="36" height="36" viewBox="0 0 36 36" style="position: absolute; top: 0; left: 0;">
+            <polygon points="0,0 36,0 0,36" fill="#0f172a" />
+            <text x="6" y="15" fill="#ffffff" font-family="STIX Two Text, Tajawal, sans-serif" font-size="11" font-weight="800">${escapeHtml(subjectNumber)}</text>
+          </svg>
+
+          ${ministryLogo ? `<img src="${escapeHtml(ministryLogo)}" alt="Logo du Ministère" style="max-height:46px;max-width:175px;width:auto;height:auto;object-fit:contain;display:block;margin:0 auto;" />` : `<svg width="42" height="42" viewBox="0 0 100 100" fill="none">
+            <circle cx="50" cy="50" r="46" stroke="#0f172a" stroke-width="2" fill="none" />
+            <path d="M40 22 Q50 14 60 22 L57 26 Q50 19 43 26 Z" fill="#0f172a" />
+            <circle cx="50" cy="15" r="2.5" fill="#0f172a" />
+            <path d="M34 30 Q50 32 66 30 Q66 58 50 68 Q34 58 34 30 Z" stroke="#0f172a" stroke-width="2" fill="#fff" />
+            <path d="M50 36 L53 44 L61 44 L55 49 L57 57 L50 52 L43 57 L45 49 L39 44 L47 44 Z" stroke="#0f172a" stroke-width="1.5" fill="#0f172a" fill-opacity="0.12" />
+          </svg>`}
+          <div style="font-weight: 700; font-size: 7.5pt; line-height: 1.3; font-family: 'Tajawal', sans-serif; margin-top: 4px;" dir="rtl">
+            المملكة المغربية<br/>
+            وزارة التربية الوطنية والتعليم الأولي والرياضة<br/>
+            <span style="font-size: 6.8pt; font-weight: 500; color: #334155;">المركز الوطني للتقويم والامتحانات والتوجيه</span>
+          </div>
         </div>
       </div>
+
+      <table class="ne-table" style="margin-bottom: 18px;">
+        <tbody>
+          <tr>
+            <td style="width: 112px; font-weight: 800; font-size: 11pt; background: #f8fafc;">${escapeHtml(code)}</td>
+            <td style="font-weight: 900; font-size: 13pt; font-family: 'Tajawal', sans-serif;" dir="rtl">الموضوع</td>
+          </tr>
+          <tr>
+            <td style="padding: 7px;" dir="rtl">
+              <div style="font-size: 8pt; font-family: 'Tajawal', sans-serif; color: #475569;">مدة الإنجاز</div>
+              <div style="font-weight: 800; font-size: 11pt; font-family: 'Tajawal', sans-serif;">${escapeHtml(duration)}</div>
+            </td>
+            <td style="font-weight: 800; font-size: 11.5pt; text-align: center; padding: 7px; font-family: 'Tajawal', sans-serif;" dir="${isArabicStr(subject) ? 'rtl' : 'ltr'}">
+              <div style="font-size: 8pt; font-weight: 500; color: #475569; margin-bottom: 2px;" dir="rtl">المادة</div>
+              ${escapeHtml(subject)}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 7px;" dir="rtl">
+              <div style="font-size: 8pt; font-family: 'Tajawal', sans-serif; color: #475569;">المعامل</div>
+              <div style="font-weight: 800; font-size: 11pt; font-family: 'Tajawal', sans-serif;">${escapeHtml(coeff)}</div>
+            </td>
+            <td style="font-weight: 700; font-size: 10.2pt; text-align: center; padding: 7px; font-family: 'Tajawal', sans-serif;" dir="${isArabicStr(branch) ? 'rtl' : 'ltr'}">
+              <div style="font-size: 8pt; font-weight: 500; color: #475569; margin-bottom: 2px;" dir="rtl">الشعبة والمسلك</div>
+              ${escapeHtml(branch)}
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
 
-    <!-- METADATA TABLE -->
-    <table class="ne-table" style="margin-bottom: 20px;">
-      <tbody>
-        <tr>
-          <td style="width: 112px; font-weight: 800; font-size: 11pt; background: #f8fafc;">${escapeHtml(code)}</td>
-          <td style="font-weight: 900; font-size: 13pt; font-family: 'Tajawal', sans-serif;" dir="rtl">الموضوع</td>
-        </tr>
-        <tr>
-          <td style="padding: 7px;" dir="rtl">
-            <div style="font-size: 8pt; font-family: 'Tajawal', sans-serif; color: #475569;">مدة الإنجاز</div>
-            <div style="font-weight: 800; font-size: 11pt; font-family: 'Tajawal', sans-serif;">${escapeHtml(duration)}</div>
-          </td>
-          <td style="font-weight: 800; font-size: 11.5pt; text-align: center; padding: 7px; font-family: 'Tajawal', sans-serif;" dir="${isArabicStr(subject) ? 'rtl' : 'ltr'}">
-            <div style="font-size: 8pt; font-weight: 500; color: #475569; margin-bottom: 2px;" dir="rtl">المادة</div>
-            ${escapeHtml(subject)}
-          </td>
-        </tr>
-        <tr>
-          <td style="padding: 7px;" dir="rtl">
-            <div style="font-size: 8pt; font-family: 'Tajawal', sans-serif; color: #475569;">المعامل</div>
-            <div style="font-weight: 800; font-size: 11pt; font-family: 'Tajawal', sans-serif;">${escapeHtml(coeff)}</div>
-          </td>
-          <td style="font-weight: 700; font-size: 10.2pt; text-align: center; padding: 7px; font-family: 'Tajawal', sans-serif;" dir="${isArabicStr(branch) ? 'rtl' : 'ltr'}">
-            <div style="font-size: 8pt; font-weight: 500; color: #475569; margin-bottom: 2px;" dir="rtl">الشعبة والمسلك</div>
-            ${escapeHtml(branch)}
-          </td>
-        </tr>
-      </tbody>
-    </table>
-
-    <!-- INSTRUCTIONS -->
-    <div style="margin-bottom: 20px;">
+    <div class="ne-flow-item" data-page-one="true" style="margin-bottom: 16px;">
       <h3 class="ne-section-title"><span>Instructions générales</span></h3>
-      <ul style="margin: 0; padding-left: 24px; font-size: 10.8pt; line-height: 1.58;">
+      <ul style="margin: 0; padding-left: 24px; font-size: 10.6pt; line-height: 1.55;">
         ${instructions.map(i => `<li style="margin-bottom: 4px;" dir="${isArabicStr(i) ? 'rtl' : 'ltr'}">${formatRichMathHtml(i)}</li>`).join('')}
       </ul>
     </div>
 
-    <!-- COMPOSANTES DU SUJET -->
-    <div style="margin-bottom: 20px;">
+    <div class="ne-flow-item" data-page-one="true" style="margin-bottom: 16px;">
       <h3 class="ne-section-title"><span>Composantes du sujet</span></h3>
-      <p style="font-size: 10.6pt; margin: 0 0 10px 0; line-height: 1.55;">
+      <p style="font-size: 10.5pt; margin: 0 0 10px 0; line-height: 1.5;">
         L&apos;épreuve est composée des exercices et du problème suivants, indépendants entre eux, et répartis selon les domaines comme suit :
       </p>
-      <table class="ne-table" style="font-size: 10.4pt;">
+      <table class="ne-table" style="font-size: 10.2pt;">
         <tbody>
           ${components.map(c => `
             <tr>
@@ -508,87 +607,80 @@ export const generateNationalExamHTML = async (examData, settings = {}) => {
       </table>
     </div>
 
-    <!-- NOTATIONS -->
-    <div style="margin-bottom: 18px;">
+    <div class="ne-flow-item" data-page-one="true" style="margin-bottom: 10px;">
       <h3 class="ne-section-title"><span>Notations</span></h3>
-      <ul style="margin: 0; padding-left: 24px; font-size: 10.8pt; line-height: 1.58;">
+      <ul style="margin: 0; padding-left: 24px; font-size: 10.6pt; line-height: 1.55;">
         ${notations.map(n => `<li style="margin-bottom: 4px;" dir="${isArabicStr(n) ? 'rtl' : 'ltr'}">${formatRichMathHtml(n)}</li>`).join('')}
       </ul>
     </div>
 
-    <!-- ── PAGES 2+ : EXERCISES (Natural flow without half-empty page breaks) ── -->
-    ${exercises.length > 0 ? `
-      <div class="ne-page-break">
-        <div class="ne-running-banner">
-          <div style="border-right: 1.25px solid #0f172a; text-align: center; font-weight: 800; font-size: 9.5pt;">${escapeHtml(code)}</div>
-          <div style="text-align: center; padding: 0 10px;" dir="rtl">
-            <div style="font-size: 9pt; font-weight: 800; font-family: 'Tajawal', sans-serif;">موضوع الامتحان الوطني الموحد للبكالوريا — ${escapeHtml(session)}</div>
-            <div style="font-size: 8pt; color: #334155; font-family: 'Tajawal', sans-serif;">مادة : ${escapeHtml(subject)} — ${escapeHtml(branch)}</div>
+    <!-- ── PAGES 2..N EXERCISES (Every page 2..N gets the 3-part repeating header) ── -->
+    ${exercises.map((ex, eIdx) => {
+      const titleHasPoints = /point|pt|نقط/i.test(ex.title);
+      const blocks = ex.blocks || [];
+      const figMap = buildFigureMapFromList(ex.figures || []);
+
+      const itemsHtml = [];
+      itemsHtml.push(`
+        <div class="ne-flow-item" ${eIdx === 0 ? 'data-exercises-start="true"' : ''} data-keep-with-next="true">
+          <div class="ne-ex-head" dir="${isArabicStr(ex.title) ? 'rtl' : 'ltr'}">
+            <h3 class="ne-ex-title">${escapeHtml(ex.title)}</h3>
+            ${(ex.points && !titleHasPoints) ? `<span class="ne-ex-points">(${escapeHtml(ex.points)})</span>` : ''}
           </div>
-          <div style="border-left: 1.25px solid #0f172a; text-align: center; font-weight: 800; font-size: 9pt; font-family: 'Tajawal', sans-serif;" dir="rtl">الموضوع</div>
         </div>
+      `);
 
-        ${exercises.map((ex, eIdx) => {
-          const titleHasPoints = /point|pt|نقط/i.test(ex.title);
-          const blocks = ex.blocks || [];
-          const figMap = buildFigureMapFromList(ex.figures || []);
+      blocks.forEach((blk, bIdx) => {
+        if (blk.kind === 'table') {
+          itemsHtml.push(`<div class="ne-flow-item">${renderGridTable(blk)}</div>`);
+          return;
+        }
+        if (blk.kind === 'image') {
+          itemsHtml.push(`<div class="ne-flow-item">${renderNePdfFigure(blk)}</div>`);
+          return;
+        }
+        if (blk.kind === 'text') {
+          itemsHtml.push(`<div class="ne-flow-item" data-keep-with-next="true"><div class="ne-intro-p" dir="${isArabicStr(blk.text) ? 'rtl' : 'ltr'}">${formatRichHtmlWithFigures(blk.text, figMap)}</div></div>`);
+          return;
+        }
 
-          return `
-            <section class="ne-ex-block">
-              <div class="ne-ex-head" dir="${isArabicStr(ex.title) ? 'rtl' : 'ltr'}">
-                <h3 class="ne-ex-title">${escapeHtml(ex.title)}</h3>
-                ${(ex.points && !titleHasPoints) ? `<span class="ne-ex-points">(${escapeHtml(ex.points)})</span>` : ''}
+        const qrUrl = qrCodeUrls[`ex${eIdx}_b${bIdx}`] || '';
+        const ptsDisplay = blk.points ? escapeHtml(blk.points) : '&mdash;';
+        itemsHtml.push(`
+          <div class="ne-flow-item">
+            <div class="ne-q-box">
+              <div class="ne-q-points">${ptsDisplay}</div>
+              <div class="ne-q-content" dir="${isArabicStr(blk.text) ? 'rtl' : 'ltr'}">
+                <div>${blk.number ? `<strong style="margin-right: 6px;">${escapeHtml(blk.number)}</strong>` : ''}${formatRichHtmlWithFigures(blk.text, figMap)}</div>
               </div>
+              ${showQR ? `<div class="ne-q-qr">${qrUrl ? `<img src="${qrUrl}" alt="QR" />` : ''}</div>` : ''}
+            </div>
+            ${showSolutions && blk.solution ? `
+              <div class="ne-sol-box" dir="${isArabicStr(blk.solution) ? 'rtl' : 'ltr'}">
+                <strong>Corrigé :</strong> ${formatRichHtmlWithFigures(blk.solution, figMap)}
+              </div>
+            ` : ''}
+          </div>
+        `);
+      });
 
-              ${blocks.map((blk, bIdx) => {
-                if (blk.kind === 'table') {
-                  return renderGridTable(blk);
-                }
+      if (showSolutions && ex.solution) {
+        itemsHtml.push(`
+          <div class="ne-flow-item">
+            <div class="ne-sol-box" dir="${isArabicStr(ex.solution) ? 'rtl' : 'ltr'}">
+              <strong style="display:block; margin-bottom:3px;">📖 Éléments de réponse / Corrigé détaillé :</strong>
+              ${formatRichHtmlWithFigures(ex.solution, figMap)}
+            </div>
+          </div>
+        `);
+      }
 
-                if (blk.kind === 'image') {
-                  return renderNePdfFigure(blk);
-                }
-
-                if (blk.kind === 'text') {
-                  return `<div class="ne-intro-p" dir="${isArabicStr(blk.text) ? 'rtl' : 'ltr'}">${formatRichHtmlWithFigures(blk.text, figMap)}</div>`;
-                }
-
-                // Graded question block
-                const qrUrl = qrCodeUrls[`ex${eIdx}_b${bIdx}`] || '';
-                const ptsDisplay = blk.points ? escapeHtml(blk.points) : '&mdash;';
-
-                return `
-                  <div class="ne-q-box">
-                    <div class="ne-q-points">${ptsDisplay}</div>
-                    <div class="ne-q-content" dir="${isArabicStr(blk.text) ? 'rtl' : 'ltr'}">
-                      <div>${blk.number ? `<strong style="margin-right: 6px;">${escapeHtml(blk.number)}</strong>` : ''}${formatRichHtmlWithFigures(blk.text, figMap)}</div>
-                    </div>
-                    ${showQR ? `
-                      <div class="ne-q-qr">
-                        ${qrUrl ? `<img src="${qrUrl}" alt="QR" />` : ''}
-                      </div>
-                    ` : ''}
-                  </div>
-                  ${showSolutions && blk.solution ? `
-                    <div class="ne-sol-box" dir="${isArabicStr(blk.solution) ? 'rtl' : 'ltr'}">
-                      <strong>Corrigé :</strong> ${formatRichHtmlWithFigures(blk.solution, figMap)}
-                    </div>
-                  ` : ''}
-                `;
-              }).join('')}
-
-              ${showSolutions && ex.solution ? `
-                <div class="ne-sol-box" dir="${isArabicStr(ex.solution) ? 'rtl' : 'ltr'}">
-                  <strong style="display:block; margin-bottom:3px;">📖 Éléments de réponse / Corrigé détaillé :</strong>
-                  ${formatRichHtmlWithFigures(ex.solution, figMap)}
-                </div>
-              ` : ''}
-            </section>
-          `;
-        }).join('')}
-      </div>
-    ` : ''}
+      return itemsHtml.join('\n');
+    }).join('\n')}
   </div>
+
+  <!-- Paginated A4 Sheets Root -->
+  <div id="ne-pages-root"></div>
 
   <script>
     (function () {
@@ -610,14 +702,97 @@ export const generateNationalExamHTML = async (examData, settings = {}) => {
         }
       }
 
+      function paginateDocument() {
+        var root = document.getElementById('ne-pages-root');
+        var staging = document.getElementById('ne-staging');
+        var runningTpl = document.getElementById('ne-tpl-running-header');
+        var items = Array.from(staging.querySelectorAll(':scope > .ne-flow-item'));
+        if (items.length === 0) return;
+
+        var probe = document.createElement('div');
+        probe.style.cssText = 'position:absolute;left:-9999px;height:276mm;width:10px;';
+        document.body.appendChild(probe);
+        var maxSheetInnerHeight = probe.offsetHeight;
+        document.body.removeChild(probe);
+
+        function getFullHeight(el) {
+          if (!el) return 0;
+          var cs = window.getComputedStyle(el);
+          return el.offsetHeight + (parseFloat(cs.marginTop) || 0) + (parseFloat(cs.marginBottom) || 0);
+        }
+
+        function getActualUsedHeight(sheet, body) {
+          var header = sheet.firstElementChild;
+          var headerH = (header && header !== body) ? getFullHeight(header) : 0;
+          var bodyH = 0;
+          Array.from(body.children).forEach(function(ch) { bodyH += getFullHeight(ch); });
+          return headerH + bodyH;
+        }
+
+        var itemHeights = items.map(function(el) { return getFullHeight(el); });
+
+        function createSheet(pageIndex) {
+          var sheet = document.createElement('section');
+          sheet.className = 'ne-sheet';
+          if (pageIndex > 1 && runningTpl) {
+            sheet.appendChild(runningTpl.content.cloneNode(true));
+          }
+          var body = document.createElement('div');
+          body.className = 'ne-sheet-body';
+          sheet.appendChild(body);
+          root.appendChild(sheet);
+          return { sheet: sheet, body: body };
+        }
+
+        var pageNum = 1;
+        var current = createSheet(pageNum);
+
+        for (var i = 0; i < items.length; i++) {
+          var item = items[i];
+          var startsExercises = item.getAttribute('data-exercises-start') === 'true';
+
+          if (startsExercises && pageNum === 1 && current.body.children.length > 0) {
+            pageNum = 2;
+            current = createSheet(pageNum);
+          }
+
+          current.body.appendChild(item);
+
+          var usedH = getActualUsedHeight(current.sheet, current.body);
+          var overflow = usedH > maxSheetInnerHeight - 2 || current.sheet.scrollHeight > current.sheet.clientHeight + 2;
+
+          var keepWithNext = item.getAttribute('data-keep-with-next') === 'true';
+          if (!overflow && keepWithNext && i + 1 < items.length) {
+            var nextH = itemHeights[i + 1] || 90;
+            if (usedH + nextH > maxSheetInnerHeight - 2) {
+              overflow = true;
+            }
+          }
+
+          if (overflow && current.body.children.length > 1) {
+            pageNum += 1;
+            current = createSheet(pageNum);
+            current.body.appendChild(item);
+          }
+        }
+
+        var sheets = root.querySelectorAll('.ne-sheet');
+        var total = sheets.length;
+        sheets.forEach(function(sh, idx) {
+          sh.querySelectorAll('.ne-page-num').forEach(function(el) { el.textContent = String(idx + 1); });
+          sh.querySelectorAll('.ne-total-pages').forEach(function(el) { el.textContent = String(total); });
+        });
+      }
+
       window.addEventListener('load', function () {
         renderAllMath();
         var fontReady = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
         fontReady.then(function () {
           renderAllMath();
+          paginateDocument();
           setTimeout(function () {
             try { window.print(); } catch (_) {}
-          }, 350);
+          }, 400);
         });
       });
     })();

@@ -350,21 +350,23 @@ export default function NationalExamTemplate({ examData, solutionMode = false })
         {/* ════════════════════════════════════════════════════════════ */}
         {exercises.length > 0 && (
           <div className="ne-page-break" style={{ borderTop: '2px dashed #cbd5e1', paddingTop: '18px', marginTop: '22px' }}>
-            {/* Single Running Exam Header Banner */}
-            <div className="ne-box" style={{ display: 'grid', gridTemplateColumns: '90px 1fr 90px', padding: '5px 0', marginBottom: '14px', alignItems: 'center', background: '#f8fafc' }}>
-              <div style={{ borderRight: '1.25px solid #0f172a', textAlign: 'center', fontWeight: 800, fontSize: '9.5pt' }}>
+            {/* Compact 3-Part Running Header repeated on Pages 2..N (matching official layout) */}
+            <div style={{ display: 'flex', alignItems: 'stretch', gap: '6px', minHeight: '52px', marginBottom: '14px' }}>
+              <div style={{ width: '92px', border: '1.4px solid #000', borderRadius: '7px', background: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: "'Tajawal', sans-serif", flexShrink: 0, padding: '2px 4px' }}>
+                <div style={{ fontSize: '11.5px', fontWeight: 800, lineHeight: 1.1 }}>الصفحة</div>
+                <div style={{ width: '68%', height: '1px', background: '#000', margin: '3px 0' }} />
+                <div style={{ fontSize: '12px', fontWeight: 800, lineHeight: 1.1, direction: 'ltr' }}>2 / {totalPages || 4}</div>
+              </div>
+              <div style={{ flex: 1, border: '1.4px solid #000', borderRadius: '7px', background: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', fontFamily: "'Tajawal', sans-serif", padding: '3px 10px' }} dir="rtl">
+                <div style={{ fontSize: '12.5px', fontWeight: 900, color: '#000', lineHeight: 1.25 }}>
+                  موضوع الامتحان الوطني الموحد للبكالوريا - {session} -
+                </div>
+                <div style={{ fontSize: '11px', fontWeight: 600, color: '#1e293b', lineHeight: 1.25 }}>
+                  مادة : {subject} - {branch}
+                </div>
+              </div>
+              <div style={{ width: '92px', border: '1.4px solid #000', borderRadius: '7px', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', fontFamily: "'STIX Two Text', Georgia, serif", fontWeight: 800, fontSize: '12.5px', padding: '4px', flexShrink: 0 }}>
                 {code}
-              </div>
-              <div style={{ textAlign: 'center', padding: '0 10px' }} dir="rtl">
-                <div style={{ fontSize: '9pt', fontWeight: 800, fontFamily: "'Tajawal', sans-serif" }}>
-                  موضوع الامتحان الوطني الموحد للبكالوريا — {session}
-                </div>
-                <div style={{ fontSize: '8pt', color: '#334155', fontFamily: "'Tajawal', sans-serif" }}>
-                  مادة : {subject} — {branch}
-                </div>
-              </div>
-              <div style={{ borderLeft: '1.25px solid #0f172a', textAlign: 'center', fontWeight: 800, fontSize: '9pt', fontFamily: "'Tajawal', sans-serif" }} dir="rtl">
-                الموضوع
               </div>
             </div>
 
