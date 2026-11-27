@@ -22,6 +22,7 @@ import {
   hasFigureToken,
   getImageItemUrl,
 } from './figureShortcodes.js';
+import { buildMathGraphSvg } from './mathGraphPlotter.js';
 
 const escapeHtml = (str) =>
   String(str || '')
@@ -239,8 +240,13 @@ function buildSolutionOverlayHtml(q, solutionStyle, figMap = null) {
     (Array.isArray(q.leftSteps) && q.leftSteps.length > 0) ||
     (Array.isArray(q.rightSteps) && q.rightSteps.length > 0)
   );
+  const graphSvgHtml = q.graph ? buildMathGraphSvg(q.graph, { maxWidth: 420, maxHeight: 260 }) : '';
 
-  if (!hasSingle && !hasTwoCols) return '';
+  if (!hasSingle && !hasTwoCols && !graphSvgHtml) return '';
+
+  const graphBlockHtml = graphSvgHtml
+    ? `<div class="dp-sol-graph" style="display:flex;justify-content:center;margin:6px 0;">${graphSvgHtml}</div>`
+    : '';
 
   const styleCls = solutionStyle === 'handwritten' ? 'dp-sol-handwritten' : 'dp-sol-clean';
 
@@ -262,6 +268,7 @@ function buildSolutionOverlayHtml(q, solutionStyle, figMap = null) {
           ${q.rightConclusion ? `<div class="dp-sol-col-conclusion">${formatRichHtmlWithFigures(q.rightConclusion, figMap)}</div>` : ''}
         </div>
       </div>
+      ${graphBlockHtml}
       ${q.finalBox ? `<div class="dp-final-box-row"><span class="dp-final-box">${formatRichHtmlWithFigures(q.finalBox, figMap)}</span></div>` : ''}
     </div>`;
   }
@@ -270,6 +277,7 @@ function buildSolutionOverlayHtml(q, solutionStyle, figMap = null) {
   return `
   <div class="dp-solution-overlay ${styleCls}">
     ${linesHtml}
+    ${graphBlockHtml}
     ${q.finalBox ? `<div class="dp-final-box-row"><span class="dp-final-box">${formatRichHtmlWithFigures(q.finalBox, figMap)}</span></div>` : ''}
   </div>`;
 }

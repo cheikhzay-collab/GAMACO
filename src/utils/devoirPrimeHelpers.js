@@ -7,6 +7,7 @@ import {
   getImageItemUrl,
   FIGURE_TOKEN_GLOBAL_RE,
 } from './figureShortcodes.js';
+import { normalizeGraphSpec } from './mathGraphPlotter.js';
 
 const VISUAL_CUE_RE = /(?:graphique\s*(?:ci[- ]dessous|suivant)|courbe[s]?.*(?:ci[- ]dessous|rep[èe]re)|figure\s*(?:ci[- ]dessous|suivante)|sch[ée]ma\s*(?:ci[- ]dessous|suivant)|tableau\s*ci[- ]dessous|repr[ée]sente.*(?:courbe|graphique)|dans\s+un\s+(?:m[êe]me\s+)?rep[èe]re|الشكل\s*(?:جانبه|أسفله)|المبيان)/i;
 
@@ -617,6 +618,7 @@ export function normalizeToDevoirPrimeExercises(lesson = {}) {
               rightTitle: q.rightTitle || '',
               rightSteps: Array.isArray(q.rightSteps) ? q.rightSteps : [],
               rightConclusion: q.rightConclusion || '',
+              graph: normalizeGraphSpec(q.graph),
               qrUrl: q.qrUrl || '',
               image: qImgs[0]?.url || q.image || null,
               images: qImgs,

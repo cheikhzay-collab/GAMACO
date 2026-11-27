@@ -5,6 +5,7 @@
 
 import { normalizeLevel, getLevelDisplayName } from './levelHelpers';
 import { ensureMathDelimiters } from './devoirPrimeHelpers';
+import { normalizeGraphSpec } from './mathGraphPlotter';
 
 /**
  * Détecte le domaine et le chapitre mathématique marocain concerné à partir de l'énoncé et des métadonnées
@@ -724,8 +725,8 @@ function parsePrimeJsonArray(rawText) {
 }
 
 /**
- * Résout un exercice DEVOIR PRIME (ou une seule question) dans le style CONCIS d'un Professeur Marocain :
- * - Réponses directes, structurées, sans bavardage (On a :, Donc, Or, Comme, Puisque, D'où...)
+ * Résout un exercice DEVOIR PRIME (ou une seule question) dans le style DÉTAILLÉ ET RIGOUREUX d'un Professeur Marocain :
+ * - Réponses complètes étape par étape, rigoureuses, sans aucun raccourci ni étape sautée (On a :, Donc, Or, Comme, Puisque, D'où...)
  * - Résultat final isolé dans `finalBox` (affiché dans l'encadré jaune bordé de bleu)
  * - Détection automatique du format 2 colonnes (`two_columns`) pour les études symétriques (à droite / à gauche)
  * - Respect absolu des Orientations Pédagogiques Marocaines (interdiction de L'Hôpital, etc.)
@@ -759,47 +760,78 @@ export async function solveDevoirPrimeWithAI(exercise, metadata = {}) {
 
   if (questionsToSolve.length === 0) return [];
 
+  // When solving a single question (e.g. 3)a)), include earlier questions so the AI sees u_0, prior inequalities, etc.
+  const targetIdx = targetQuestionId ? enrichedQuestions.findIndex(q => q.id === targetQuestionId) : -1;
+  const precedingContext = targetIdx > 0
+    ? enrichedQuestions
+        .slice(0, targetIdx)
+        .filter(q => q.text)
+        .map(q => `${q.number ? `${q.number} ` : ''}${q.text}${q.finalBox ? `  [Résultat établi : ${q.finalBox}]` : ''}`)
+    : [];
+
   const isAr = language === 'ar' || (
     /[\u0600-\u06FF]/.test(questionsToSolve.map(q => q.text).join(' ')) &&
     !/montrer|calculer|d[ée]terminer|r[ée]soudre|[ée]tudier|soit/i.test(questionsToSolve.map(q => q.text).join(' '))
   );
 
-  const combinedText = `${exercise?.title || ''} ${exercise?.preamble || ''} ${questionsToSolve.map(q => `${q._parentStem} ${q.text}`).join(' ')}`;
+  const combinedText = `${exercise?.title || ''} ${exercise?.preamble || ''} ${enrichedQuestions.map(q => `${q._parentStem} ${q.text}`).join(' ')}`;
   const domain = detectLessonDomain(combinedText, { ...metadata, docTitle });
   const pedagogyBlock = getMoroccanPedagogicalDirectives(normLevel, domain, isAr);
 
   const systemPrompt = isAr
-    ? `أنت أستاذ مبرز للرياضيات بالتعليم الثانوي التأهيلي المغربي تقوم بتحرير تصحيح نموذجي مختصر بأسلوب "DEVOIR PRIME" (تصحيح مباشر ومختصر يُكتب فوق سطور النقط داخل ورقة الفرض).
+    ? `أنت مفتش تربوي وأستاذ مبرز للرياضيات بالتعليم الثانوي التأهيلي المغربي تقوم بتحرير تصحيح نموذجي مفصل وكامل بأسلوب "DEVOIR PRIME" (حل دقيق، واضح، ومفصل خطوة بخطوة يُكتب فوق سطور النقط داخل ورقة الامتحان أو الفرض دون أي اختصار مخل).
 
 ${pedagogyBlock}
 
-قواعد أسلوب التصحيح المختصر الإلزامية:
-1. ادخل مباشرة في الحل دون أي مقدمات أو نصائح أو شرح نظري زائد.
-2. استعمل الروابط الرياضية المدرسية المعتادة: "لدينا :"، "ومنه"، "إذن"، "وبما أن"، "نضع ..." مع سلاسل المساويات ($= ... = ...$) والتكافؤات ($\\iff$).
-3. تحقق دائماً من التعويض المباشر أولاً قبل أي تحويل جبري (لا تفترض أبداً شكلاً غير محدد $0/0$ إذا كان البسط غير منعدم؛ احسب القيم العددية بدقة!).
-4. ضع النتيجة النهائية أو الاستنتاج النهائي حصراً في الحقل "finalBox" ليتم تأطيره بالمربع الأصفر.
-5. إذا كان السؤال يدرس حالتين متوازيتين (مثل الاتصال أو الاشتقاق على اليمين وعلى اليسار)، اجعل "layout": "two_columns" وضع خطوات اليمين في "leftSteps" و"leftConclusion"، وخطوات اليسار في "rightSteps" و"rightConclusion"، والاستنتاج النهائي في "finalBox".
-6. استعمل LaTeX دقيقاً داخل $...$ لكل رمز رياضي بلا استثناء مع مضاعفة الشرطة المائلة داخل JSON (\\\\frac، \\\\sqrt، \\\\lim، \\\\mathbb{R}).
-7. أرجع مصفوفة JSON صالحة فقط بدون أي نص خارجي.`
-    : `Tu es un Professeur de Mathématiques au lycée marocain (Option Française / BIOF) qui rédige un corrigé modèle CONCIS au style "DEVOIR PRIME" (corrigé direct, compact, calibré pour tenir sur les lignes pointillées de la copie d'examen).
+قواعد التصحيح النموذجي المفصل الإلزامية (يُمنع الاختصار المخل):
+1. ادخل مباشرة في الحل دون أي مقدمات ترحيبية، ولكن قدم **جميع مراحل البرهان والحساب بالتفصيل التام** كما في سلم التنقيط الرسمي للامتحان الوطني (كل خطوة حسابية أو منطقية في سطر واضح داخل "steps").
+2. ⛔ يُمنع منعاً باتاً القفز على المراحل أو استعمال عبارات مختصرة من قبيل "بالترجع الفوري" (par récurrence immédiate) دون برهان!
+   - في البرهان بالترجع: اكتب وجوباً المراحل الثلاث كاملة (التحقق من أجل الحد الأول، افتراض الترجع، البرهان على صحة الخاصية عند $n+1$، ثم الاستنتاج).
+   - في المتراجحات والنهايات والاشتقاق والاتصال: علّل كل انتقال (تأطير، إشارة المقام، تحقق الشروط القبلية للنظريات).
+   - في الأسئلة المركبة ("بيّن أن ... ثم استنتج ..."): عالج الشطرين معاً بالتفصيل التام ولا تهمل أياً منهما.
+3. استعمل الروابط الرياضية المدرسية المغربية المعتادة: "لدينا :"، "وبما أن"، "ومنه"، "إذن"، "نضع ..." مع سلاسل المساويات ($= ... = ...$) والتكافؤات ($\\iff$).
+4. تحقق دائماً من التعويض المباشر أولاً قبل أي تحويل جبري (لا تفترض أبداً شكلاً غير محدد $0/0$ إذا كان البسط غير منعدم؛ احسب القيم العددية بدقة!).
+5. ضع النتيجة النهائية أو الاستنتاج النهائي حصراً في الحقل "finalBox" ليتم تأطيره بالمربع الأصفر.
+6. إذا كان السؤال يدرس حالتين متوازيتين (مثل الاتصال أو الاشتقاق على اليمين وعلى اليسار)، اجعل "layout": "two_columns" وضع خطوات اليمين في "leftSteps" و"leftConclusion"، وخطوات اليسار في "rightSteps" و"rightConclusion"، والاستنتاج النهائي في "finalBox".
+7. قدّر "recommendedLines" (عدد صحيح بين 5 و 22) بحيث يكفي تماماً لاحتواء جميع سطور الحل المفصل مع هامش مريح (وزد العدد إذا كان هناك رسم مبياني "graph").
+8. إذا طلب السؤال صراحةً إنشاء أو رسم منحنى دالة أو مستقيم أو معلم (مثل "أنشئ المنحنى"، "مثل مبيانياً"، "Construire (C)"، "Tracer...")، أضف الحقل "graph" ككائن يحتوي على المعادلات الدقيقة للدوال والمستقيمات والمقاربات والمماسات والنقط الخاصة كي يقوم النظام برسم المعلم والمنحنى بدقة رياضية تامة:
+   - استعمل صيغة تعابير قياسية في "expr": ln(...)، exp(...)، sqrt(...)، abs(...)، x^2، e، pi (تجنب صيغ LaTeX داخل expr).
+   - مثال: "graph": { "xMin": -2, "xMax": 6, "yMin": -3, "yMax": 6, "curves": [{ "expr": "x + 2 - 4/(exp(x)+1)", "label": "(C)", "domain": [-2, 6] }, { "expr": "x + 2", "label": "(Δ)", "color": "#dc2626" }], "asymptotes": [{ "type": "vertical", "value": 0, "label": "x=0" }], "tangents": [{ "x": 0, "y": 0, "slope": 0, "half": "both", "label": "(T)" }], "points": [{ "x": 1.1, "y": 2.4, "label": "A", "project": true }] }.
+   - إذا لم يكن السؤال سؤال إنشاء مبياني، اجعل "graph": null.
+9. استعمل LaTeX دقيقاً داخل $...$ لكل رمز رياضي بلا استثناء مع مضاعفة الشرطة المائلة داخل JSON (\\\\frac، \\\\sqrt، \\\\lim، \\\\mathbb{R}).
+10. أرجع مصفوفة JSON صالحة فقط بدون أي نص خارجي.`
+    : `Tu es Inspecteur Pédagogique et Professeur Agrégé de Mathématiques au lycée marocain (Option Française / BIOF) qui rédige le corrigé officiel DÉTAILLÉ, COMPLET et RIGOUREUX pour une copie d'examen national ou de devoir surveillé ("DEVOIR PRIME").
 
 ${pedagogyBlock}
 
-RÈGLES STRICTES DU STYLE CONCIS MAROCAIN (DEVOIR PRIME) :
-1. ZÉRO bavardage, ZÉRO introduction longue, ZÉRO rappel de cours superflu. Va droit au calcul et au raisonnement qui rapporte la note complète.
-2. Utilise exactement les connecteurs scolaires marocains : "On a :", "Donc", "Or", "Comme", "Puisque", "D'où", "On pose ...", "Soit $x \\in ...$".
-3. VÉRIFICATION MATHÉMATIQUE OBLIGATOIRE : Pour toute limite, vérifie TOUJOURS la substitution directe en premier ! Ne suppose JAMAIS une forme indéterminée $0/0$ si le numérateur ne s'annule pas réellement : si le numérateur tend vers un réel non nul $\\ell \\neq 0$ et le dénominateur vers $0^+$ ou $0^-$, conclus directement $+\\infty$ ou $-\\infty$ selon le signe !
-4. Enchaîne proprement les égalités ($= \\dots = \\dots$) ou équivalences ($\\iff \\dots$) ligne par ligne. Chaque élément du tableau "steps" correspond à UNE ligne concise.
-5. Isole TOUJOURS le résultat final ou la conclusion clé dans le champ "finalBox" (ex: "$= 1$", "$a = c < b$", "$S = \\{8 ; 125\\}$", "D'où la fonction $f$ est continue en $-1$."). Il sera mis en évidence dans un encadré jaune bordé de bleu.
-6. UTILISATION DU MODE 2 COLONNES ("layout": "two_columns") :
+RÈGLES STRICTES DE RÉDACTION DÉTAILLÉE (EXIGENCE DU BARÈME OFFICIEL MAROCAIN) :
+1. ZÉRO bavardage introductif, mais **AUCUNE ÉTAPE SAUTÉE** : développe intégralement chaque calcul, factorisation, inégalité, justification de signe, vérification d'hypothèses (TVI, continuité, dérivabilité, monotonie) et étape logique pour obtenir 100 % des points du barème officiel.
+2. ⛔ INTERDICTION FORMELLE DES RACCOURCIS :
+   - N'écris JAMAIS "par récurrence immédiate" ou "on voit facilement que..." sans démonstration complète !
+   - Pour toute démonstration par récurrence, rédige OBLIGATOIREMENT les 3 étapes explicites : **Initialisation** (vérification avec la valeur exacte de $u_0$ / du rang initial), **Hérédité** (hypothèse + démonstration détaillée au rang $n+1$), et **Conclusion**.
+   - Pour toute question en deux temps (ex: "Montrer que ..., puis en déduire ..."), rédige séparément et intégralement les deux démonstrations (indique clairement les deux parties dans "steps").
+   - Justifie chaque passage algébrique (ex: puisque $u_n > 0$, alors $2u_n + 5 > 5 > 0$, d'où $\\frac{1}{2u_n + 5} < \\frac{1}{5}$, et en multipliant par $2u_n > 0$...).
+3. Utilise les connecteurs académiques marocains : "On a :", "Puisque", "Or", "Donc", "Par conséquent", "D'où", "On pose ...", "Soit $x \\in ...$".
+4. VÉRIFICATION MATHÉMATIQUE OBLIGATOIRE : Pour toute limite, vérifie TOUJOURS la substitution directe en premier ! Ne suppose JAMAIS une forme indéterminée $0/0$ si le numérateur ne s'annule pas réellement : si le numérateur tend vers un réel non nul $\\ell \\neq 0$ et le dénominateur vers $0^+$ ou $0^-$, conclus directement $+\\infty$ ou $-\\infty$ selon le signe !
+5. Découpe la démonstration en étapes claires dans le tableau "steps" (UNE ligne logique ou de calcul par élément, sans compresser plusieurs raisonnements dans une seule ligne).
+6. Isole TOUJOURS le résultat final ou la conclusion clé dans le champ "finalBox" (ex: "$0 < u_n \\le \\frac{3}{2}\\left(\\frac{2}{5}\\right)^n$", "$S = \\{8 ; 125\\}$", "D'où $f$ est continue en $-1$."). Il sera mis en évidence dans un encadré jaune bordé de bleu.
+7. UTILISATION DU MODE 2 COLONNES ("layout": "two_columns") :
    - Si une question étudie DEUX cas symétriques (ex: limite ou dérivabilité à droite $x \\to x_0^+$ et à gauche $x \\to x_0^-$), mets "layout": "two_columns" avec :
-     • "leftSteps" (calcul à droite), "leftConclusion" (conclusion + interprétation géométrique à droite)
-     • "rightSteps" (calcul à gauche), "rightConclusion" (conclusion + interprétation géométrique à gauche)
+     • "leftSteps" (calcul détaillé à droite), "leftConclusion" (conclusion + interprétation géométrique à droite)
+     • "rightSteps" (calcul détaillé à gauche), "rightConclusion" (conclusion + interprétation géométrique à gauche)
      • "finalBox" (conclusion globale finale en dessous, ex: "D'où $f$ n'est pas dérivable en $-1$.")
    - Sinon mets "layout": "single".
-7. Estime "recommendedLines" (entier entre 4 et 12) correspondant au nombre optimal de lignes pointillées nécessaires pour rédiger cette réponse proprement.
-8. ENCADRE OBLIGATOIREMENT CHAQUE FORMULE LATEX PAR $...$ (y compris dans finalBox, \\\\dfrac, \\\\overrightarrow, \\\\parallel, \\\\sqrt) — ne laisse JAMAIS une commande LaTeX nue hors des dollars $...$.
-9. RETOURNE UNIQUEMENT UN TABLEAU JSON VALIDE sans aucun texte avant ni après.`;
+8. Estime "recommendedLines" (entier entre 5 et 22) en comptant au moins le nombre d'éléments de "steps" + 2 lignes pour l'encadré final (ou 10-14 si un graphique "graph" est inclus) afin que tout tienne proprement.
+9. CONSTRUCTION DE COURBES ET DROITES ("graph") :
+   - UNIQUEMENT si la question demande de construire, tracer ou représenter graphiquement une courbe ou une droite ("Construire", "Tracer", "Représenter dans le repère..."), remplis l'objet "graph" avec les expressions mathématiques EXACTES issues de l'énoncé et des questions précédentes :
+     • "xMin", "xMax", "yMin", "yMax" : bornes propres du repère orthonormé montrant tous les éléments clés.
+     • "curves" : tableau d'objets { "expr": "...", "label": "(C)", "color": "#1d4ed8", "domain": [a, b] } (ou "domains": [[a, b], [c, d]] si l'ensemble de définition a plusieurs intervalles). Utilise UNIQUEMENT la syntaxe math standard dans "expr" : ln(...), exp(...), sqrt(...), abs(...), x^2, e, pi (JAMAIS de LaTeX comme \\frac ou \\ln dans "expr" !). Ajoute aussi les droites demandées comme (Δ) dans "curves".
+     • "asymptotes" : [{ "type": "vertical"|"horizontal"|"oblique", "value": nombre (pour vert/horiz), "expr": "..." (pour oblique), "label": "..." }].
+     • "tangents" : [{ "x": nombre, "y": nombre, "slope": nombre|"vertical", "half": "both"|"left"|"right", "label": "(T)" }].
+     • "points" : [{ "x": nombre, "y": nombre, "label": "A", "project": true|false }] (points remarquables, extrema, inflexion, intersections).
+   - Pour toutes les autres questions sans tracé graphique, mets "graph": null.
+10. ENCADRE OBLIGATOIREMENT CHAQUE FORMULE LATEX PAR $...$ (y compris dans finalBox, \\\\dfrac, \\\\overrightarrow, \\\\parallel, \\\\sqrt) — ne laisse JAMAIS une commande LaTeX nue hors des dollars $...$.
+11. RETOURNE UNIQUEMENT UN TABLEAU JSON VALIDE sans aucun texte avant ni après.`;
 
   const qPayload = questionsToSolve.map(q => ({
     id: q.id,
@@ -809,12 +841,45 @@ RÈGLES STRICTES DU STYLE CONCIS MAROCAIN (DEVOIR PRIME) :
     text: q.text
   }));
 
-  const userPrompt = `Résous de manière CONCISE (style professeur marocain DEVOIR PRIME) les questions suivantes.
+  const contextSection = precedingContext.length > 0
+    ? `\nQuestions précédentes de l'énoncé (CONTEXTE UNIQUEMENT pour connaître les données/résultats déjà admis ou démontrés — NE PAS les résoudre dans le JSON) :\n${precedingContext.map(c => `- ${c}`).join('\n')}\n`
+    : '';
+
+  const userPrompt = isAr
+    ? `قدّم الحل النموذجي المفصل والكامل (خطوة بخطوة وبدون أي اختصار أو قفز على المراحل) للأسئلة التالية من الامتحان / الفرض.
+
+التمرين : ${exercise?.title || 'تمرين'}
+المعطيات / التمهيد : ${exercise?.preamble || '(بدون تمهيد)'}
+${contextSection}
+الأسئلة المطلوب حلها بالتفصيل :
+${JSON.stringify(qPayload, null, 2)}
+
+صيغة JSON المطلوبة بدقة (مصفوفة كائنات) :
+[
+  {
+    "id": "dp-ex1-q1",
+    "layout": "single",
+    "steps": [
+      "لدينا : $...$",
+      "وبما أن $...$، فإن $...$"
+    ],
+    "finalBox": "$...$",
+    "leftTitle": "",
+    "leftSteps": [],
+    "leftConclusion": "",
+    "rightTitle": "",
+    "rightSteps": [],
+    "rightConclusion": "",
+    "graph": null,
+    "recommendedLines": 8
+  }
+]`
+    : `Résous de manière DÉTAILLÉE, COMPLÈTE et RIGOUREUSE (barème officiel du Baccalauréat marocain — sans aucune étape sautée ni raccourci) les questions suivantes.
 
 Exercice : ${exercise?.title || 'Exercice'}
 Données / Préambule : ${exercise?.preamble || '(Aucun préambule)'}
-
-Questions à résoudre :
+${contextSection}
+Questions à résoudre en détail :
 ${JSON.stringify(qPayload, null, 2)}
 
 Format JSON EXACT attendu (tableau d'objets) :
@@ -823,17 +888,18 @@ Format JSON EXACT attendu (tableau d'objets) :
     "id": "dp-ex1-q1",
     "layout": "single",
     "steps": [
-      "On a : $... = ...$",
-      "$= ...$"
+      "1) On a : $... = ...$",
+      "Puisque $...$, alors $...$"
     ],
-    "finalBox": "$= 1$",
+    "finalBox": "$...$",
     "leftTitle": "",
     "leftSteps": [],
     "leftConclusion": "",
     "rightTitle": "",
     "rightSteps": [],
     "rightConclusion": "",
-    "recommendedLines": 5
+    "graph": null,
+    "recommendedLines": 8
   }
 ]`;
 
@@ -910,7 +976,7 @@ Format JSON EXACT attendu (tableau d'objets) :
               { role: 'system', content: systemPrompt },
               { role: 'user', content: userPrompt },
             ],
-            ...(isReasoner ? { max_tokens: 6000 } : { temperature: 0.15, max_tokens: 6000 }),
+            ...(isReasoner ? { max_tokens: 8000 } : { temperature: 0.15, max_tokens: 8000 }),
           }),
         });
         if (resp.ok) {
@@ -948,7 +1014,7 @@ Format JSON EXACT attendu (tableau d'objets) :
               { role: 'system', content: systemPrompt },
               { role: 'user', content: userPrompt },
             ],
-            ...(isReasoning ? { max_completion_tokens: 10000 } : { temperature: 0.15, max_tokens: 6000 }),
+            ...(isReasoning ? { max_completion_tokens: 10000 } : { temperature: 0.15, max_tokens: 8000 }),
           }),
         });
         if (resp.ok) {
@@ -969,7 +1035,7 @@ Format JSON EXACT attendu (tableau d'objets) :
             model: cModel,
             system: systemPrompt,
             messages: [{ role: 'user', content: userPrompt }],
-            max_tokens: 6000,
+            max_tokens: 8000,
             temperature: 0.15,
           }),
         });
@@ -1002,6 +1068,7 @@ Format JSON EXACT attendu (tableau d'objets) :
         rightTitle: '',
         rightSteps: [],
         rightConclusion: '',
+        graph: null,
         recommendedLines: questionsToSolve[0].linesCount || 6,
       }];
     }
@@ -1019,6 +1086,7 @@ Format JSON EXACT attendu (tableau d'objets) :
     rightTitle: ensureMathDelimiters(String(item.rightTitle || '')),
     rightSteps: Array.isArray(item.rightSteps) ? item.rightSteps.map(s => ensureMathDelimiters(String(s || ''))) : [],
     rightConclusion: ensureMathDelimiters(String(item.rightConclusion || '')),
-    recommendedLines: Math.max(3, Math.min(14, Number(item.recommendedLines || item.recommended_lines) || questionsToSolve[idx]?.linesCount || 6)),
+    graph: normalizeGraphSpec(item.graph),
+    recommendedLines: Math.max(4, Math.min(24, Number(item.recommendedLines || item.recommended_lines) || questionsToSolve[idx]?.linesCount || 6)),
   }));
 }

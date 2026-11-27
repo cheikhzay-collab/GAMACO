@@ -19,6 +19,7 @@ import {
 } from '../utils/devoirPrimeHelpers';
 import { solveDevoirPrimeWithAI } from '../utils/aiExerciseSolver';
 import { openDevoirPrimePrintWindow } from '../utils/generateDevoirPrimePDF';
+import { buildMathGraphSvg, normalizeGraphSpec } from '../utils/mathGraphPlotter';
 import {
   buildFigureMapFromList,
   getSectionImageEntries,
@@ -371,6 +372,9 @@ export default function DevoirPrimeTemplate({
       });
       const res = results[0];
       if (res) {
+        const computedStepLines = (res.layout === 'two_columns'
+          ? Math.max((res.leftSteps || []).length, (res.rightSteps || []).length) + 4
+          : (res.steps || []).length + (res.finalBox ? 2 : 0)) + (res.graph ? 8 : 0);
         updateQuestion(eIdx, qIdx, {
           layout: res.layout || 'single',
           steps: res.steps || [],
@@ -381,7 +385,8 @@ export default function DevoirPrimeTemplate({
           rightTitle: res.rightTitle || '',
           rightSteps: res.rightSteps || [],
           rightConclusion: res.rightConclusion || '',
-          linesCount: Math.max(q.linesCount || 4, res.recommendedLines || 5),
+          graph: res.graph || null,
+          linesCount: Math.min(24, Math.max(q.linesCount || 4, res.recommendedLines || 5, computedStepLines)),
         });
         setShowSolutions(true);
       }
@@ -400,7 +405,7 @@ export default function DevoirPrimeTemplate({
       const updated = [...exercises];
       for (let eIdx = 0; eIdx < updated.length; eIdx++) {
         const ex = updated[eIdx];
-        setSolvingStatus(`Résolution de ${ex.title || `Exercice ${eIdx + 1}`} (${eIdx + 1}/${updated.length}) en style rédigé concis...`);
+        setSolvingStatus(`Résolution de ${ex.title || `Exercice ${eIdx + 1}`} (${eIdx + 1}/${updated.length}) en style rédigé détaillé...`);
         const results = await solveDevoirPrimeWithAI(ex, {
           level: meta.level || lesson?.level || '2bac_pc_svt',
           docTitle: meta.title,
@@ -414,6 +419,9 @@ export default function DevoirPrimeTemplate({
               if (q.isStem) return q;
               const r = byId.get(q.id) || results[nonStemIdx++];
               if (!r) return q;
+              const computedStepLines = (r.layout === 'two_columns'
+                ? Math.max((r.leftSteps || []).length, (r.rightSteps || []).length) + 4
+                : (r.steps || []).length + (r.finalBox ? 2 : 0)) + (r.graph ? 8 : 0);
               return {
                 ...q,
                 layout: r.layout || 'single',
@@ -425,7 +433,8 @@ export default function DevoirPrimeTemplate({
                 rightTitle: r.rightTitle || '',
                 rightSteps: r.rightSteps || [],
                 rightConclusion: r.rightConclusion || '',
-                linesCount: Math.max(q.linesCount || 4, r.recommendedLines || 5),
+                graph: r.graph || null,
+                linesCount: Math.min(24, Math.max(q.linesCount || 4, r.recommendedLines || 5, computedStepLines)),
               };
             }),
           };
@@ -608,7 +617,7 @@ export default function DevoirPrimeTemplate({
                 alignItems: 'center',
                 gap: '0.4rem',
               }}
-              title="Imprimer le sujet avec corrigé détaillé concis"
+              title="Imprimer le sujet avec corrigé détaillé"
             >
               <Printer size={15} /> Imprimer avec corrigé
             </button>
@@ -969,231 +978,231 @@ export default function DevoirPrimeTemplate({
             const extraPreambleImgs = getUnrenderedImages(ex.preambleImages, ex.preambleImage, renderedExUrls);
 
             return (
-            <div key={ex.id || eIdx} style={{ marginBottom: '20px' }}>
-              {/* Exercise Header */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <div style={{ fontSize: '15.5px', fontWeight: 700, textDecoration: 'underline', textUnderlineOffset: '3px', color: '#000' }}>
-                  {ex.title}{ex.points ? ` (${ex.points} points)` : ''} :
-                </div>
-                {editable && (
-                  <button
-                    type="button"
-                    onClick={() => addQuestionToExercise(eIdx)}
-                    style={{
-                      fontSize: '11.5px',
-                      fontFamily: 'Tajawal, sans-serif',
-                      fontWeight: 700,
-                      padding: '3px 8px',
-                      borderRadius: '6px',
-                      border: '1px solid #cbd5e1',
-                      background: '#f8fafc',
-                      color: '#0f172a',
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                    }}
-                  >
-                    <Plus size={12} /> Ajouter une question
-                  </button>
-                )}
-              </div>
-
-              {(ex.preamble || extraPreambleImgs.length > 0) && (
-                <div style={{ fontSize: '13.5px', marginBottom: '8px', lineHeight: 1.5 }}>
-                  {ex.preamble && renderPrimeRichWithFigures(ex.preamble, figMap, renderedExUrls)}
-                  {getUnrenderedImages(ex.preambleImages, ex.preambleImage, renderedExUrls).map((img, iIdx) =>
-                    renderPrimeFigureNode(img, `pre-img-${eIdx}-${iIdx}`)
+              <div key={ex.id || eIdx} style={{ marginBottom: '20px' }}>
+                {/* Exercise Header */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <div style={{ fontSize: '15.5px', fontWeight: 700, textDecoration: 'underline', textUnderlineOffset: '3px', color: '#000' }}>
+                    {ex.title}{ex.points ? ` (${ex.points} points)` : ''} :
+                  </div>
+                  {editable && (
+                    <button
+                      type="button"
+                      onClick={() => addQuestionToExercise(eIdx)}
+                      style={{
+                        fontSize: '11.5px',
+                        fontFamily: 'Tajawal, sans-serif',
+                        fontWeight: 700,
+                        padding: '3px 8px',
+                        borderRadius: '6px',
+                        border: '1px solid #cbd5e1',
+                        background: '#f8fafc',
+                        color: '#0f172a',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                    >
+                      <Plus size={12} /> Ajouter une question
+                    </button>
                   )}
                 </div>
-              )}
 
-              {/* Question Cards & Parent Stems */}
-              {(ex.questions || []).map((q, qIdx) => {
-                const key = `${eIdx}_${qIdx}`;
-                const isEditing = editingQKey === key;
-                const isSolving = solvingQKey === key;
-                const qrDataUrl = qrMap[key] || '';
-                const linesCount = Math.max(3, Math.min(16, Number(q.linesCount) || 5));
-                const minBoxHeight = linesCount * 29 + 14;
-                const hasSolution = (q.steps && q.steps.length > 0) || Boolean(q.finalBox) || (q.layout === 'two_columns' && ((q.leftSteps && q.leftSteps.length > 0) || (q.rightSteps && q.rightSteps.length > 0)));
-                const renderedQUrls = new Set();
+                {(ex.preamble || extraPreambleImgs.length > 0) && (
+                  <div style={{ fontSize: '13.5px', marginBottom: '8px', lineHeight: 1.5 }}>
+                    {ex.preamble && renderPrimeRichWithFigures(ex.preamble, figMap, renderedExUrls)}
+                    {getUnrenderedImages(ex.preambleImages, ex.preambleImage, renderedExUrls).map((img, iIdx) =>
+                      renderPrimeFigureNode(img, `pre-img-${eIdx}-${iIdx}`)
+                    )}
+                  </div>
+                )}
 
-                // Parent Stem Banner (e.g. "2. Calculer les limites suivantes :" before a), b), c) — NO points, NO QR, NO dotted box!)
-                if (q.isStem) {
-                  return (
-                    <div key={q.id || key} style={{
-                      margin: '10px 0 6px 0',
-                      padding: '6px 10px',
-                      borderLeft: '3px solid #1e3a8a',
-                      background: '#f8fafc',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '6px',
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px', flexWrap: 'wrap' }}>
-                        <div style={{ fontSize: '14px', fontWeight: 700, color: '#000', lineHeight: 1.45, flex: 1 }}>
-                          {renderPrimeRichWithFigures(`${q.number ? `**${String(q.number).trim()}** ` : ''}${String(q.text || '').replace(/^\s+/, '')}`, figMap, renderedQUrls)}
-                          {getUnrenderedImages(q.images, q.image, renderedQUrls).map((img, iIdx) =>
-                            renderPrimeFigureNode(img, `stem-img-${eIdx}-${qIdx}-${iIdx}`)
-                          )}
-                        </div>
-                        {editable && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontFamily: 'Tajawal, sans-serif', fontSize: '11.5px' }}>
-                            <button
-                              type="button"
-                              onClick={() => toggleQuestionStem(eIdx, qIdx)}
-                              style={{ padding: '2px 7px', borderRadius: '5px', border: '1px solid #cbd5e1', background: '#fff', color: '#334155', fontWeight: 700, cursor: 'pointer' }}
-                              title="Convertir en carte de question avec barème et pointillés"
-                            >
-                              ↩️ Convertir en question
-                            </button>
-                            {qIdx < (ex.questions?.length || 0) - 1 && (
+                {/* Question Cards & Parent Stems */}
+                {(ex.questions || []).map((q, qIdx) => {
+                  const key = `${eIdx}_${qIdx}`;
+                  const isEditing = editingQKey === key;
+                  const isSolving = solvingQKey === key;
+                  const qrDataUrl = qrMap[key] || '';
+                  const linesCount = Math.max(3, Math.min(24, Number(q.linesCount) || 5));
+                  const minBoxHeight = linesCount * 29 + 14;
+                  const graphSvg = q.graph ? buildMathGraphSvg(q.graph, { maxWidth: 420, maxHeight: 265 }) : '';
+                  const hasSolution = (q.steps && q.steps.length > 0) || Boolean(q.finalBox) || Boolean(graphSvg) || (q.layout === 'two_columns' && ((q.leftSteps && q.leftSteps.length > 0) || (q.rightSteps && q.rightSteps.length > 0)));
+                  const renderedQUrls = new Set();
+
+                  // Parent Stem Banner (e.g. "2. Calculer les limites suivantes :" before a), b), c) — NO points, NO QR, NO dotted box!)
+                  if (q.isStem) {
+                    return (
+                      <div key={q.id || key} style={{
+                        margin: '10px 0 6px 0',
+                        padding: '6px 10px',
+                        borderLeft: '3px solid #1e3a8a',
+                        background: '#f8fafc',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px',
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px', flexWrap: 'wrap' }}>
+                          <div style={{ fontSize: '14px', fontWeight: 700, color: '#000', lineHeight: 1.45, flex: 1 }}>
+                            {renderPrimeRichWithFigures(`${q.number ? `**${String(q.number).trim()}** ` : ''}${String(q.text || '').replace(/^\s+/, '')}`, figMap, renderedQUrls)}
+                            {getUnrenderedImages(q.images, q.image, renderedQUrls).map((img, iIdx) =>
+                              renderPrimeFigureNode(img, `stem-img-${eIdx}-${qIdx}-${iIdx}`)
+                            )}
+                          </div>
+                          {editable && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontFamily: 'Tajawal, sans-serif', fontSize: '11.5px' }}>
                               <button
                                 type="button"
-                                onClick={() => mergeWithNextQuestion(eIdx, qIdx)}
-                                style={{ padding: '2px 7px', borderRadius: '5px', border: '1px solid #cbd5e1', background: '#fff', color: '#0369a1', fontWeight: 700, cursor: 'pointer' }}
-                                title="Fusionner l'énoncé introductif avec la sous-question suivante"
+                                onClick={() => toggleQuestionStem(eIdx, qIdx)}
+                                style={{ padding: '2px 7px', borderRadius: '5px', border: '1px solid #cbd5e1', background: '#fff', color: '#334155', fontWeight: 700, cursor: 'pointer' }}
+                                title="Convertir en carte de question avec barème et pointillés"
                               >
-                                🔗 Fusionner avec suivante
+                                ↩️ Convertir en question
                               </button>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => setEditingQKey(isEditing ? null : key)}
-                              style={{ padding: '2px 7px', borderRadius: '5px', border: '1px solid #93c5fd', background: isEditing ? '#2563eb' : '#eff6ff', color: isEditing ? '#fff' : '#1d4ed8', fontWeight: 700, cursor: 'pointer' }}
-                            >
-                              {isEditing ? '✓' : '✏️'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => deleteQuestion(eIdx, qIdx)}
-                              style={{ padding: '2px 6px', borderRadius: '5px', border: '1px solid #fecaca', background: '#fef2f2', color: '#dc2626', cursor: 'pointer' }}
-                            >
-                              <Trash2 size={11} />
-                            </button>
+                              {qIdx < (ex.questions?.length || 0) - 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => mergeWithNextQuestion(eIdx, qIdx)}
+                                  style={{ padding: '2px 7px', borderRadius: '5px', border: '1px solid #cbd5e1', background: '#fff', color: '#0369a1', fontWeight: 700, cursor: 'pointer' }}
+                                  title="Fusionner l'énoncé introductif avec la sous-question suivante"
+                                >
+                                  🔗 Fusionner avec suivante
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => setEditingQKey(isEditing ? null : key)}
+                                style={{ padding: '2px 7px', borderRadius: '5px', border: '1px solid #93c5fd', background: isEditing ? '#2563eb' : '#eff6ff', color: isEditing ? '#fff' : '#1d4ed8', fontWeight: 700, cursor: 'pointer' }}
+                              >
+                                {isEditing ? '✓' : '✏️'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => deleteQuestion(eIdx, qIdx)}
+                                style={{ padding: '2px 6px', borderRadius: '5px', border: '1px solid #fecaca', background: '#fef2f2', color: '#dc2626', cursor: 'pointer' }}
+                              >
+                                <Trash2 size={11} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        {editable && isEditing && (
+                          <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: '6px', marginTop: '4px' }}>
+                            <input
+                              value={q.number || ''}
+                              onChange={e => updateQuestion(eIdx, qIdx, { number: e.target.value })}
+                              style={{ padding: '4px 6px', borderRadius: '5px', border: '1px solid #94a3b8', fontSize: '12px' }}
+                            />
+                            <input
+                              value={q.text || ''}
+                              onChange={e => updateQuestion(eIdx, qIdx, { text: e.target.value })}
+                              style={{ padding: '4px 6px', borderRadius: '5px', border: '1px solid #94a3b8', fontSize: '12px', fontFamily: 'monospace' }}
+                            />
                           </div>
                         )}
                       </div>
-                      {editable && isEditing && (
-                        <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: '6px', marginTop: '4px' }}>
-                          <input
-                            value={q.number || ''}
-                            onChange={e => updateQuestion(eIdx, qIdx, { number: e.target.value })}
-                            style={{ padding: '4px 6px', borderRadius: '5px', border: '1px solid #94a3b8', fontSize: '12px' }}
-                          />
-                          <input
-                            value={q.text || ''}
-                            onChange={e => updateQuestion(eIdx, qIdx, { text: e.target.value })}
-                            style={{ padding: '4px 6px', borderRadius: '5px', border: '1px solid #94a3b8', fontSize: '12px', fontFamily: 'monospace' }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  );
-                }
+                    );
+                  }
 
-                return (
-                  <div key={q.id || key} style={{ border: '1.4px solid #000', marginBottom: '12px', background: '#fff' }}>
-                    {/* Top Row: Points | Question Statement | QR Code */}
-                    <div style={{ display: 'flex', alignItems: 'stretch', borderBottom: '1.4px solid #000', minHeight: '54px' }}>
-                      {/* Left Barème Cell */}
-                      <div style={{
-                        width: '70px',
-                        flexShrink: 0,
-                        background: '#f1f3f5',
-                        borderRight: '1.3px solid #000',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontWeight: 700,
-                        fontSize: '13.5px',
-                        padding: '4px',
-                        textAlign: 'center',
-                      }}>
-                        {editable ? (
-                          <input
-                            type="text"
-                            value={q.points || ''}
-                            onChange={e => updateQuestion(eIdx, qIdx, { points: e.target.value })}
+                  return (
+                    <div key={q.id || key} style={{ border: '1.4px solid #000', marginBottom: '12px', background: '#fff' }}>
+                      {/* Top Row: Points | Question Statement | QR Code */}
+                      <div style={{ display: 'flex', alignItems: 'stretch', borderBottom: '1.4px solid #000', minHeight: '54px' }}>
+                        {/* Left Barème Cell */}
+                        <div style={{
+                          width: '70px',
+                          flexShrink: 0,
+                          background: '#f1f3f5',
+                          borderRight: '1.3px solid #000',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: 700,
+                          fontSize: '13.5px',
+                          padding: '4px',
+                          textAlign: 'center',
+                        }}>
+                          {editable ? (
+                            <input
+                              type="text"
+                              value={q.points || ''}
+                              onChange={e => updateQuestion(eIdx, qIdx, { points: e.target.value })}
+                              style={{
+                                width: '100%',
+                                textAlign: 'center',
+                                border: 'none',
+                                background: 'transparent',
+                                fontWeight: 700,
+                                fontSize: '13.5px',
+                                fontFamily: 'inherit',
+                                color: '#000',
+                              }}
+                            />
+                          ) : (q.points || '1 pt')}
+                        </div>
+
+                        {/* Center Question Statement */}
+                        <div style={{ flex: 1, padding: '8px 12px', display: 'flex', flexDirection: 'column', justifyContent: 'center', fontSize: '13.5px' }}>
+                          <div style={{ lineHeight: 1.5 }}>
+                            {renderPrimeRichWithFigures(`${q.number ? `**${String(q.number).trim()}** ` : ''}${String(q.text || '').replace(/^\s+/, '')}`, figMap, renderedQUrls)}
+                          </div>
+                          {getUnrenderedImages(q.images, q.image, renderedQUrls).map((img, iIdx) =>
+                            renderPrimeFigureNode(img, `q-img-${eIdx}-${qIdx}-${iIdx}`)
+                          )}
+                        </div>
+
+                        {/* Right QR Cell */}
+                        {meta.showQR && (
+                          <div
                             style={{
-                              width: '100%',
-                              textAlign: 'center',
-                              border: 'none',
-                              background: 'transparent',
-                              fontWeight: 700,
-                              fontSize: '13.5px',
-                              fontFamily: 'inherit',
-                              color: '#000',
+                              width: '70px',
+                              flexShrink: 0,
+                              background: '#f1f3f5',
+                              borderLeft: '1.3px solid #000',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: '3px',
                             }}
-                          />
-                        ) : (q.points || '1 pt')}
-                      </div>
-
-                      {/* Center Question Statement */}
-                      <div style={{ flex: 1, padding: '8px 12px', display: 'flex', flexDirection: 'column', justifyContent: 'center', fontSize: '13.5px' }}>
-                        <div style={{ lineHeight: 1.5 }}>
-                          {renderPrimeRichWithFigures(`${q.number ? `**${String(q.number).trim()}** ` : ''}${String(q.text || '').replace(/^\s+/, '')}`, figMap, renderedQUrls)}
-                        </div>
-                        {getUnrenderedImages(q.images, q.image, renderedQUrls).map((img, iIdx) =>
-                          renderPrimeFigureNode(img, `q-img-${eIdx}-${qIdx}-${iIdx}`)
+                            title={`QR: ${buildQuestionQrPayload(lesson, meta, eIdx, q, qIdx)}`}
+                          >
+                            {qrDataUrl ? (
+                              <img src={qrDataUrl} alt="QR" style={{ width: '54px', height: '54px', objectFit: 'contain' }} />
+                            ) : (
+                              <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>QR</span>
+                            )}
+                          </div>
                         )}
                       </div>
 
-                      {/* Right QR Cell */}
-                      {meta.showQR && (
-                        <div
-                          style={{
-                            width: '70px',
-                            flexShrink: 0,
-                            background: '#f1f3f5',
-                            borderLeft: '1.3px solid #000',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            padding: '3px',
-                          }}
-                          title={`QR: ${buildQuestionQrPayload(lesson, meta, eIdx, q, qIdx)}`}
-                        >
-                          {qrDataUrl ? (
-                            <img src={qrDataUrl} alt="QR" style={{ width: '54px', height: '54px', objectFit: 'contain' }} />
-                          ) : (
-                            <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>QR</span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Dotted Answer Zone */}
-                    <div style={{ position: 'relative', minHeight: `${minBoxHeight}px`, padding: '6px 12px 10px', background: '#fff' }}>
-                      {/* Dotted Lines Background */}
-                      <div style={{
-                        position: 'absolute',
-                        inset: '6px 10px 8px 10px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'space-between',
-                        pointerEvents: 'none',
-                        zIndex: 1,
-                      }}>
-                        {Array.from({ length: linesCount }).map((_, lIdx) => (
-                          <div key={lIdx} style={{ height: '28px', borderBottom: `1.4px dotted ${showSolutions && hasSolution ? 'rgba(51, 65, 85, 0.32)' : '#334155'}`, width: '100%' }} />
-                        ))}
-                      </div>
-
-                      {/* Concise Solution Overlay (ONLY visible when showSolutions === true) */}
-                      {showSolutions && hasSolution && (
+                      {/* Dotted Answer Zone */}
+                      <div style={{ position: 'relative', minHeight: `${minBoxHeight}px`, padding: '6px 12px 10px', background: '#fff' }}>
+                        {/* Dotted Lines Background */}
                         <div style={{
-                          position: 'relative',
-                          zIndex: 2,
-                          color: '#1e3a8a',
-                          fontFamily: meta.solutionStyle === 'handwritten' ? "'Kalam', 'Tajawal', cursive" : "'STIX Two Text', 'Times New Roman', 'Tajawal', serif",
-                          fontSize: '13.5px',
-                          lineHeight: '29px',
-                          padding: '2px 4px',
+                          position: 'absolute',
+                          inset: '6px 10px 8px 10px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          pointerEvents: 'none',
+                          zIndex: 1,
                         }}>
-                          {q.layout === 'two_columns' ? (
-                            <>
+                          {Array.from({ length: linesCount }).map((_, lIdx) => (
+                            <div key={lIdx} style={{ height: '28px', borderBottom: `1.4px dotted ${showSolutions && hasSolution ? 'rgba(51, 65, 85, 0.32)' : '#334155'}`, width: '100%' }} />
+                          ))}
+                        </div>
+
+                        {/* Concise Solution Overlay (ONLY visible when showSolutions === true) */}
+                        {showSolutions && hasSolution && (
+                          <div style={{
+                            position: 'relative',
+                            zIndex: 2,
+                            color: '#1e3a8a',
+                            fontFamily: meta.solutionStyle === 'handwritten' ? "'Kalam', 'Tajawal', cursive" : "'STIX Two Text', 'Times New Roman', 'Tajawal', serif",
+                            fontSize: '13.5px',
+                            lineHeight: '29px',
+                            padding: '2px 4px',
+                          }}>
+                            {q.layout === 'two_columns' ? (
                               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', marginBottom: '6px' }}>
                                 <div style={{ padding: '2px 8px', borderRight: '1.4px solid #0f172a' }}>
                                   {q.leftTitle && <div style={{ fontWeight: 700, textDecoration: 'underline' }}>{renderPrimeRichWithFigures(q.leftTitle, figMap)}</div>}
@@ -1218,307 +1227,351 @@ export default function DevoirPrimeTemplate({
                                   )}
                                 </div>
                               </div>
-                              {q.finalBox && (
-                                <div style={{ display: 'flex', justifyContent: 'center', marginTop: '4px' }}>
-                                  <span style={{
-                                    display: 'inline-block',
-                                    background: '#fef08a',
-                                    border: '1.6px solid #1d4ed8',
-                                    borderRadius: '3px',
-                                    padding: '2px 12px',
-                                    fontWeight: 700,
-                                    lineHeight: 1.4,
-                                  }}>
-                                    {renderPrimeRichWithFigures(q.finalBox, figMap)}
-                                  </span>
-                                </div>
-                              )}
-                            </>
-                          ) : (
-                            <>
-                              {(q.steps || []).map((st, sIdx) => (
+                            ) : (
+                              (q.steps || []).map((st, sIdx) => (
                                 <div key={sIdx}>{renderPrimeRichWithFigures(st, figMap)}</div>
-                              ))}
-                              {q.finalBox && (
-                                <div style={{ display: 'flex', justifyContent: 'center', marginTop: '4px' }}>
-                                  <span style={{
-                                    display: 'inline-block',
-                                    background: '#fef08a',
-                                    border: '1.6px solid #1d4ed8',
-                                    borderRadius: '3px',
-                                    padding: '2px 12px',
-                                    fontWeight: 700,
-                                    lineHeight: 1.4,
-                                  }}>
-                                    {renderPrimeRichWithFigures(q.finalBox, figMap)}
-                                  </span>
-                                </div>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                              ))
+                            )}
+                            {graphSvg && (
+                              <div
+                                style={{ display: 'flex', justifyContent: 'center', margin: '8px 0' }}
+                                dangerouslySetInnerHTML={{ __html: graphSvg }}
+                              />
+                            )}
+                            {q.finalBox && (
+                              <div style={{ display: 'flex', justifyContent: 'center', marginTop: '4px' }}>
+                                <span style={{
+                                  display: 'inline-block',
+                                  background: '#fef08a',
+                                  border: '1.6px solid #1d4ed8',
+                                  borderRadius: '3px',
+                                  padding: '2px 12px',
+                                  fontWeight: 700,
+                                  lineHeight: 1.4,
+                                }}>
+                                  {renderPrimeRichWithFigures(q.finalBox, figMap)}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
 
-                    {/* Per-question micro-toolbar (Editable mode only) */}
-                    {editable && (
-                      <div style={{
-                        borderTop: '1px solid #e2e8f0',
-                        background: '#f8fafc',
-                        padding: '5px 10px',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        flexWrap: 'wrap',
-                        gap: '6px',
-                        fontFamily: 'Tajawal, sans-serif',
-                        fontSize: '12px',
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ color: '#475569', fontWeight: 700 }}>Lignes pointillées :</span>
-                          <button
-                            type="button"
-                            onClick={() => updateQuestion(eIdx, qIdx, { linesCount: Math.max(3, linesCount - 1) })}
-                            style={{ width: '22px', height: '22px', borderRadius: '5px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-                          >
-                            <Minus size={12} />
-                          </button>
-                          <strong style={{ minWidth: '18px', textAlign: 'center', color: '#0f172a' }}>{linesCount}</strong>
-                          <button
-                            type="button"
-                            onClick={() => updateQuestion(eIdx, qIdx, { linesCount: Math.min(16, linesCount + 1) })}
-                            style={{ width: '22px', height: '22px', borderRadius: '5px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-                          >
-                            <Plus size={12} />
-                          </button>
-                        </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                          <button
-                            type="button"
-                            disabled={isSolving}
-                            onClick={() => handleSolveSingleQuestion(eIdx, qIdx)}
-                            style={{
-                              padding: '3px 9px',
-                              borderRadius: '6px',
-                              border: '1px solid #f59e0b',
-                              background: '#fffbeb',
-                              color: '#b45309',
-                              fontWeight: 700,
-                              cursor: isSolving ? 'wait' : 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                            }}
-                          >
-                            {isSolving ? <Loader2 size={12} className="spin" /> : <Sparkles size={12} />}
-                            {isSolving ? 'Résolution...' : 'Corrigé concis (IA)'}
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => toggleQuestionStem(eIdx, qIdx)}
-                            style={{
-                              padding: '3px 8px',
-                              borderRadius: '6px',
-                              border: '1px solid #cbd5e1',
-                              background: '#fff',
-                              color: '#475569',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                            }}
-                            title="Convertir en consigne / en-tête sans barème ni pointillés"
-                          >
-                            📌 En-tête (sans barème)
-                          </button>
-
-                          {qIdx < (ex.questions?.length || 0) - 1 && (
+                      {/* Per-question micro-toolbar (Editable mode only) */}
+                      {editable && (
+                        <div style={{
+                          borderTop: '1px solid #e2e8f0',
+                          background: '#f8fafc',
+                          padding: '5px 10px',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          flexWrap: 'wrap',
+                          gap: '6px',
+                          fontFamily: 'Tajawal, sans-serif',
+                          fontSize: '12px',
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ color: '#475569', fontWeight: 700 }}>Lignes pointillées :</span>
                             <button
                               type="button"
-                              onClick={() => mergeWithNextQuestion(eIdx, qIdx)}
+                              onClick={() => updateQuestion(eIdx, qIdx, { linesCount: Math.max(3, linesCount - 1) })}
+                              style={{ width: '22px', height: '22px', borderRadius: '5px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                            >
+                              <Minus size={12} />
+                            </button>
+                            <strong style={{ minWidth: '18px', textAlign: 'center', color: '#0f172a' }}>{linesCount}</strong>
+                            <button
+                              type="button"
+                              onClick={() => updateQuestion(eIdx, qIdx, { linesCount: Math.min(24, linesCount + 1) })}
+                              style={{ width: '22px', height: '22px', borderRadius: '5px', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                            >
+                              <Plus size={12} />
+                            </button>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                            <button
+                              type="button"
+                              disabled={isSolving}
+                              onClick={() => handleSolveSingleQuestion(eIdx, qIdx)}
+                              style={{
+                                padding: '3px 9px',
+                                borderRadius: '6px',
+                                border: '1px solid #f59e0b',
+                                background: '#fffbeb',
+                                color: '#b45309',
+                                fontWeight: 700,
+                                cursor: isSolving ? 'wait' : 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                              }}
+                            >
+                              {isSolving ? <Loader2 size={12} className="spin" /> : <Sparkles size={12} />}
+                              {isSolving ? 'Résolution...' : 'Corrigé détaillé (IA)'}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => toggleQuestionStem(eIdx, qIdx)}
                               style={{
                                 padding: '3px 8px',
                                 borderRadius: '6px',
                                 border: '1px solid #cbd5e1',
                                 background: '#fff',
-                                color: '#0369a1',
+                                color: '#475569',
                                 fontWeight: 700,
                                 cursor: 'pointer',
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 gap: '4px',
                               }}
-                              title="Fusionner cette question avec la suivante dans une seule carte"
+                              title="Convertir en consigne / en-tête sans barème ni pointillés"
                             >
-                              🔗 Fusionner avec suivante
+                              📌 En-tête (sans barème)
                             </button>
+
+                            {qIdx < (ex.questions?.length || 0) - 1 && (
+                              <button
+                                type="button"
+                                onClick={() => mergeWithNextQuestion(eIdx, qIdx)}
+                                style={{
+                                  padding: '3px 8px',
+                                  borderRadius: '6px',
+                                  border: '1px solid #cbd5e1',
+                                  background: '#fff',
+                                  color: '#0369a1',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                }}
+                                title="Fusionner cette question avec la suivante dans une seule carte"
+                              >
+                                🔗 Fusionner avec suivante
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => updateQuestion(eIdx, qIdx, { layout: q.layout === 'two_columns' ? 'single' : 'two_columns' })}
+                              style={{
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                border: '1px solid #cbd5e1',
+                                background: q.layout === 'two_columns' ? '#e0f2fe' : '#fff',
+                                color: q.layout === 'two_columns' ? '#0369a1' : '#334155',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                              }}
+                              title="Basculer entre 1 colonne et 2 colonnes"
+                            >
+                              <Columns size={12} /> {q.layout === 'two_columns' ? '2 colonnes' : '1 colonne'}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setEditingQKey(isEditing ? null : key)}
+                              style={{
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                border: '1px solid #93c5fd',
+                                background: isEditing ? '#2563eb' : '#eff6ff',
+                                color: isEditing ? '#fff' : '#1d4ed8',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                              }}
+                            >
+                              {isEditing ? <><Check size={12} /> Terminer</> : <><Edit3 size={12} /> Modifier</>}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => deleteQuestion(eIdx, qIdx)}
+                              style={{
+                                padding: '3px 6px',
+                                borderRadius: '6px',
+                                border: '1px solid #fecaca',
+                                background: '#fef2f2',
+                                color: '#dc2626',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                              }}
+                              title="Supprimer la question"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Expanded Inline Editor for Question & Concise Solution */}
+                      {editable && isEditing && (
+                        <div style={{
+                          borderTop: '1px dashed #93c5fd',
+                          background: '#f0f9ff',
+                          padding: '12px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '8px',
+                          fontFamily: 'Inter, sans-serif',
+                          fontSize: '12.5px',
+                        }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 140px', gap: '8px' }}>
+                            <label>
+                              <span style={{ fontWeight: 700 }}>N°</span>
+                              <input
+                                value={q.number || ''}
+                                onChange={e => updateQuestion(eIdx, qIdx, { number: e.target.value })}
+                                style={{ width: '100%', padding: '5px', borderRadius: '6px', border: '1px solid #94a3b8' }}
+                              />
+                            </label>
+                            <label>
+                              <span style={{ fontWeight: 700 }}>Énoncé (LaTeX supporté)</span>
+                              <textarea
+                                rows={2}
+                                value={q.text || ''}
+                                onChange={e => updateQuestion(eIdx, qIdx, { text: e.target.value })}
+                                style={{ width: '100%', padding: '5px', borderRadius: '6px', border: '1px solid #94a3b8', fontFamily: 'monospace', fontSize: '12px' }}
+                              />
+                            </label>
+                            <label>
+                              <span style={{ fontWeight: 700 }}>Lien QR (optionnel)</span>
+                              <input
+                                value={q.qrUrl || ''}
+                                onChange={e => updateQuestion(eIdx, qIdx, { qrUrl: e.target.value })}
+                                placeholder="Auto (Question + Barème)"
+                                style={{ width: '100%', padding: '5px', borderRadius: '6px', border: '1px solid #94a3b8', fontSize: '11.5px' }}
+                              />
+                            </label>
+                          </div>
+
+                          {q.layout === 'two_columns' ? (
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                              <div>
+                                <span style={{ fontWeight: 700 }}>Étapes colonne gauche (1 ligne par étape) :</span>
+                                <textarea
+                                  rows={4}
+                                  value={(q.leftSteps || []).join('\n')}
+                                  onChange={e => updateQuestion(eIdx, qIdx, { leftSteps: e.target.value.split('\n') })}
+                                  style={{ width: '100%', padding: '5px', borderRadius: '6px', border: '1px solid #94a3b8', fontFamily: 'monospace', fontSize: '12px' }}
+                                />
+                                <input
+                                  value={q.leftConclusion || ''}
+                                  onChange={e => updateQuestion(eIdx, qIdx, { leftConclusion: e.target.value })}
+                                  placeholder="Conclusion gauche (surlignée en jaune)"
+                                  style={{ width: '100%', marginTop: '4px', padding: '5px', borderRadius: '6px', border: '1px solid #eab308', background: '#fefce8' }}
+                                />
+                              </div>
+                              <div>
+                                <span style={{ fontWeight: 700 }}>Étapes colonne droite (1 ligne par étape) :</span>
+                                <textarea
+                                  rows={4}
+                                  value={(q.rightSteps || []).join('\n')}
+                                  onChange={e => updateQuestion(eIdx, qIdx, { rightSteps: e.target.value.split('\n') })}
+                                  style={{ width: '100%', padding: '5px', borderRadius: '6px', border: '1px solid #94a3b8', fontFamily: 'monospace', fontSize: '12px' }}
+                                />
+                                <input
+                                  value={q.rightConclusion || ''}
+                                  onChange={e => updateQuestion(eIdx, qIdx, { rightConclusion: e.target.value })}
+                                  placeholder="Conclusion droite (surlignée en jaune)"
+                                  style={{ width: '100%', marginTop: '4px', padding: '5px', borderRadius: '6px', border: '1px solid #eab308', background: '#fefce8' }}
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <label>
+                              <span style={{ fontWeight: 700 }}>Étapes du corrigé détaillé (1 ligne par étape — LaTeX supporté) :</span>
+                              <textarea
+                                rows={4}
+                                value={(q.steps || []).join('\n')}
+                                onChange={e => updateQuestion(eIdx, qIdx, { steps: e.target.value.split('\n') })}
+                                placeholder="On a : $... = ...$"
+                                style={{ width: '100%', padding: '6px', borderRadius: '6px', border: '1px solid #94a3b8', fontFamily: 'monospace', fontSize: '12px' }}
+                              />
+                            </label>
                           )}
 
-                          <button
-                            type="button"
-                            onClick={() => updateQuestion(eIdx, qIdx, { layout: q.layout === 'two_columns' ? 'single' : 'two_columns' })}
-                            style={{
-                              padding: '3px 8px',
-                              borderRadius: '6px',
-                              border: '1px solid #cbd5e1',
-                              background: q.layout === 'two_columns' ? '#e0f2fe' : '#fff',
-                              color: q.layout === 'two_columns' ? '#0369a1' : '#334155',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                            }}
-                            title="Basculer entre 1 colonne et 2 colonnes"
-                          >
-                            <Columns size={12} /> {q.layout === 'two_columns' ? '2 colonnes' : '1 colonne'}
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => setEditingQKey(isEditing ? null : key)}
-                            style={{
-                              padding: '3px 8px',
-                              borderRadius: '6px',
-                              border: '1px solid #93c5fd',
-                              background: isEditing ? '#2563eb' : '#eff6ff',
-                              color: isEditing ? '#fff' : '#1d4ed8',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                            }}
-                          >
-                            {isEditing ? <><Check size={12} /> Terminer</> : <><Edit3 size={12} /> Modifier</>}
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => deleteQuestion(eIdx, qIdx)}
-                            style={{
-                              padding: '3px 6px',
-                              borderRadius: '6px',
-                              border: '1px solid #fecaca',
-                              background: '#fef2f2',
-                              color: '#dc2626',
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                            }}
-                            title="Supprimer la question"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Expanded Inline Editor for Question & Concise Solution */}
-                    {editable && isEditing && (
-                      <div style={{
-                        borderTop: '1px dashed #93c5fd',
-                        background: '#f0f9ff',
-                        padding: '12px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '8px',
-                        fontFamily: 'Inter, sans-serif',
-                        fontSize: '12.5px',
-                      }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 140px', gap: '8px' }}>
                           <label>
-                            <span style={{ fontWeight: 700 }}>N°</span>
+                            <span style={{ fontWeight: 700 }}>Résultat final / Conclusion encadrée (jaune) :</span>
                             <input
-                              value={q.number || ''}
-                              onChange={e => updateQuestion(eIdx, qIdx, { number: e.target.value })}
-                              style={{ width: '100%', padding: '5px', borderRadius: '6px', border: '1px solid #94a3b8' }}
+                              value={q.finalBox || ''}
+                              onChange={e => updateQuestion(eIdx, qIdx, { finalBox: e.target.value })}
+                              placeholder="Ex: $= 1$ ou D'où la fonction $f$ est continue en $-1$."
+                              style={{ width: '100%', padding: '6px', borderRadius: '6px', border: '1.5px solid #2563eb', background: '#fef9c3', fontWeight: 700 }}
                             />
                           </label>
-                          <label>
-                            <span style={{ fontWeight: 700 }}>Énoncé (LaTeX supporté)</span>
-                            <textarea
-                              rows={2}
-                              value={q.text || ''}
-                              onChange={e => updateQuestion(eIdx, qIdx, { text: e.target.value })}
-                              style={{ width: '100%', padding: '5px', borderRadius: '6px', border: '1px solid #94a3b8', fontFamily: 'monospace', fontSize: '12px' }}
-                            />
-                          </label>
-                          <label>
-                            <span style={{ fontWeight: 700 }}>Lien QR (optionnel)</span>
-                            <input
-                              value={q.qrUrl || ''}
-                              onChange={e => updateQuestion(eIdx, qIdx, { qrUrl: e.target.value })}
-                              placeholder="Auto (Question + Barème)"
-                              style={{ width: '100%', padding: '5px', borderRadius: '6px', border: '1px solid #94a3b8', fontSize: '11.5px' }}
-                            />
-                          </label>
-                        </div>
 
-                        {q.layout === 'two_columns' ? (
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                            <div>
-                              <span style={{ fontWeight: 700 }}>Étapes colonne gauche (1 ligne par étape) :</span>
-                              <textarea
-                                rows={4}
-                                value={(q.leftSteps || []).join('\n')}
-                                onChange={e => updateQuestion(eIdx, qIdx, { leftSteps: e.target.value.split('\n') })}
-                                style={{ width: '100%', padding: '5px', borderRadius: '6px', border: '1px solid #94a3b8', fontFamily: 'monospace', fontSize: '12px' }}
-                              />
-                              <input
-                                value={q.leftConclusion || ''}
-                                onChange={e => updateQuestion(eIdx, qIdx, { leftConclusion: e.target.value })}
-                                placeholder="Conclusion gauche (surlignée en jaune)"
-                                style={{ width: '100%', marginTop: '4px', padding: '5px', borderRadius: '6px', border: '1px solid #eab308', background: '#fefce8' }}
-                              />
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                              <span style={{ fontWeight: 700 }}>Repère & Courbe mathématique SVG (JSON optionnel) :</span>
+                              <div style={{ display: 'flex', gap: '6px' }}>
+                                {!q.graph ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => updateQuestion(eIdx, qIdx, {
+                                      graph: {
+                                        xMin: -2,
+                                        xMax: 6,
+                                        yMin: -2,
+                                        yMax: 5,
+                                        curves: [{ expr: 'x - 1 + ln(x)', label: '(C)', domain: [0.05, 6] }],
+                                        asymptotes: [{ type: 'vertical', value: 0, label: 'x=0' }],
+                                        tangents: [],
+                                        points: [{ x: 1, y: 0, label: 'A', project: false }],
+                                      },
+                                      linesCount: Math.max(linesCount, 12),
+                                    })}
+                                    style={{ padding: '2px 8px', borderRadius: '5px', border: '1px solid #0284c7', background: '#e0f2fe', color: '#0369a1', fontWeight: 700, cursor: 'pointer', fontSize: '11.5px' }}
+                                  >
+                                    + Ajouter un repère / courbe
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => updateQuestion(eIdx, qIdx, { graph: null })}
+                                    style={{ padding: '2px 8px', borderRadius: '5px', border: '1px solid #fecaca', background: '#fef2f2', color: '#b91c1c', fontWeight: 700, cursor: 'pointer', fontSize: '11.5px' }}
+                                  >
+                                    Supprimer le graphique
+                                  </button>
+                                )}
+                              </div>
                             </div>
-                            <div>
-                              <span style={{ fontWeight: 700 }}>Étapes colonne droite (1 ligne par étape) :</span>
+                            {q.graph && (
                               <textarea
-                                rows={4}
-                                value={(q.rightSteps || []).join('\n')}
-                                onChange={e => updateQuestion(eIdx, qIdx, { rightSteps: e.target.value.split('\n') })}
-                                style={{ width: '100%', padding: '5px', borderRadius: '6px', border: '1px solid #94a3b8', fontFamily: 'monospace', fontSize: '12px' }}
+                                rows={5}
+                                defaultValue={JSON.stringify(q.graph, null, 2)}
+                                key={`${q.id}-graph-${JSON.stringify(q.graph).length}`}
+                                onBlur={e => {
+                                  const raw = e.target.value.trim();
+                                  if (!raw) {
+                                    updateQuestion(eIdx, qIdx, { graph: null });
+                                    return;
+                                  }
+                                  try {
+                                    const parsed = normalizeGraphSpec(JSON.parse(raw));
+                                    if (parsed) updateQuestion(eIdx, qIdx, { graph: parsed });
+                                  } catch (_) {}
+                                }}
+                                style={{ width: '100%', padding: '6px', borderRadius: '6px', border: '1px solid #94a3b8', fontFamily: 'monospace', fontSize: '11.5px' }}
                               />
-                              <input
-                                value={q.rightConclusion || ''}
-                                onChange={e => updateQuestion(eIdx, qIdx, { rightConclusion: e.target.value })}
-                                placeholder="Conclusion droite (surlignée en jaune)"
-                                style={{ width: '100%', marginTop: '4px', padding: '5px', borderRadius: '6px', border: '1px solid #eab308', background: '#fefce8' }}
-                              />
-                            </div>
+                            )}
                           </div>
-                        ) : (
-                          <label>
-                            <span style={{ fontWeight: 700 }}>Étapes du corrigé concis (1 ligne par étape — LaTeX supporté) :</span>
-                            <textarea
-                              rows={4}
-                              value={(q.steps || []).join('\n')}
-                              onChange={e => updateQuestion(eIdx, qIdx, { steps: e.target.value.split('\n') })}
-                              placeholder="On a : $... = ...$"
-                              style={{ width: '100%', padding: '6px', borderRadius: '6px', border: '1px solid #94a3b8', fontFamily: 'monospace', fontSize: '12px' }}
-                            />
-                          </label>
-                        )}
-
-                        <label>
-                          <span style={{ fontWeight: 700 }}>Résultat final / Conclusion encadrée (jaune) :</span>
-                          <input
-                            value={q.finalBox || ''}
-                            onChange={e => updateQuestion(eIdx, qIdx, { finalBox: e.target.value })}
-                            placeholder="Ex: $= 1$ ou D'où la fonction $f$ est continue en $-1$."
-                            style={{ width: '100%', padding: '6px', borderRadius: '6px', border: '1.5px solid #2563eb', background: '#fef9c3', fontWeight: 700 }}
-                          />
-                        </label>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             );
           })
         )}
