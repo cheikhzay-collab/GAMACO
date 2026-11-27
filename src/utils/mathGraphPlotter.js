@@ -674,12 +674,38 @@ export function buildMathGraphSvg(rawGraph, options = {}) {
 
   parts.push(`</g>`);
 
+const formatSvgLabelWithSubscripts = (raw) => {
+  const cleaned = String(raw ?? '')
+    .replace(/\$/g, '')
+    .replace(/\\mathcal\{([A-Za-z]+)\}/g, '$1')
+    .replace(/\\Delta\b/g, 'Δ')
+    .replace(/\\Omega\b/g, 'Ω')
+    .replace(/\\Gamma\b/g, 'Γ')
+    .replace(/\\alpha\b/g, 'α')
+    .replace(/\\beta\b/g, 'β')
+    .replace(/\\theta\b/g, 'θ')
+    .replace(/\\pi\b/g, 'π')
+    .replace(/\\([A-Za-z]+)/g, '$1')
+    .trim();
+  const parts = cleaned.split(/(_\{[^}]+\}|_[A-Za-z0-9]+)/g);
+  return parts
+    .map((part) => {
+      if (!part) return '';
+      if (part.startsWith('_')) {
+        const sub = part.replace(/^_\{?|\}?$/g, '');
+        return `<tspan dy="3" font-size="8.5">${escapeXml(sub)}</tspan><tspan dy="-3">&#8203;</tspan>`;
+      }
+      return escapeXml(part);
+    })
+    .join('');
+};
+
   // Draw crisp labels outside clip or on top
   labelOverlays.forEach((lb) => {
     const lx = Math.max(pad.left + 4, Math.min(pad.left + plotW - 14, lb.x));
     const ly = Math.max(pad.top + 11, Math.min(pad.top + plotH - 4, lb.y));
     parts.push(
-      `<text x="${fmt(lx)}" y="${fmt(ly)}" font-family="'STIX Two Text', 'Times New Roman', serif" font-size="11.5" font-weight="700" fill="${escapeXml(lb.color)}" paint-order="stroke" stroke="#ffffff" stroke-width="3" stroke-linejoin="round">${escapeXml(lb.text)}</text>`
+      `<text x="${fmt(lx)}" y="${fmt(ly)}" font-family="'STIX Two Text', 'Times New Roman', serif" font-size="11.5" font-weight="700" fill="${escapeXml(lb.color)}" paint-order="stroke" stroke="#ffffff" stroke-width="3" stroke-linejoin="round">${formatSvgLabelWithSubscripts(lb.text)}</text>`
     );
   });
 
